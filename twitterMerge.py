@@ -71,7 +71,6 @@ inreader = []
 currow = []
 rowcnt = []
 headidx = None
-openfiles = 0
 for fileidx in range(len(args.infile)):
     infile += [file(args.infile[fileidx], 'r')]
     inreader += [unicodecsv.DictReader(infile[fileidx])]
@@ -82,7 +81,6 @@ for fileidx in range(len(args.infile)):
     currow += [currowitem]
     rowcnt += [0]
     if currowitem is not None:
-        openfiles += 1
         if headidx is None or currowitem['id'] > currow[headidx]['id']:
             headidx = fileidx
 
@@ -102,7 +100,7 @@ else:
 
 # Prepare twitter feed
 twitterfeed = None
-twittersince = None
+twitterexhausted = False
 twitteridx = len(inreader)
 inreader += [None]
 currow += [None]
@@ -110,7 +108,7 @@ rowcnt += [0]
 args.infile += ['twitter feed']
 
 # Start twitter feed if already needed
-if args.until is not None and args.until > (currow[headidx]['date'] if headidx else None):
+if args.until is None or args.until > (currow[headidx]['date'] if headidx else None):
     sincedate = args.since
     if headidx is not None:
          sincedate = max(sincedate, dateparser.parse(currow[headidx]['date']).date().isoformat())
@@ -132,7 +130,6 @@ if args.until is not None and args.until > (currow[headidx]['date'] if headidx e
             print("End of twitter feed", file=sys.stderr)
     currow[twitteridx] = currowitem
     if currowitem is not None:
-        openfiles += 1
         inreader[twitteridx] = twitterfeed
         currowitem['date'] = currowitem['datetime'].isoformat()
         if headidx is None or currowitem['id'] > currow[headidx]['id']:
@@ -182,10 +179,10 @@ while True:
                 rowcnt[fileidx] = 0
                 pacing[fileidx] = False
                 inreader[fileidx] = None
-                openfiles -= 1
                 # Forget exhausted twitter feed since it cannot be re-used
                 if fileidx == twitteridx:
                     twitterfeed = None
+                    twitterexhausted = True
             # Test for blank record in CSV
             elif currow[fileidx]['id'] == '':
                 currow[fileidx] = None
@@ -214,7 +211,6 @@ while True:
                         print("Closing " + args.infile[fileidx] + " after " + str(rowcnt[fileidx]) + " rows.", file=sys.stderr)
                     rowcnt[fileidx] = 0
                     inreader[fileidx] = None
-                    openfiles -= 1
                 elif nextheadidx is None or currow[fileidx]['id'] > currow[nextheadidx]['id']:
                     nextheadidx = fileidx
 
@@ -247,7 +243,6 @@ while True:
         rowcnt[twitteridx] = 0
         pacing[twitteridx] = False
         inreader[twitteridx] = None
-        openfiles -= 1
 
     # If no file is now pacing, try opening a twitter feed
     if len([idx for idx in range(len(inreader)) if pacing[idx]]) == 0:
@@ -259,8 +254,9 @@ while True:
             if args.verbosity > 1:
                 print("Re-opening twitter feed with until:" + twitteruntil + ", since:" + (twittersince or ''), file=sys.stderr)
         # Following condition prevents retrying of exhausted twitter feed
-        elif twittersince is None or twittersince > sincedate:
+        elif not twitterexhausted or twittersince > sincedate:
             twittersince = sincedate
+            twitterexhausted = False
 
             # Set until date one day past lastdate because twitter returns tweets strictly before until date
             twitteruntil = (dateparser.parse(lastdate) + datetime.timedelta(days=1)).date().isoformat()
@@ -293,7 +289,6 @@ while True:
                         pacing[twitteridx] = True
 
             if currowitem is not None:
-                openfiles += 1
                 inreader[twitteridx] = twitterfeed
                 if 'date' not in currowitem.keys():
                     currowitem['date'] = currowitem['datetime'].isoformat()
