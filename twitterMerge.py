@@ -117,7 +117,7 @@ if args.until is None or args.until > (currow[headidx]['date'] if headidx else N
     twitteruntil = args.until
 
     if args.verbosity > 1:
-        print("Opening twitter feed with until:" + twitteruntil + ", since:" + (twittersince or ''), file=sys.stderr)
+        print("Opening twitter feed with until:" + (twitteruntil or '') + ", since:" + (twittersince or ''), file=sys.stderr)
 
     twitterfeed = TwitterFeed(language=args.language, user=args.user, query=args.query,
                                 until=twitteruntil, since=twittersince)
@@ -252,7 +252,7 @@ while True:
 
         if twitterfeed is not None and twittersince <= sincedate and dateparser.parse(twitterdate).date() == dateparser.parse(lastdate).date():
             if args.verbosity > 1:
-                print("Re-opening twitter feed with until:" + twitteruntil + ", since:" + (twittersince or ''), file=sys.stderr)
+                print("Re-opening twitter feed with until:" + (twitteruntil or '') + ", since:" + (twittersince or ''), file=sys.stderr)
         # Following condition prevents retrying of exhausted twitter feed
         elif not twitterexhausted or twittersince > sincedate:
             twittersince = sincedate
