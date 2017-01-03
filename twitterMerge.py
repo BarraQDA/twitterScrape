@@ -71,7 +71,6 @@ inreader = []
 currow = []
 rowcnt = []
 headidx = None
-openfiles = 0
 for fileidx in range(len(args.infile)):
     infile += [file(args.infile[fileidx], 'r')]
     inreader += [unicodecsv.DictReader(infile[fileidx])]
@@ -82,7 +81,6 @@ for fileidx in range(len(args.infile)):
     currow += [currowitem]
     rowcnt += [0]
     if currowitem is not None:
-        openfiles += 1
         if headidx is None or currowitem['id'] > currow[headidx]['id']:
             headidx = fileidx
 
@@ -102,7 +100,6 @@ else:
 
 # Prepare twitter feed
 twitterfeed = None
-twittersince = None
 twitteridx = len(inreader)
 inreader += [None]
 currow += [None]
@@ -110,7 +107,7 @@ rowcnt += [0]
 args.infile += ['twitter feed']
 
 # Start twitter feed if already needed
-if args.until is not None and args.until > (currow[headidx]['date'] if headidx else None):
+if args.until is None or args.until > (currow[headidx]['date'] if headidx else None):
     sincedate = args.since
     if headidx is not None:
          sincedate = max(sincedate, dateparser.parse(currow[headidx]['date']).date().isoformat())
@@ -119,7 +116,7 @@ if args.until is not None and args.until > (currow[headidx]['date'] if headidx e
     twitteruntil = args.until
 
     if args.verbosity > 1:
-        print("Opening twitter feed with until:" + twitteruntil + ", since:" + (twittersince or ''), file=sys.stderr)
+        print("Opening twitter feed with until:" + (twitteruntil or '') + ", since:" + (twittersince or ''), file=sys.stderr)
 
     twitterfeed = TwitterFeed(language=args.language, user=args.user, query=args.query,
                                 until=twitteruntil, since=twittersince)
@@ -132,7 +129,6 @@ if args.until is not None and args.until > (currow[headidx]['date'] if headidx e
             print("End of twitter feed", file=sys.stderr)
     currow[twitteridx] = currowitem
     if currowitem is not None:
-        openfiles += 1
         inreader[twitteridx] = twitterfeed
         currowitem['date'] = currowitem['datetime'].isoformat()
         if headidx is None or currowitem['id'] > currow[headidx]['id']:
@@ -182,7 +178,6 @@ while True:
                 rowcnt[fileidx] = 0
                 pacing[fileidx] = False
                 inreader[fileidx] = None
-                openfiles -= 1
                 # Forget exhausted twitter feed since it cannot be re-used
                 if fileidx == twitteridx:
                     twitterfeed = None
@@ -214,7 +209,6 @@ while True:
                         print("Closing " + args.infile[fileidx] + " after " + str(rowcnt[fileidx]) + " rows.", file=sys.stderr)
                     rowcnt[fileidx] = 0
                     inreader[fileidx] = None
-                    openfiles -= 1
                 elif nextheadidx is None or currow[fileidx]['id'] > currow[nextheadidx]['id']:
                     nextheadidx = fileidx
 
@@ -234,7 +228,7 @@ while True:
 
     headidx = nextheadidx
     if args.verbosity > 2:
-        print("Head input is " + args.infile[headidx], file=sys.stderr)
+        print("Head input is " + (args.infile[headidx] if headidx else ''), file=sys.stderr)
 
     # Stop reading twitter feed if it is now matched by an input file
     if inreader[twitteridx] is not None and len([fileidx for fileidx in range(len(inreader) - 1) if pacing[fileidx]]) > 0:
@@ -247,32 +241,40 @@ while True:
         rowcnt[twitteridx] = 0
         pacing[twitteridx] = False
         inreader[twitteridx] = None
-        openfiles -= 1
 
     # If no file is now pacing, try opening a twitter feed
-    if len([idx for idx in range(len(inreader)) if pacing[idx]]) == 0:
+    while len([idx for idx in range(len(inreader)) if pacing[idx]]) == 0:
         sincedate = args.since
         if headidx is not None:
             sincedate = max(sincedate, dateparser.parse(currow[headidx]['date']).date().isoformat())
 
         if twitterfeed is not None and twittersince <= sincedate and dateparser.parse(twitterdate).date() == dateparser.parse(lastdate).date():
             if args.verbosity > 1:
-                print("Re-opening twitter feed with until:" + twitteruntil + ", since:" + (twittersince or ''), file=sys.stderr)
-        # Following condition prevents retrying of exhausted twitter feed
-        elif twittersince is None or twittersince > sincedate:
-            twittersince = sincedate
+                print("Re-opening twitter feed with until:" + (twitteruntil or '') + ", since:" + (twittersince or ''), file=sys.stderr)
+        else:
+            opennewtwitterfeed = False
 
-            # Set until date one day past lastdate because twitter returns tweets strictly before until date
-            twitteruntil = (dateparser.parse(lastdate) + datetime.timedelta(days=1)).date().isoformat()
+            # Following condition prevents retrying of exhausted twitter feed
+            if twitterfeed is not None or twittersince > sincedate:
+                opennewtwitterfeed = True
+                twitterfeed = None
+                twittersince = sincedate
+                # Set until date one day past lastdate because twitter returns tweets strictly before until date
+                twitteruntil = (dateparser.parse(lastdate) + datetime.timedelta(days=1)).date().isoformat()
+            # This condition allows retrying exhausted twitter feed with until date moved back by 1 day
+            elif twitterfeed is None and twittersince == sincedate:
+                opennewtwitterfeed = True
+                twitteruntil = (dateparser.parse(twitteruntil) - datetime.timedelta(days=1)).date().isoformat()
 
-            if args.verbosity > 1:
-                print("Opening twitter feed with until:" + twitteruntil + ", since:" + (twittersince or ''), file=sys.stderr)
+            if opennewtwitterfeed:
+                if args.verbosity > 1:
+                    print("Opening twitter feed with until:" + twitteruntil + ", since:" + (twittersince or ''), file=sys.stderr)
 
-            twitterfeed = TwitterFeed(language=args.language, user=args.user, query=args.query,
+                twitterfeed = TwitterFeed(language=args.language, user=args.user, query=args.query,
                                         until=twitteruntil, since=twittersince)
 
         if twitterfeed is not None:
-            # This can take a while so flush the output file.
+            # This can take a while and might fail so flush the output file.
             outfile.flush()
 
             if args.verbosity > 1:
@@ -293,7 +295,6 @@ while True:
                         pacing[twitteridx] = True
 
             if currowitem is not None:
-                openfiles += 1
                 inreader[twitteridx] = twitterfeed
                 if 'date' not in currowitem.keys():
                     currowitem['date'] = currowitem['datetime'].isoformat()
@@ -302,6 +303,8 @@ while True:
                     headidx = twitteridx
                     if args.verbosity > 2:
                         print("Head input is twitter feed", file=sys.stderr)
+
+                break
             else:
                 twitterfeed = None
                 if args.verbosity > 1:
@@ -311,9 +314,9 @@ while True:
             outunicodecsv.writerow({})
             if headidx is not None:
                 print("Possible missing tweets between id: " + str(lastid) + " - " + dateparser.parse(lastdate).isoformat() + " and " + str(currow[headidx]['id']) + " - " + dateparser.parse(currow[headidx]['date']).isoformat(), file=sys.stderr)
-            else:
-                print("Possible missing tweets after id: " + str(lastid) + " - " + dateparser.parse(lastdate).isoformat(), file=sys.stderr)
-                break
+            #else:
+                #print("Possible missing tweets after id: " + str(lastid) + " - " + dateparser.parse(lastdate).isoformat(), file=sys.stderr)
+                #break
 
 # Finish up
 outfile.close()
