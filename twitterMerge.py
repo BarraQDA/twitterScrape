@@ -100,7 +100,6 @@ else:
 
 # Prepare twitter feed
 twitterfeed = None
-twitterexhausted = False
 twitteridx = len(inreader)
 inreader += [None]
 currow += [None]
@@ -182,7 +181,6 @@ while True:
                 # Forget exhausted twitter feed since it cannot be re-used
                 if fileidx == twitteridx:
                     twitterfeed = None
-                    twitterexhausted = True
             # Test for blank record in CSV
             elif currow[fileidx]['id'] == '':
                 currow[fileidx] = None
@@ -253,22 +251,28 @@ while True:
         if twitterfeed is not None and twittersince <= sincedate and dateparser.parse(twitterdate).date() == dateparser.parse(lastdate).date():
             if args.verbosity > 1:
                 print("Re-opening twitter feed with until:" + (twitteruntil or '') + ", since:" + (twittersince or ''), file=sys.stderr)
-        # Following condition prevents retrying of exhausted twitter feed
-        elif not twitterexhausted or twittersince > sincedate:
-            twittersince = sincedate
-            twitterexhausted = False
+        else:
+            opennewtwitterfeed = False
 
-            # Set until date one day past lastdate because twitter returns tweets strictly before until date
-            twitteruntil = (dateparser.parse(lastdate) + datetime.timedelta(days=1)).date().isoformat()
+            # Following condition prevents retrying of exhausted twitter feed
+            if twitterfeed is not None or twittersince > sincedate:
+                twitterfeed = None
+                twittersince = sincedate
+                # Set until date one day past lastdate because twitter returns tweets strictly before until date
+                twitteruntil = (dateparser.parse(lastdate) + datetime.timedelta(days=1)).date().isoformat()
+            # This condition allows retrying exhausted twitter feed with until date moved back by 1 day
+            elif twitterfeed is None and twittersince == sincedate:
+                twitteruntil = (dateparser.parse(twitteruntil) - datetime.timedelta(days=1)).date()
 
-            if args.verbosity > 1:
-                print("Opening twitter feed with until:" + twitteruntil + ", since:" + (twittersince or ''), file=sys.stderr)
+            if opennewtwitterfeed:
+                if args.verbosity > 1:
+                    print("Opening twitter feed with until:" + twitteruntil + ", since:" + (twittersince or ''), file=sys.stderr)
 
-            twitterfeed = TwitterFeed(language=args.language, user=args.user, query=args.query,
+                twitterfeed = TwitterFeed(language=args.language, user=args.user, query=args.query,
                                         until=twitteruntil, since=twittersince)
 
         if twitterfeed is not None:
-            # This can take a while so flush the output file.
+            # This can take a while and might fail so flush the output file.
             outfile.flush()
 
             if args.verbosity > 1:
