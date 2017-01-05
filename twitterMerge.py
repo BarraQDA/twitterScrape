@@ -24,6 +24,7 @@ from dateutil import parser as dateparser
 import datetime
 from TwitterFeed import TwitterFeed
 import shutil
+import urllib2
 
 parser = argparse.ArgumentParser(description='Scrape and merge twitter feed using pyquery.')
 
@@ -100,6 +101,7 @@ else:
 
 # Prepare twitter feed
 twitterfeed = None
+httperror = False
 twitteridx = len(inreader)
 inreader += [None]
 currow += [None]
@@ -115,13 +117,19 @@ if args.until is None or args.until > (currow[headidx]['date'] if headidx else N
     twittersince = sincedate
     twitteruntil = args.until
 
-    if args.verbosity > 1:
-        print("Opening twitter feed with until:" + (twitteruntil or '') + ", since:" + (twittersince or ''), file=sys.stderr)
+    while True:
+        if args.verbosity > 1:
+            print("Opening twitter feed with until:" + (twitteruntil or '') + ", since:" + (twittersince or ''), file=sys.stderr)
+        try:
+            twitterfeed = TwitterFeed(language=args.language, user=args.user, query=args.query,
+                                        until=twitteruntil, since=twittersince)
+            currowitem = nextornone(twitterfeed)
+            break
+        except (urllib2.HTTPError, urllib2.URLError) as err:
+            if args.verbosity > 2:
+                print(err, file=sys.stderr)
+            pass
 
-    twitterfeed = TwitterFeed(language=args.language, user=args.user, query=args.query,
-                                until=twitteruntil, since=twittersince)
-
-    currowitem = nextornone(twitterfeed)
     if args.verbosity > 2:
         if currowitem is not None:
             print("Read id: " + currowitem['id'] + " from twitter feed", file=sys.stderr)
@@ -166,7 +174,13 @@ while True:
     for fileidx in range(len(inreader)):
         if currow[fileidx] is not None and currow[fileidx]['id'] == lastid:
             currowid = currow[fileidx]['id']
-            currow[fileidx] = nextornone(inreader[fileidx])
+            try:
+                currow[fileidx] = nextornone(inreader[fileidx])
+            except (urllib2.HTTPError, urllib2.URLError) as err:
+                httperror = True
+                if args.verbosity > 2:
+                    print(err, file=sys.stderr)
+
             if args.verbosity > 2:
                 if currow[fileidx] is not None:
                     print("Read id: " + currow[fileidx]['id'] + " from " + args.infile[fileidx], file=sys.stderr)
@@ -264,7 +278,12 @@ while True:
             # This condition allows retrying exhausted twitter feed with until date moved back by 1 day
             elif twitterfeed is None and twittersince == sincedate:
                 opennewtwitterfeed = True
-                twitteruntil = (dateparser.parse(twitteruntil) - datetime.timedelta(days=1)).date().isoformat()
+                if not httperror:
+                    twitteruntil = (dateparser.parse(twitteruntil) - datetime.timedelta(days=1)).date().isoformat()
+                    if twitteruntil <= twittersince or twitteruntil <= '2006-03-21':     # Twitter start date
+                        break
+                else:
+                    httperror = False
 
             if opennewtwitterfeed:
                 if args.verbosity > 1:
@@ -277,22 +296,27 @@ while True:
             # This can take a while and might fail so flush the output file.
             outfile.flush()
 
-            if args.verbosity > 1:
-                print("Searching twitter feed for id:" + lastid, file=sys.stderr)
-            currowitem = nextornone(twitterfeed)
-            while currowitem is not None and currowitem['id'] > lastid:
+            try:
+                if args.verbosity > 1:
+                    print("Searching twitter feed for id:" + lastid, file=sys.stderr)
                 currowitem = nextornone(twitterfeed)
-
-            if args.verbosity > 1:
-                print("Found id:" + (currowitem['id'] if currowitem else ''), file=sys.stderr)
-
-            if currowitem is not None:
-                if currowitem['id'] == lastid:
+                while currowitem is not None and currowitem['id'] > lastid:
                     currowitem = nextornone(twitterfeed)
-                    if currowitem is not None:
-                        if args.verbosity > 2:
-                            print("Twitter feed now pacing.", file=sys.stderr)
-                        pacing[twitteridx] = True
+
+                if args.verbosity > 1:
+                    print("Found id:" + (currowitem['id'] if currowitem else ''), file=sys.stderr)
+
+                if currowitem is not None:
+                    if currowitem['id'] == lastid:
+                        currowitem = nextornone(twitterfeed)
+                        if currowitem is not None:
+                            if args.verbosity > 2:
+                                print("Twitter feed now pacing.", file=sys.stderr)
+                            pacing[twitteridx] = True
+            except (urllib2.HTTPError, urllib2.URLError) as err:
+                httperror = True
+                if args.verbosity > 2:
+                    print(err, file=sys.stderr)
 
             if currowitem is not None:
                 inreader[twitteridx] = twitterfeed
@@ -310,13 +334,13 @@ while True:
                 if args.verbosity > 1:
                     print("Closing twitter feed", file=sys.stderr)
 
-        if not pacing[twitteridx]:
-            outunicodecsv.writerow({})
-            if headidx is not None:
-                print("Possible missing tweets between id: " + str(lastid) + " - " + dateparser.parse(lastdate).isoformat() + " and " + str(currow[headidx]['id']) + " - " + dateparser.parse(currow[headidx]['date']).isoformat(), file=sys.stderr)
-            #else:
-                #print("Possible missing tweets after id: " + str(lastid) + " - " + dateparser.parse(lastdate).isoformat(), file=sys.stderr)
-                #break
+    if len([idx for idx in range(len(inreader)) if pacing[idx]]) == 0:
+        outunicodecsv.writerow({})
+        if headidx is not None:
+            print("Possible missing tweets between id: " + str(lastid) + " - " + dateparser.parse(lastdate).isoformat() + " and " + str(currow[headidx]['id']) + " - " + dateparser.parse(currow[headidx]['date']).isoformat(), file=sys.stderr)
+        else:
+            print("Possible missing tweets after id: " + str(lastid) + " - " + dateparser.parse(lastdate).isoformat(), file=sys.stderr)
+            break
 
 # Finish up
 outfile.close()
