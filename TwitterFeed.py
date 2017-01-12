@@ -17,7 +17,7 @@ import urllib,urllib2,json,re,datetime,sys,cookielib
 from pyquery import PyQuery
 
 class TwitterFeed(object):
-    def __init__(self, language=None, user=None, since=None, until=None, query=None):
+    def __init__(self, language=None, user=None, since=None, until=None, query=None, timeout=None):
         urlGetData = ''
         urlGetData += (' lang:' + language) if language is not None else ''
         urlGetData += (' from:' + user)     if user     is not None else ''
@@ -25,6 +25,7 @@ class TwitterFeed(object):
         urlGetData += (' until:' + until)   if until    is not None else ''
         urlGetData += (' ' + query)         if query    is not None else ''
 
+        self.timeout = timeout
         self.url = 'https://twitter.com/i/search/timeline?f=tweets&q=' + urllib.quote(urlGetData) + '&src=typd&max_position='
         self.position = ''
         self.opener = None
@@ -47,7 +48,7 @@ class TwitterFeed(object):
         while True:
             if self.tweets is None:
                 try:
-                    dataJson = json.loads(self.opener.open(self.url + self.position).read())
+                    dataJson = json.loads(self.opener.open(self.url + self.position, timeout=self.timeout).read())
                     if dataJson is not None and len(dataJson['items_html'].strip()) > 0:
                         self.position = dataJson['min_position']
                         self.tweets = PyQuery(dataJson['items_html']).items('div.js-stream-tweet')
