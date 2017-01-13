@@ -9,7 +9,7 @@
 # (at your option) any later version.
 #
 # This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# but WITHOUT ANY WARRANTY; without even the implied warranty of264264
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
 #
@@ -35,6 +35,7 @@ parser.add_argument(      '--since',    type=str, help='Lower bound search date.
 parser.add_argument(      '--until',    type=str, help='Upper bound search date.')
 parser.add_argument('-l', '--language', type=str, help='Language code to filter.')
 parser.add_argument('-q', '--query',    type=str, help='Search string to filter twitter content.')
+parser.add_argument('-t', '--timeout',  type=int, default=5, help='Timeout for socket operations.')
 
 parser.add_argument('-o', '--outfile', type=str, nargs='?', help='Output file, otherwise use stdout.')
 
@@ -122,7 +123,7 @@ if args.until is None or args.until > (currow[headidx]['date'] if headidx else N
             print("Opening twitter feed with until:" + (twitteruntil or '') + ", since:" + (twittersince or ''), file=sys.stderr)
         try:
             twitterfeed = TwitterFeed(language=args.language, user=args.user, query=args.query,
-                                        until=twitteruntil, since=twittersince)
+                                        until=twitteruntil, since=twittersince, timeout=args.timeout)
             currowitem = nextornone(twitterfeed)
             break
         except (urllib2.HTTPError, urllib2.URLError) as err:
@@ -174,6 +175,7 @@ while True:
     for fileidx in range(len(inreader)):
         if currow[fileidx] is not None and currow[fileidx]['id'] == lastid:
             currowid = currow[fileidx]['id']
+            currowdate = currow[fileidx]['date']
             try:
                 currow[fileidx] = nextornone(inreader[fileidx])
             except (urllib2.HTTPError, urllib2.URLError) as err:
@@ -199,7 +201,7 @@ while True:
             elif currow[fileidx]['id'] == '':
                 currow[fileidx] = None
                 if args.verbosity > 1:
-                    print(args.infile[fileidx] + " has gap after id:" + currowid, file=sys.stderr)
+                    print(args.infile[fileidx] + " has gap after id:" + currowid + " - " + currowdate, file=sys.stderr)
 
     headidx = None
     for fileidx in range(len(inreader)):
@@ -266,31 +268,37 @@ while True:
             if args.verbosity > 1:
                 print("Re-opening twitter feed with until:" + (twitteruntil or '') + ", since:" + (twittersince or ''), file=sys.stderr)
         else:
-            opennewtwitterfeed = False
+            if args.verbosity > 2:
+                print("Before opening new feed: twitterfeed=" + repr(twitterfeed) + " twittersince=" + repr(twittersince) + " sincedate=" + repr(sincedate), file=sys.stderr)
 
-            # Following condition prevents retrying of exhausted twitter feed
+            # Set until date one day past lastdate because twitter returns tweets strictly before until date
+            untildate = (dateparser.parse(lastdate) + datetime.timedelta(days=1)).date().isoformat()
+            # This condition catches non-exhausted or different twitter feed
             if twitterfeed is not None or twittersince > sincedate:
-                opennewtwitterfeed = True
                 twitterfeed = None
                 twittersince = sincedate
-                # Set until date one day past lastdate because twitter returns tweets strictly before until date
-                twitteruntil = (dateparser.parse(lastdate) + datetime.timedelta(days=1)).date().isoformat()
+                twitteruntil = untildate
             # This condition allows retrying exhausted twitter feed with until date moved back by 1 day
             elif twitterfeed is None and twittersince == sincedate:
-                opennewtwitterfeed = True
                 if not httperror:
-                    twitteruntil = (dateparser.parse(twitteruntil) - datetime.timedelta(days=1)).date().isoformat()
+                    if twitteruntil <= untildate:
+                        twitteruntil = (dateparser.parse(twitteruntil) - datetime.timedelta(days=1)).date().isoformat()
+                    else:
+                        twitteruntil = untildate
+
                     if twitteruntil <= twittersince or twitteruntil <= '2006-03-21':     # Twitter start date
                         break
                 else:
+                    # After error, just retry with same since and until as last time. Should catch too many retries
                     httperror = False
+            else:
+                break
 
-            if opennewtwitterfeed:
-                if args.verbosity > 1:
-                    print("Opening twitter feed with until:" + twitteruntil + ", since:" + (twittersince or ''), file=sys.stderr)
+            if args.verbosity > 1:
+                print("Opening twitter feed with until:" + twitteruntil + ", since:" + (twittersince or ''), file=sys.stderr)
 
-                twitterfeed = TwitterFeed(language=args.language, user=args.user, query=args.query,
-                                        until=twitteruntil, since=twittersince)
+            twitterfeed = TwitterFeed(language=args.language, user=args.user, query=args.query,
+                                    until=twitteruntil, since=twittersince)
 
         if twitterfeed is not None:
             # This can take a while and might fail so flush the output file.
@@ -315,7 +323,7 @@ while True:
                             pacing[twitteridx] = True
             except (urllib2.HTTPError, urllib2.URLError) as err:
                 httperror = True
-                if args.verbosity > 2:
+                if args.verbosity > 1:
                     print(err, file=sys.stderr)
 
             if currowitem is not None:
