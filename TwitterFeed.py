@@ -53,7 +53,7 @@ class TwitterFeed(object):
                         self.position = dataJson['min_position']
                         self.tweets = PyQuery(dataJson['items_html']).items('div.js-stream-tweet')
                 except:
-                    sys.stderr.write("Twitter weird response. Try to see on browser: " + self.url + self.position + '\n')
+                    sys.stderr.write("Unrecognised response from twitter to URL: " + self.url + self.position + '\n')
                     raise
 
             if self.tweets is None:
@@ -74,15 +74,15 @@ class TwitterFeed(object):
             # Build tweet as dictionary
             ret = {}
 
-            ret['id']        = tweetPQ.attr("data-tweet-id");
+            ret['id']        = int(tweetPQ.attr("data-tweet-id"))
             ret['datetime']  = datetime.datetime.utcfromtimestamp(
                                     int(tweetPQ("small.time span.js-short-timestamp").attr("data-time")))
-            ret['user']      = tweetPQ("span.username.js-action-profile-name b").text();
+            ret['user']      = tweetPQ("span.username.js-action-profile-name b").text()
             ret['lang']      = tweetPQ("p.js-tweet-text").attr("lang")
-            ret['text']      = re.sub(r"\s+", " ", tweetPQ("p.js-tweet-text").text().replace('# ', '#').replace('@ ', '@'));
-            ret['retweets']  = int(tweetPQ("span.ProfileTweet-action--retweet span.ProfileTweet-actionCount").attr("data-tweet-stat-count").replace(",", ""));
-            ret['favorites'] = int(tweetPQ("span.ProfileTweet-action--favorite span.ProfileTweet-actionCount").attr("data-tweet-stat-count").replace(",", ""));
-            ret['permalink'] = 'https://twitter.com' + tweetPQ.attr("data-permalink-path");
+            ret['text']      = re.sub(r"\s+", " ", tweetPQ("p.js-tweet-text").text().replace('# ', '#').replace('@ ', '@'))
+            ret['retweets']  = int(tweetPQ("span.ProfileTweet-action--retweet span.ProfileTweet-actionCount").attr("data-tweet-stat-count").replace(",", ""))
+            ret['favorites'] = int(tweetPQ("span.ProfileTweet-action--favorite span.ProfileTweet-actionCount").attr("data-tweet-stat-count").replace(",", ""))
+            ret['permalink'] = 'https://twitter.com' + tweetPQ.attr("data-permalink-path")
 
             geoSpan = tweetPQ('span.Tweet-geo')
             ret['geo'] = geoSpan.attr('title') if len(geoSpan) > 0 else ''

@@ -63,7 +63,13 @@ else:
 
 def nextornone(generator):
     try:
-        return next(generator)
+        row = next(generator)
+        # Detect blank line in CSV
+        if row['id'] == '':
+            row['id'] = None
+        else:
+            row['id'] = int(row['id'])
+        return row
     except StopIteration:
         return None
 
@@ -88,7 +94,7 @@ for fileidx in range(len(args.infile)):
 
     if args.verbosity > 2:
         if currowitem is not None:
-            print("Read id: " + currowitem['id'] + " from " + args.infile[fileidx], file=sys.stderr)
+            print("Read id: " + str(currowitem['id']) + " from " + args.infile[fileidx], file=sys.stderr)
         else:
             print("End of " + args.infile[fileidx], file=sys.stderr)
 
@@ -133,7 +139,7 @@ if args.until is None or args.until > (currow[headidx]['date'] if headidx else N
 
     if args.verbosity > 2:
         if currowitem is not None:
-            print("Read id: " + currowitem['id'] + " from twitter feed", file=sys.stderr)
+            print("Read id: " + str(currowitem['id']) + " from twitter feed", file=sys.stderr)
         else:
             print("End of twitter feed", file=sys.stderr)
     currow[twitteridx] = currowitem
@@ -185,7 +191,7 @@ while True:
 
             if args.verbosity > 2:
                 if currow[fileidx] is not None:
-                    print("Read id: " + currow[fileidx]['id'] + " from " + args.infile[fileidx], file=sys.stderr)
+                    print("Read id: " + str(currow[fileidx]['id']) + " from " + args.infile[fileidx], file=sys.stderr)
                 else:
                     print("End of " + args.infile[fileidx], file=sys.stderr)
             if currow[fileidx] is None:
@@ -198,10 +204,10 @@ while True:
                 if fileidx == twitteridx:
                     twitterfeed = None
             # Test for blank record in CSV
-            elif currow[fileidx]['id'] == '':
+            elif currow[fileidx]['id'] == None:
                 currow[fileidx] = None
                 if args.verbosity > 1:
-                    print(args.infile[fileidx] + " has gap after id:" + currowid + " - " + currowdate, file=sys.stderr)
+                    print(args.infile[fileidx] + " has gap after id:" + str(currowid) + " - " + currowdate, file=sys.stderr)
 
     headidx = None
     for fileidx in range(len(inreader)):
@@ -216,7 +222,7 @@ while True:
                 currow[fileidx] = nextornone(inreader[fileidx])
                 if args.verbosity > 2:
                     if currow[fileidx] is not None:
-                        print("Read id: " + currow[fileidx]['id'] + " from " + args.infile[fileidx], file=sys.stderr)
+                        print("Read id: " + str(currow[fileidx]['id']) + " from " + args.infile[fileidx], file=sys.stderr)
                     else:
                         print("End of " + args.infile[fileidx], file=sys.stderr)
                 pacing[fileidx] = False
@@ -234,7 +240,7 @@ while True:
 
                 if pacing[fileidx]:
                     if currow[fileidx]['id'] != currow[headidx]['id']:
-                        print("WARNING: Missing tweet, id: " + currow[headidx]['id'] + " in file: " + args.infile[fileidx], file=sys.stderr)
+                        print("WARNING: Missing tweet, id: " + str(currow[headidx]['id']) + " in file: " + args.infile[fileidx], file=sys.stderr)
                         pacing[fileidx] = False
                 elif headidx is not None:
                     if currow[fileidx]['id'] == currow[headidx]['id']:
@@ -306,13 +312,13 @@ while True:
 
             try:
                 if args.verbosity > 1:
-                    print("Searching twitter feed for id:" + lastid, file=sys.stderr)
+                    print("Searching twitter feed for id:" + str(lastid), file=sys.stderr)
                 currowitem = nextornone(twitterfeed)
                 while currowitem is not None and currowitem['id'] > lastid:
                     currowitem = nextornone(twitterfeed)
 
                 if args.verbosity > 1:
-                    print("Found id:" + (currowitem['id'] if currowitem else ''), file=sys.stderr)
+                    print("Found id:" + (str(currowitem['id']) if currowitem else ''), file=sys.stderr)
 
                 if currowitem is not None:
                     if currowitem['id'] == lastid:
