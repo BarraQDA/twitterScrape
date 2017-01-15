@@ -20,6 +20,7 @@ from __future__ import print_function
 import argparse
 import sys
 import unicodecsv
+from dateutil import parser as dateparser
 
 parser = argparse.ArgumentParser(description='Validate twitter feed CSV.')
 
@@ -40,7 +41,7 @@ lastdate = None
 blankrowcount = 0
 for row in inreader:
     curid = row['id']
-    curdate = row['date']
+    curdate = dateparser.parse(row['date'])
     if curid == '':
         blankrowcount += 1
     else:
@@ -48,9 +49,13 @@ for row in inreader:
             print("Multiple blank rows after id:" + (lastid or '') + " - " + (lastdate or ''), file=sys.stderr)
         blankrowcount = 0
         if lastid is not None and curid >= lastid:
-            print("Non-decreasing id after id:" + lastid + " - " + lastdate, file=sys.stderr)
-        if lastdate is not None and curdate > lastdate:
-            print("Increasing date after id:" + lastid + " - " + lastdate, file=sys.stderr)
+            print("Non-decreasing id after id:" + lastid + " - " + lastdate.isoformat(), file=sys.stderr)
+        if lastdate is not None:
+            offset = (curdate - lastdate).total_seconds()
+            if offset > 0:
+                print("Increasing date after id:" + lastid + " - " + str(offset), file=sys.stderr)
+            elif offset <= -3600:
+                print("Gap of > 1 hour after id:" + lastid + " - " + str(offset), file=sys.stderr)
 
         lastid = curid
         lastdate = curdate
