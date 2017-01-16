@@ -34,11 +34,11 @@ parser.add_argument(      '--until',    type=str, help='Upper bound search date.
 parser.add_argument('-l', '--language', type=str, help='Language filter for twitter feed.')
 parser.add_argument('-q', '--query',    type=str, help='Search string for twitter feed. If undefined, no twitter feed is opened.')
 parser.add_argument('-t', '--timeout',  type=int, default=5, help='Timeout for socket operations.')
+parser.add_argument('-m', '--match',    action='store_true', help='Verify matching tweets are identical.')
 
-parser.add_argument('-o', '--outfile', type=str, nargs='?', help='Output file, otherwise use stdout.')
+parser.add_argument('-o', '--outfile', type=str, help='Output file, otherwise use stdout.')
 
-parser.add_argument('infile', type=str, nargs='*',
-                    help='Input CSV files.')
+parser.add_argument('infile', type=str, nargs='*', help='Input CSV files.')
 
 args = parser.parse_args()
 
@@ -106,7 +106,7 @@ if headidx is not None and args.verbosity > 2:
     print("Head input is " + args.infile[headidx], file=sys.stderr)
 
 if len(args.infile) > 0:
-    fieldnames = fieldnames=inreader[0].fieldnames
+    fieldnames = inreader[0].fieldnames
 else:
     fieldnames = ['user', 'date', 'retweets', 'favorites', 'text', 'lang', 'geo', 'mentions', 'hashtags', 'id', 'permalink']
 
@@ -246,12 +246,12 @@ while True:
                     if currow[fileidx]['id'] != currow[headidx]['id']:
                         print("WARNING: Missing tweet, id: " + str(currow[headidx]['id']) + " in file: " + args.infile[fileidx], file=sys.stderr)
                         pacing[fileidx] = False
-                    #else:
-                        #filedate = dateparser.parse(currow[fileidx]['date'])
-                        #headdate = dateparser.parse(currow[headidx]['date'])
-                        #if filedate != headdate:
-                            #print("WARNING: Tweet id: " + str(currow[headidx]['id']) + " File: " + args.infile[fileidx] + " ahead of: " + args.infile[headidx] +
-                             #" by " + str((filedate - headdate).total_seconds()), file=sys.stderr)
+                    elif args.match:
+                        for field in fieldnames:
+                            if currow[fileidx].get(field) != currow[headidx].get(field):
+                                print("WARNING: Mismatched tweet, id: " + str(currow[headidx]['id']) + " field:" + field, file=sys.stderr)
+                                print("    " + args.infile[headidx] + " - " + unicode(currow[headidx].get(field)), file=sys.stderr)
+                                print("    " + args.infile[fileidx] + " - " + unicode(currow[fileidx].get(field)), file=sys.stderr)
 
                 elif headidx is not None:
                     if currow[fileidx]['id'] == currow[headidx]['id']:
