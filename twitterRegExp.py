@@ -73,20 +73,23 @@ else:
     regexp = re.compile(args.regexp)
 
 inreader=unicodecsv.DictReader(infile)
-rows = [row['text'] for row in inreader]
+rows = [row for row in inreader]
 rowcount = len(rows)
 fields = list(regexp.groupindex)
 results = pymp.shared.list()
 with pymp.Parallel(args.jobs) as p:
     result = {}
     for rowindex in p.range(0, rowcount):
-        matches = regexp.finditer(rows[rowindex])
+        row = rows[rowindex]
+        matches = regexp.finditer(row['text'])
         for match in matches:
             if args.ignorecase:
                 index = tuple(value.lower() for value in match.groupdict().values())
             else:
                 index = tuple(match.groupdict().values())
-            result[index] = result.get(index, 0) + 1
+
+            score = 1 + int(row['retweets']) + int(row['favorites'])
+            result[index] = result.get(index, 0) + score
 
     if args.verbosity > 1:
         print("Thread " + str(p.thread_num) + " found " + str(len(result)) + " results.", file=sys.stderr)
