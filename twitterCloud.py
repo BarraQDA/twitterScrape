@@ -113,13 +113,20 @@ with pymp.Parallel(args.jobs) as p:
         text = row[args.column]
         if args.textblob:
             textblob = TextBlob(text, tokenizer=tokenizer)
-            wordlist = [word.lemmatize() for word in textblob.tokens if unicode(word).isalpha() and word.lower() not in exclude]
+            wordlist = []
+            for word in textblob.tokens:
+                if word.isalpha():
+                    lemma = word.lemmatize()
+                    if lemma.lower() not in exclude:
+                        wordlist += [lemma]
+
             #wordlist = [word.lemmatize() for word,pos in textblob.tags if word.lower() not in exclude and pos[0:2] in posinclude]
         else:
             wordlist = [word for word in text.split() if word.lower() not in exclude]
 
         for word in wordlist:
-            frequency[word] = frequency.get(word, 0) + 1
+            score = 1 + int(row['retweets']) + int(row['favorites'])
+            frequency[word] = frequency.get(word, 0) + score
 
     with p.lock:
         frequencies += [frequency]
