@@ -29,9 +29,12 @@ from wordcloud import WordCloud
 parser = argparse.ArgumentParser(description='Twitter feed word cloud.')
 
 parser.add_argument('-v', '--verbosity', type=int, default=1)
+parser.add_argument('-j', '--jobs',      type=int, help='Number of parallel tasks, default is number of CPUs')
+parser.add_argument('-l', '--limit',     type=int, help='Limit number of tweets to process')
 
-parser.add_argument('infile', type=str, nargs='?',      help='Input CSV file, if missing use stdin.')
-parser.add_argument('-c', '--column', type=str, default='text', help='CSV column')
+parser.add_argument('-c', '--column',    type=str, default='text', help='CSV column')
+parser.add_argument('-x', '--exclude',   type=unicode, help='Comma separated list of words to exclude from cloud')
+
 parser.add_argument('--textblob', action='store_true', help='Use textblob for analysis')
 
 # Arguments to pass to wordcloud
@@ -40,8 +43,16 @@ parser.add_argument('--max_words',     type=int, default=None)
 parser.add_argument('--width',         type=int, default=None)
 parser.add_argument('--height',        type=int, default=None)
 
+parser.add_argument('infile', type=str, nargs='?',      help='Input CSV file, if missing use stdin.')
 
 args = parser.parse_args()
+
+if args.jobs is None:
+    import multiprocessing
+    args.jobs = multiprocessing.cpu_count()
+
+if args.verbosity > 1:
+    print("Using " + str(args.jobs) + " jobs.", file=sys.stderr)
 
 if args.infile is None:
     infile = sys.stdin
@@ -60,7 +71,9 @@ def CommentStripper (iterator):
 inreader=unicodecsv.DictReader(CommentStripper(infile))
 
 from nltk.corpus import stopwords
-stop = set(stopwords.words('english'))
+exclude = set(stopwords.words('english'))
+if args.exclude is not None:
+    exclude = exclude.union(word.lower() for word in args.exclude.split(','))
 
 if args.textblob:
     # We want to catch handles and hashtags so need to manage punctuation manually
@@ -70,27 +83,56 @@ if args.textblob:
     tokenizer=RegexpTokenizer(r'https?://[^"\' ]+|[@|#]?\w+')
 
 if args.verbosity > 1:
-    print("Colllecting twitter text.", file=sys.stderr)
+    print("Loading twitter data.", file=sys.stderr)
+
+if args.limit == None:
+    rows = [row for row in inreader]
+else:
+    rows = []
+    for count in range(args.limit):
+        try:
+            rows += [next(inreader)]
+        except StopIteration:
+            break
+
+
+rowcount = len(rows)
+
+#posinclude = {'FW', 'JJ', 'NN', 'RB', 'VB', 'WB', 'WR'}
+
+if args.verbosity > 1:
+    print("Processing twitter data.", file=sys.stderr)
 
 frequencies = {}
 line=0
-for row in inreader:
-    text = row[args.column]
-    if args.textblob:
-        textblob = TextBlob(text, tokenizer=tokenizer)
-        wordlist = [word.lemmatize() for word in textblob.tokens if word.lower() not in stop]
+frequencies = pymp.shared.list()
+with pymp.Parallel(args.jobs) as p:
+    frequency = {}
+    for rowindex in p.range(0, rowcount):
+        row = rows[rowindex]
+        text = row[args.column]
+        if args.textblob:
+            textblob = TextBlob(text, tokenizer=tokenizer)
+            wordlist = [word.lemmatize() for word in textblob.tokens if unicode(word).isalpha() and word.lower() not in exclude]
+            #wordlist = [word.lemmatize() for word,pos in textblob.tags if word.lower() not in exclude and pos[0:2] in posinclude]
+        else:
+            wordlist = [word for word in text.split() if word.lower() not in exclude]
+
+        for word in wordlist:
+            frequency[word] = frequency.get(word, 0) + 1
+
+    with p.lock:
+        frequencies += [frequency]
+
+mergedfrequencies = None
+for frequency in frequencies:
+    if mergedfrequencies is None:
+        mergedfrequencies = frequency.copy()
     else:
-        wordlist = [word for word in text.split() if word.lower() not in stop]
+        for index in frequency:
+            mergedfrequencies[index] = mergedfrequencies.get(index, 0) + frequency[index]
 
-    for word in wordlist:
-        frequencies[word] = frequencies.get(word, 0) + 1
-
-    line += 1
-    if line % 100000 == 0:
-        print ('.', end='', file=sys.stderr)
-
-frequencies = frequencies.items()
-print ('', file=sys.stderr)
+mergedfrequencies = mergedfrequencies.items()
 
 if args.verbosity > 1:
     print("Generating word cloud.", file=sys.stderr)
@@ -99,7 +141,7 @@ if args.verbosity > 1:
 wordcloud = WordCloud(max_font_size=args.max_font_size,
                       max_words=args.max_words,
                       width=args.width,
-                      height=args.height).generate_from_frequencies(frequencies)
+                      height=args.height).generate_from_frequencies(mergedfrequencies)
 
 # Display the generated image:
 # the matplotlib way:
