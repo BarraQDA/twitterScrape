@@ -25,24 +25,18 @@ import unicodedata
 import pymp
 import re
 
-parser = argparse.ArgumentParser(description='Twitter feed regular expression.')
+parser = argparse.ArgumentParser(description='Twitter feed regular expression processing.')
 
-parser.add_argument('-v', '--verbosity', type=int, default=1)
-parser.add_argument('--textblob', action='store_true', help='Use textblob for analysis')
+parser.add_argument('-v', '--verbosity',  type=int, default=1)
+parser.add_argument('-j', '--jobs',       type=int, help='Number of parallel tasks, default is number of CPUs')
 
-parser.add_argument('-j', '--jobs', type=int, help='Number of parallel tasks, default is number of CPUs')
-
-parser.add_argument('-r', '--regexp', type=str, help='Regular expression.')
+parser.add_argument('-r', '--regexp',     type=str, help='Regular expression.')
 parser.add_argument('-i', '--ignorecase', action='store_true', help='Ignore case in regular expression')
-parser.add_argument('-t', '--threshold', type=float,
-                    help='Threshold value for word to be output')
-parser.add_argument('-l', '--limit', type=int, default=0,
-                    help='Limit number of words to output')
-parser.add_argument('-o', '--outfile', type=str, nargs='?',
-                    help='Output file name, otherwise use stdout.')
+parser.add_argument('-t', '--threshold',  type=float, help='Threshold value for word to be output')
+parser.add_argument('-l', '--limit',      type=int, default=0, help='Limit number of words to output')
+parser.add_argument('-o', '--outfile',    type=str, help='Output file name, otherwise use stdout.')
 
-parser.add_argument('infile', type=str, nargs='?',
-                    help='Input CSV file, if missing use stdin.')
+parser.add_argument('infile', type=str, nargs='?', help='Input CSV file, if missing use stdin.')
 
 args = parser.parse_args()
 
@@ -72,7 +66,17 @@ if args.ignorecase:
 else:
     regexp = re.compile(args.regexp)
 
-inreader=unicodecsv.DictReader(infile)
+# See https://bytes.com/topic/python/answers/513222-csv-comments#post1997980
+def CommentStripper (iterator):
+    for line in iterator:
+        if line [:1] == '#':
+            continue
+        if not line.strip ():
+            continue
+        yield line
+
+inreader=unicodecsv.DictReader(CommentStripper(infile))
+
 rows = [row for row in inreader]
 rowcount = len(rows)
 fields = list(regexp.groupindex)
