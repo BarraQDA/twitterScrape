@@ -32,16 +32,18 @@ parser.add_argument('-v', '--verbosity', type=int, default=1)
 parser.add_argument('-j', '--jobs',      type=int, help='Number of parallel tasks, default is number of CPUs')
 parser.add_argument('-l', '--limit',     type=int, help='Limit number of tweets to process')
 
-parser.add_argument('-c', '--column',    type=str, default='text', help='CSV column')
+parser.add_argument('-c', '--column',    type=str, default='text', help='Text column')
+parser.add_argument('-s', '--score',     type=str,                 help='Comma separated list of score columns')
 parser.add_argument('-x', '--exclude',   type=unicode, help='Comma separated list of words to exclude from cloud')
 
+parser.add_argument('-m', '--mode',      choices=['textblob', 'word', 'phrase'], default='textblob')
 parser.add_argument('--textblob', action='store_true', help='Use textblob for analysis')
 
 # Arguments to pass to wordcloud
-parser.add_argument('--max_font_size', type=int, default=None)
-parser.add_argument('--max_words',     type=int, default=None)
-parser.add_argument('--width',         type=int, default=None)
-parser.add_argument('--height',        type=int, default=None)
+parser.add_argument('--max_font_size', type=int)
+parser.add_argument('--max_words',     type=int)
+parser.add_argument('--width',         type=int, default=600)
+parser.add_argument('--height',        type=int, default=800)
 
 parser.add_argument('infile', type=str, nargs='?',      help='Input CSV file, if missing use stdin.')
 
@@ -75,7 +77,9 @@ exclude = set(stopwords.words('english'))
 if args.exclude is not None:
     exclude = exclude.union(word.lower() for word in args.exclude.split(','))
 
-if args.textblob:
+score = args.score.split(',') if args.score else None
+
+if args.mode == 'textblob':
     # We want to catch handles and hashtags so need to manage punctuation manually
     from textblob import TextBlob
 
@@ -103,15 +107,14 @@ rowcount = len(rows)
 if args.verbosity > 1:
     print("Processing twitter data.", file=sys.stderr)
 
-frequencies = {}
 line=0
-frequencies = pymp.shared.list()
+scoredicts = pymp.shared.list()
 with pymp.Parallel(args.jobs) as p:
-    frequency = {}
+    scoredict = {}
     for rowindex in p.range(0, rowcount):
         row = rows[rowindex]
         text = row[args.column]
-        if args.textblob:
+        if args.mode == 'textblob':
             textblob = TextBlob(text, tokenizer=tokenizer)
             wordlist = []
             for word in textblob.tokens:
@@ -119,27 +122,33 @@ with pymp.Parallel(args.jobs) as p:
                     lemma = word.lemmatize()
                     if lemma.lower() not in exclude:
                         wordlist += [lemma]
-
-            #wordlist = [word.lemmatize() for word,pos in textblob.tags if word.lower() not in exclude and pos[0:2] in posinclude]
-        else:
+        elif args.mode == 'word':
             wordlist = [word for word in text.split() if word.lower() not in exclude]
+        else:
+            wordlist = [text]
 
         for word in wordlist:
-            score = 1 + int(row['retweets']) + int(row['favorites'])
-            frequency[word] = frequency.get(word, 0) + score
+            if score is None:
+                wordscore = 1
+            else:
+                wordscore = 0
+                for col in score:
+                    wordscore += int(row[col])
+
+            scoredict[word] = scoredict.get(word, 0) + wordscore
 
     with p.lock:
-        frequencies += [frequency]
+        scoredicts += [scoredict]
 
-mergedfrequencies = None
-for frequency in frequencies:
-    if mergedfrequencies is None:
-        mergedfrequencies = frequency.copy()
+mergedscoredicts = None
+for scoredict in scoredicts:
+    if mergedscoredicts is None:
+        mergedscoredicts = scoredict.copy()
     else:
-        for index in frequency:
-            mergedfrequencies[index] = mergedfrequencies.get(index, 0) + frequency[index]
+        for index in scoredict:
+            mergedscoredicts[index] = mergedscoredicts.get(index, 0) + scoredict[index]
 
-mergedfrequencies = mergedfrequencies.items()
+mergedscoredicts = mergedscoredicts.items()
 
 if args.verbosity > 1:
     print("Generating word cloud.", file=sys.stderr)
@@ -148,7 +157,7 @@ if args.verbosity > 1:
 wordcloud = WordCloud(max_font_size=args.max_font_size,
                       max_words=args.max_words,
                       width=args.width,
-                      height=args.height).generate_from_frequencies(mergedfrequencies)
+                      height=args.height).generate_from_frequencies(mergedscoredicts)
 
 # Display the generated image:
 # the matplotlib way:
