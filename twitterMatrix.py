@@ -33,6 +33,8 @@ parser.add_argument('-j', '--jobs',      type=int, help='Number of parallel task
 parser.add_argument('-l', '--limit',     type=int, help='Limit number of tweets to process')
 
 parser.add_argument('-c', '--column',    type=str, default='text', help='CSV column')
+parser.add_argument('-w', '--words',     type=unicode, help='Comma separated list of words to use in matrix, otherwise scan CSV for most common words')
+
 parser.add_argument('-x', '--exclude',   type=unicode, help='Comma separated list of words to exclude from matrix')
 parser.add_argument('-n', '--number',    type=int, default=100, help='Number of words to include in graph')
 
@@ -92,57 +94,58 @@ else:
 
 rowcount = len(rows)
 
-if args.verbosity > 1:
-    print("Processing twitter data.", file=sys.stderr)
+if args.words:
+    wordlist = [word.lower() for word in args.words.split(',')]
+else:
+    if args.verbosity > 1:
+        print("Scanning twitter data.", file=sys.stderr)
 
-frequencies = {}
-line=0
-frequencies = pymp.shared.list()
-with pymp.Parallel(args.jobs) as p:
-    frequency = {}
-    for rowindex in p.range(0, rowcount):
-        row = rows[rowindex]
-        text = row[args.column]
-        if args.textblob:
-            textblob = TextBlob(text, tokenizer=tokenizer)
-            wordlist = []
-            for word in textblob.tokens:
-                if word.isalpha():
-                    lemma = word.lemmatize()
-                    if lemma.lower() not in exclude:
-                        wordlist += [lemma]
+    frequencies = {}
+    line=0
+    frequencies = pymp.shared.list()
+    with pymp.Parallel(args.jobs) as p:
+        frequency = {}
+        for rowindex in p.range(0, rowcount):
+            row = rows[rowindex]
+            text = row[args.column]
+            if args.textblob:
+                textblob = TextBlob(text, tokenizer=tokenizer)
+                rowwordlist = []
+                for word in textblob.tokens:
+                    if word.isalpha():
+                        lemma = word.lemmatize()
+                        if lemma.lower() not in exclude:
+                            rowwordlist += [lemma]
 
-            #wordlist = [word.lemmatize() for word,pos in textblob.tags if word.lower() not in exclude and pos[0:2] in posinclude]
+                #rowwordlist = [word.lemmatize() for word,pos in textblob.tags if word.lower() not in exclude and pos[0:2] in posinclude]
+            else:
+                rowwordlist = [word for word in text.split() if word.lower() not in exclude]
+
+            for word in rowwordlist:
+                score = 1 + int(row['retweets']) + int(row['favorites'])
+                frequency[word] = frequency.get(word, 0) + score
+
+            #row['rowwordlist'] = rowwordlist
+
+        with p.lock:
+            frequencies.append(frequency)
+
+    mergedfrequencies = None
+    for frequency in frequencies:
+        if mergedfrequencies is None:
+            mergedfrequencies = frequency.copy()
         else:
-            wordlist = [word for word in text.split() if word.lower() not in exclude]
+            for index in frequency:
+                mergedfrequencies[index] = mergedfrequencies.get(index, 0) + frequency[index]
 
-        for word in wordlist:
-            score = 1 + int(row['retweets']) + int(row['favorites'])
-            frequency[word] = frequency.get(word, 0) + score
+    if args.verbosity > 1:
+        print("Sorting " + str(len(mergedfrequencies)) + " frequencies.", file=sys.stderr)
 
-        #row['wordlist'] = wordlist
+    wordlist = sorted([word for word in mergedfrequencies.keys()],
+                                key=lambda item: mergedfrequencies[item],
+                                reverse=True)[0:args.number]
 
-    with p.lock:
-        frequencies.append(frequency)
-
-mergedfrequencies = None
-for frequency in frequencies:
-    if mergedfrequencies is None:
-        mergedfrequencies = frequency.copy()
-    else:
-        for index in frequency:
-            mergedfrequencies[index] = mergedfrequencies.get(index, 0) + frequency[index]
-
-if args.verbosity > 1:
-    print("Sorting " + str(len(mergedfrequencies)) + " frequencies.", file=sys.stderr)
-
-sortedfrequencies = sorted([(word, mergedfrequencies[word])
-                                for word in mergedfrequencies.keys()],
-                           key=lambda item: item[1],
-                           reverse=True)
-
-sortedfrequencies = sortedfrequencies[0:args.number]
-
+print (wordlist)
 if args.verbosity > 1:
     print("Building co-occurrence matrix.", file=sys.stderr)
 
@@ -155,18 +158,19 @@ with pymp.Parallel(args.jobs) as p:
 
         if args.textblob:
             textblob = TextBlob(text, tokenizer=tokenizer)
-            wordlist = []
+            rowwordlist = []
             for word in textblob.tokens:
                 if word.isalpha():
                     lemma = word.lemmatize()
                     if lemma.lower() not in exclude:
-                        wordlist += [lemma]
+                        rowwordlist += [lemma]
 
-            #wordlist = [word.lemmatize() for word,pos in textblob.tags if word.lower() not in exclude and pos[0:2] in posinclude]
+            #rowwordlist = [word.lemmatize() for word,pos in textblob.tags if word.lower() not in exclude and pos[0:2] in posinclude]
+
         else:
-            wordlist = [word for word in text.split() if word.lower() not in exclude]
+            rowwordlist = [word for word in text.split() if word.lower() not in exclude]
 
-        matrix.append( [int(wordscore[0] in wordlist) for wordscore in sortedfrequencies] )
+        matrix.append( [int(word in rowwordlist) for word in wordlist] )
 
     with p.lock:
         matrices.append(matrix)
@@ -184,8 +188,8 @@ if args.verbosity > 1:
 graph = Graph.Weighted_Adjacency(cooccurrencematrix, mode='undirected', loops=False)
 
 visual_style={}
-visual_style['vertex_size'] =  rescale([wordscore[1] for wordscore in sortedfrequencies], out_range=(5, 50))
-visual_style['vertex_label'] = [wordscore[0].encode('ascii', 'ignore') for wordscore in sortedfrequencies]
+visual_style['vertex_size'] =  rescale(graph.degree(), out_range=(5, 30))
+visual_style['vertex_label'] = [word.encode('ascii', 'ignore') for word in wordlist]
 visual_style['margin'] = 100
 visual_style['edge_width'] = rescale(graph.es["weight"], out_range=(1, 8))
 
