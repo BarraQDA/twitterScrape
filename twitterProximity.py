@@ -27,17 +27,20 @@ import pymp
 parser = argparse.ArgumentParser(description='Word proximity calculator.')
 
 parser.add_argument('-v', '--verbosity', type=int, default=1)
-parser.add_argument('--textblob', action='store_true', help='Use textblob for analysis')
 
 parser.add_argument('-j', '--jobs', type=int, help='Number of parallel tasks, default is number of CPUs')
+parser.add_argument('-b', '--batch',      type=int, default=1000000, help='Number of tweets to process per batch, or zero for unlimited. May affect performance but not results.')
+parser.add_argument('-l', '--limit',     type=int, help='Limit number of tweets to process')
 
 parser.add_argument('-k', '--keyword', type=str, help='Key word for search.')
 parser.add_argument('-t', '--threshold', type=float,
                     help='Threshold value for word to be output')
-parser.add_argument('-l', '--limit', type=int, default=100,
+parser.add_argument('-n', '--number', type=int, default=100,
                     help='Limit number of words to output')
 parser.add_argument('-o', '--outfile', type=str, nargs='?',
                     help='Output file name, otherwise use stdout.')
+
+parser.add_argument('--textblob', action='store_true', help='Use textblob for analysis')
 
 parser.add_argument('infile', type=str, nargs='?',
                     help='Input CSV file, if missing use stdin.')
@@ -70,56 +73,89 @@ else:
 from nltk.corpus import stopwords
 stop = set(stopwords.words('english'))
 
+if args.batch == 0:
+    args.batch = sys.maxint
+
+# See https://bytes.com/topic/python/answers/513222-csv-comments#post1997980
+def CommentStripper (iterator):
+    for line in iterator:
+        if line [:1] == '#':
+            continue
+        if not line.strip ():
+            continue
+        yield line
+
+inreader=unicodecsv.DictReader(CommentStripper(infile))
+
 if args.textblob:
     # We want to catch handles and hashtags so need to manage punctuation manually
     from textblob import TextBlob
+
     from nltk.tokenize import RegexpTokenizer
     tokenizer=RegexpTokenizer(r'https?://[^"\' ]+|[@|#]?\w+')
 
-# Separators are all symbols and punctuation except hashtag ('#') and mention ('@')
-#separators = u''.join(set(unichr(i) for i in range(sys.maxunicode) if unicodedata.category(unichr(i))[0] in ['P','Z','S']) - set([u'#', u'@']))
+if args.verbosity > 1:
+    print("Loading twitter data.", file=sys.stderr)
 
-inreader=unicodecsv.DictReader(infile)
-rows = [row['text'] for row in inreader]
-rowcount = len(rows)
-scores = pymp.shared.list()
-with pymp.Parallel(args.jobs) as p:
-    score = {}
-    for rowindex in p.range(0, rowcount):
-        #print("Thread :" + str(p.thread_num) + " score count is " + str(len(score.values())))
-        if args.textblob:
-            textblob = TextBlob(rows[rowindex], tokenizer=tokenizer)
-            wordlist = textblob.tokens
-        else:
-            wordlist = rows[rowindex].split()
+mergedscore = {}
+tweetcount = 0
+while (tweetcount < args.limit) if args.limit is not None else True:
+    if args.verbosity > 2:
+        print("Loading twitter batch.", file=sys.stderr)
 
-        keywordindices = [index for index,word in enumerate(wordlist)
-                                if keywordlc in word.lower()]
-        if len(keywordindices) > 0:
+    rows = []
+    batchtotal = min(args.batch, args.limit - tweetcount) if args.limit is not None else args.batch
+    batchcount = 0
+    while batchcount < batchtotal:
+        try:
+            rows += [next(inreader)]
+            batchcount += 1
+        except StopIteration:
+            break
+
+    if batchcount == 0:
+        break
+
+    if args.verbosity > 2:
+        print("Processing twitter batch.", file=sys.stderr)
+
+    tweetcount += batchcount
+    rowcount = len(rows)
+
+    scores = pymp.shared.list()
+    with pymp.Parallel(args.jobs) as p:
+        score = {}
+        for rowindex in p.range(0, rowcount):
+            #print("Thread :" + str(p.thread_num) + " score count is " + str(len(score.values())))
             if args.textblob:
-                wordproximity = [(word.lemmatize().lower(), min([abs(index - keywordindex) for keywordindex in keywordindices]))
-                                for index,word in enumerate(wordlist) if word.lower() not in stop]
+                textblob = TextBlob(rows[rowindex]['text'], tokenizer=tokenizer)
+                wordlist = textblob.tokens
             else:
-                wordproximity = [(word.lower(), min([abs(index - keywordindex) for keywordindex in keywordindices]))
-                                for index,word in enumerate(wordlist) if word.lower() not in stop]
+                wordlist = rows[rowindex]['text'].split()
 
-            for word,proximity in wordproximity:
-                if proximity > 0:
-                    #wordscore = 1.0
-                    wordscore = 1.0 / proximity
-                    score[word] = score.get(word, 0) + wordscore
+            keywordindices = [index for index,word in enumerate(wordlist)
+                                    if keywordlc in word.lower()]
+            if len(keywordindices) > 0:
+                if args.textblob:
+                    wordproximity = [(word.lemmatize().lower(), min([abs(index - keywordindex) for keywordindex in keywordindices]))
+                                    for index,word in enumerate(wordlist) if word.lower() not in stop]
+                else:
+                    wordproximity = [(word.lower(), min([abs(index - keywordindex) for keywordindex in keywordindices]))
+                                    for index,word in enumerate(wordlist) if word.lower() not in stop]
 
-    if args.verbosity > 1:
-        print("Thread " + str(p.thread_num) + " analysed " + str(len(score)) + " words.", file=sys.stderr)
+                for word,proximity in wordproximity:
+                    if proximity > 0:
+                        #wordscore = 1.0
+                        wordscore = 1.0 / proximity
+                        score[word] = score.get(word, 0) + wordscore
 
-    with p.lock:
-        scores += [score]
+        if args.verbosity > 1:
+            print("Thread " + str(p.thread_num) + " analysed " + str(len(score)) + " words.", file=sys.stderr)
 
-mergedscore = None
-for score in scores:
-    if mergedscore is None:
-        mergedscore = score.copy()
-    else:
+        with p.lock:
+            scores += [score]
+
+    for score in scores:
         for word in score:
             mergedscore[word] = mergedscore.get(word, 0) + score[word]
 
@@ -132,8 +168,8 @@ sortedscore = sorted([{'word': word, 'score':mergedscore[word]}
                            key=lambda item: item['score'],
                            reverse=True)
 
-if args.limit != 0:
-    sortedscore = sortedscore[0:args.limit]
+if args.number != 0:
+    sortedscore = sortedscore[0:args.number]
 
 outunicodecsv=unicodecsv.DictWriter(outfile, fieldnames=['word', 'score'])
 outunicodecsv.writeheader()

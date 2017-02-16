@@ -29,11 +29,13 @@ parser = argparse.ArgumentParser(description='Twitter feed regular expression pr
 
 parser.add_argument('-v', '--verbosity',  type=int, default=1)
 parser.add_argument('-j', '--jobs',       type=int, help='Number of parallel tasks, default is number of CPUs')
+parser.add_argument('-b', '--batch',      type=int, default=1000000, help='Number of tweets to process per batch, or zero for unlimited. May affect performance but not results.')
+parser.add_argument('-l', '--limit',     type=int, help='Limit number of tweets to process')
 
 parser.add_argument('-r', '--regexp',     type=str, help='Regular expression.')
 parser.add_argument('-i', '--ignorecase', action='store_true', help='Ignore case in regular expression')
 parser.add_argument('-t', '--threshold',  type=float, help='Threshold value for word to be output')
-parser.add_argument('-l', '--limit',      type=int, default=0, help='Limit number of words to output')
+parser.add_argument('-n', '--number',     type=int, default=0, help='Maximum number of words to output')
 parser.add_argument('-o', '--outfile',    type=str, help='Output file name, otherwise use stdout.')
 
 parser.add_argument('infile', type=str, nargs='?', help='Input CSV file, if missing use stdin.')
@@ -66,6 +68,11 @@ if args.ignorecase:
 else:
     regexp = re.compile(args.regexp)
 
+fields = list(regexp.groupindex)
+
+if args.batch == 0:
+    args.batch = sys.maxint
+
 # See https://bytes.com/topic/python/answers/513222-csv-comments#post1997980
 def CommentStripper (iterator):
     for line in iterator:
@@ -77,35 +84,56 @@ def CommentStripper (iterator):
 
 inreader=unicodecsv.DictReader(CommentStripper(infile))
 
-rows = [row for row in inreader]
-rowcount = len(rows)
-fields = list(regexp.groupindex)
-results = pymp.shared.list()
-with pymp.Parallel(args.jobs) as p:
-    result = {}
-    for rowindex in p.range(0, rowcount):
-        row = rows[rowindex]
-        matches = regexp.finditer(row['text'])
-        for match in matches:
-            if args.ignorecase:
-                index = tuple(value.lower() for value in match.groupdict().values())
-            else:
-                index = tuple(match.groupdict().values())
+if args.verbosity > 1:
+    print("Loading twitter data.", file=sys.stderr)
 
-            score = 1 + int(row['retweets']) + int(row['favorites'])
-            result[index] = result.get(index, 0) + score
+mergedresult = {}
+tweetcount = 0
+while (tweetcount < args.limit) if args.limit is not None else True:
+    if args.verbosity > 2:
+        print("Loading twitter batch.", file=sys.stderr)
 
-    if args.verbosity > 1:
-        print("Thread " + str(p.thread_num) + " found " + str(len(result)) + " results.", file=sys.stderr)
+    rows = []
+    batchtotal = min(args.batch, args.limit - tweetcount) if args.limit is not None else args.batch
+    batchcount = 0
+    while batchcount < batchtotal:
+        try:
+            rows += [next(inreader)]
+            batchcount += 1
+        except StopIteration:
+            break
 
-    with p.lock:
-        results += [result]
+    if batchcount == 0:
+        break
 
-mergedresult = None
-for result in results:
-    if mergedresult is None:
-        mergedresult = result.copy()
-    else:
+    if args.verbosity > 2:
+        print("Processing twitter batch.", file=sys.stderr)
+
+    tweetcount += batchcount
+    rowcount = len(rows)
+
+    results = pymp.shared.list()
+    with pymp.Parallel(args.jobs) as p:
+        result = {}
+        for rowindex in p.range(0, rowcount):
+            row = rows[rowindex]
+            matches = regexp.finditer(row['text'])
+            for match in matches:
+                if args.ignorecase:
+                    index = tuple(value.lower() for value in match.groupdict().values())
+                else:
+                    index = tuple(match.groupdict().values())
+
+                score = 1 + int(row['retweets']) + int(row['favorites'])
+                result[index] = result.get(index, 0) + score
+
+        if args.verbosity > 3:
+            print("Thread " + str(p.thread_num) + " found " + str(len(result)) + " results.", file=sys.stderr)
+
+        with p.lock:
+            results += [result]
+
+    for result in results:
         for index in result:
             mergedresult[index] = mergedresult.get(index, 0) + result[index]
 
@@ -118,8 +146,8 @@ sortedresult = sorted([{'match': match, 'score':mergedresult[match]}
                            key=lambda item: item['score'],
                            reverse=True)
 
-if args.limit != 0:
-    sortedresult = sortedresult[0:args.limit]
+if args.number != 0:
+    sortedresult = sortedresult[0:args.number]
 
 for result in sortedresult:
     for idx in range(len(fields)):

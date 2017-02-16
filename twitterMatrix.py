@@ -30,13 +30,16 @@ parser = argparse.ArgumentParser(description='Twitter word matrix visualisation.
 
 parser.add_argument('-v', '--verbosity', type=int, default=1)
 parser.add_argument('-j', '--jobs',      type=int, help='Number of parallel tasks, default is number of CPUs')
+parser.add_argument('-b', '--batch',      type=int, default=1000000, help='Number of tweets to process per batch, or zero for unlimited. May affect performance but not results.')
 parser.add_argument('-l', '--limit',     type=int, help='Limit number of tweets to process')
 
 parser.add_argument('-c', '--column',    type=str, default='text', help='CSV column')
 parser.add_argument('-w', '--words',     type=unicode, help='Comma separated list of words to use in matrix, otherwise scan CSV for most common words')
 
-parser.add_argument('-x', '--exclude',   type=unicode, help='Comma separated list of words to exclude from matrix')
-parser.add_argument('-n', '--number',    type=int, default=100, help='Number of words to include in graph')
+parser.add_argument('--margin',    type=int, default=0, help='Graph margin')
+parser.add_argument('--width',     type=int, default=600)
+parser.add_argument('--height',    type=int, default=800)
+
 
 parser.add_argument('--textblob', action='store_true', help='Use textblob for analysis')
 
@@ -56,6 +59,9 @@ if args.infile is None:
 else:
     infile = file(args.infile, 'r')
 
+if args.batch == 0:
+    args.batch = sys.maxint
+
 # See https://bytes.com/topic/python/answers/513222-csv-comments#post1997980
 def CommentStripper (iterator):
     for line in iterator:
@@ -67,117 +73,74 @@ def CommentStripper (iterator):
 
 inreader=unicodecsv.DictReader(CommentStripper(infile))
 
-from nltk.corpus import stopwords
-exclude = set(stopwords.words('english'))
-if args.exclude is not None:
-    exclude = exclude.union(word.lower() for word in args.exclude.split(','))
-
 if args.textblob:
     # We want to catch handles and hashtags so need to manage punctuation manually
-    from textblob import TextBlob
+    from textblob import TextBlob, Word
 
     from nltk.tokenize import RegexpTokenizer
     tokenizer=RegexpTokenizer(r'https?://[^"\' ]+|[@|#]?\w+')
 
+if args.textblob:
+    wordlist = [Word(word).lemmatize().lower() for word in args.words.split(',')]
+else:
+    wordlist = [word.lower() for word in args.words.split(',')]
+
 if args.verbosity > 1:
     print("Loading twitter data.", file=sys.stderr)
 
-if args.limit == None:
-    rows = [row for row in inreader]
-else:
+mergedmatrices = []
+tweetcount = 0
+while (tweetcount < args.limit) if args.limit is not None else True:
+    if args.verbosity > 2:
+        print("Loading twitter batch.", file=sys.stderr)
+
     rows = []
-    for count in range(args.limit):
+    batchtotal = min(args.batch, args.limit - tweetcount) if args.limit is not None else args.batch
+    batchcount = 0
+    while batchcount < batchtotal:
         try:
             rows += [next(inreader)]
+            batchcount += 1
         except StopIteration:
             break
 
-rowcount = len(rows)
+    if batchcount == 0:
+        break
 
-if args.words:
-    wordlist = [word.lower() for word in args.words.split(',')]
-else:
-    if args.verbosity > 1:
-        print("Scanning twitter data.", file=sys.stderr)
+    if args.verbosity > 2:
+        print("Processing twitter batch.", file=sys.stderr)
 
-    frequencies = {}
-    line=0
-    frequencies = pymp.shared.list()
+    tweetcount += batchcount
+    rowcount = len(rows)
+
+    matrices = pymp.shared.list()
     with pymp.Parallel(args.jobs) as p:
-        frequency = {}
+        matrix = []
         for rowindex in p.range(0, rowcount):
             row = rows[rowindex]
             text = row[args.column]
+
             if args.textblob:
                 textblob = TextBlob(text, tokenizer=tokenizer)
                 rowwordlist = []
                 for word in textblob.tokens:
                     if word.isalpha():
                         lemma = word.lemmatize()
-                        if lemma.lower() not in exclude:
+                        if lemma.lower() in wordlist:
                             rowwordlist += [lemma]
 
                 #rowwordlist = [word.lemmatize() for word,pos in textblob.tags if word.lower() not in exclude and pos[0:2] in posinclude]
+
             else:
-                rowwordlist = [word for word in text.split() if word.lower() not in exclude]
+                rowwordlist = [word for word in text.split() if word.lower() in wordlist]
 
-            for word in rowwordlist:
-                score = 1 + int(row['retweets']) + int(row['favorites'])
-                frequency[word] = frequency.get(word, 0) + score
-
-            #row['rowwordlist'] = rowwordlist
+            matrix.append( [int(word in rowwordlist) for word in wordlist] )
 
         with p.lock:
-            frequencies.append(frequency)
+            matrices.append(matrix)
 
-    mergedfrequencies = None
-    for frequency in frequencies:
-        if mergedfrequencies is None:
-            mergedfrequencies = frequency.copy()
-        else:
-            for index in frequency:
-                mergedfrequencies[index] = mergedfrequencies.get(index, 0) + frequency[index]
-
-    if args.verbosity > 1:
-        print("Sorting " + str(len(mergedfrequencies)) + " frequencies.", file=sys.stderr)
-
-    wordlist = sorted([word for word in mergedfrequencies.keys()],
-                                key=lambda item: mergedfrequencies[item],
-                                reverse=True)[0:args.number]
-
-print (wordlist)
-if args.verbosity > 1:
-    print("Building co-occurrence matrix.", file=sys.stderr)
-
-matrices = pymp.shared.list()
-with pymp.Parallel(args.jobs) as p:
-    matrix = []
-    for rowindex in p.range(0, rowcount):
-        row = rows[rowindex]
-        text = row[args.column]
-
-        if args.textblob:
-            textblob = TextBlob(text, tokenizer=tokenizer)
-            rowwordlist = []
-            for word in textblob.tokens:
-                if word.isalpha():
-                    lemma = word.lemmatize()
-                    if lemma.lower() not in exclude:
-                        rowwordlist += [lemma]
-
-            #rowwordlist = [word.lemmatize() for word,pos in textblob.tags if word.lower() not in exclude and pos[0:2] in posinclude]
-
-        else:
-            rowwordlist = [word for word in text.split() if word.lower() not in exclude]
-
-        matrix.append( [int(word in rowwordlist) for word in wordlist] )
-
-    with p.lock:
-        matrices.append(matrix)
-
-mergedmatrices = []
-for matrix in matrices:
-    mergedmatrices += list(matrix)
+    for matrix in matrices:
+        mergedmatrices += list(matrix)
 
 # Calculate the dot product of the transposed occurrence matrix with the occurrence matrix
 cooccurrencematrix = np.dot(zip(*mergedmatrices), mergedmatrices).tolist()
@@ -191,6 +154,8 @@ visual_style={}
 visual_style['vertex_size'] =  rescale(graph.degree(), out_range=(5, 30))
 visual_style['vertex_label'] = [word.encode('ascii', 'ignore') for word in wordlist]
 visual_style['margin'] = 100
+visual_style['bbox'] = (args.width, args.height)
 visual_style['edge_width'] = rescale(graph.es["weight"], out_range=(1, 8))
+visual_style['layout'] = graph.layout_fruchterman_reingold()
 
 plot(graph, **visual_style)

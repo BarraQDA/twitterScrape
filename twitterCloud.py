@@ -30,6 +30,7 @@ parser = argparse.ArgumentParser(description='Twitter feed word cloud.')
 
 parser.add_argument('-v', '--verbosity', type=int, default=1)
 parser.add_argument('-j', '--jobs',      type=int, help='Number of parallel tasks, default is number of CPUs')
+parser.add_argument('-b', '--batch',      type=int, default=1000000, help='Number of tweets to process per batch, or zero for unlimited. May affect performance but not results.')
 parser.add_argument('-l', '--limit',     type=int, help='Limit number of tweets to process')
 
 parser.add_argument('-c', '--column',    type=str, default='text', help='Text column')
@@ -61,6 +62,9 @@ if args.infile is None:
 else:
     infile = file(args.infile, 'r')
 
+if args.batch == 0:
+    args.batch = sys.maxint
+
 # See https://bytes.com/topic/python/answers/513222-csv-comments#post1997980
 def CommentStripper (iterator):
     for line in iterator:
@@ -89,62 +93,64 @@ if args.mode == 'textblob':
 if args.verbosity > 1:
     print("Loading twitter data.", file=sys.stderr)
 
-if args.limit == None:
-    rows = [row for row in inreader]
-else:
+mergedscoredicts = {}
+tweetcount = 0
+while (tweetcount < args.limit) if args.limit is not None else True:
+    if args.verbosity > 2:
+        print("Loading twitter batch.", file=sys.stderr)
+
     rows = []
-    for count in range(args.limit):
+    batchtotal = min(args.batch, args.limit - tweetcount) if args.limit is not None else args.batch
+    batchcount = 0
+    while batchcount < batchtotal:
         try:
             rows += [next(inreader)]
+            batchcount += 1
         except StopIteration:
             break
 
+    if batchcount == 0:
+        break
 
-rowcount = len(rows)
+    if args.verbosity > 2:
+        print("Processing twitter batch.", file=sys.stderr)
 
-#posinclude = {'FW', 'JJ', 'NN', 'RB', 'VB', 'WB', 'WR'}
+    tweetcount += batchcount
+    rowcount = len(rows)
 
-if args.verbosity > 1:
-    print("Processing twitter data.", file=sys.stderr)
-
-line=0
-scoredicts = pymp.shared.list()
-with pymp.Parallel(args.jobs) as p:
-    scoredict = {}
-    for rowindex in p.range(0, rowcount):
-        row = rows[rowindex]
-        text = row[args.column]
-        if args.mode == 'textblob':
-            textblob = TextBlob(text, tokenizer=tokenizer)
-            wordlist = []
-            for word in textblob.tokens:
-                if word.isalpha():
-                    lemma = word.lemmatize()
-                    if lemma.lower() not in exclude:
-                        wordlist += [lemma]
-        elif args.mode == 'word':
-            wordlist = [word for word in text.split() if word.lower() not in exclude]
-        else:
-            wordlist = [text]
-
-        for word in wordlist:
-            if score is None:
-                wordscore = 1
+    scoredicts = pymp.shared.list()
+    with pymp.Parallel(args.jobs) as p:
+        scoredict = {}
+        for rowindex in p.range(0, rowcount):
+            row = rows[rowindex]
+            text = row[args.column]
+            if args.mode == 'textblob':
+                textblob = TextBlob(text, tokenizer=tokenizer)
+                wordlist = []
+                for word in textblob.tokens:
+                    if word.isalpha():
+                        lemma = word.lemmatize()
+                        if lemma.lower() not in exclude:
+                            wordlist += [lemma]
+            elif args.mode == 'word':
+                wordlist = [word for word in text.split() if word.lower() not in exclude]
             else:
-                wordscore = 0
-                for col in score:
-                    wordscore += int(row[col])
+                wordlist = [text]
 
-            scoredict[word] = scoredict.get(word, 0) + wordscore
+            for word in wordlist:
+                if score is None:
+                    wordscore = 1
+                else:
+                    wordscore = 0
+                    for col in score:
+                        wordscore += int(row[col])
 
-    with p.lock:
-        scoredicts += [scoredict]
+                scoredict[word] = scoredict.get(word, 0) + wordscore
 
-mergedscoredicts = None
-for scoredict in scoredicts:
-    if mergedscoredicts is None:
-        mergedscoredicts = scoredict.copy()
-    else:
+        with p.lock:
+            scoredicts += [scoredict]
+
+    for scoredict in scoredicts:
         for index in scoredict:
             mergedscoredicts[index] = mergedscoredicts.get(index, 0) + scoredict[index]
 
