@@ -36,6 +36,8 @@ parser.add_argument('-l', '--limit',     type=int, help='Limit number of tweets 
 parser.add_argument('-c', '--column',    type=str, default='text', help='CSV column')
 parser.add_argument('-w', '--words',     type=unicode, help='Comma separated list of words to use in matrix, otherwise scan CSV for most common words')
 
+parser.add_argument('-o', '--outfile',    type=str, help='Output pickle file name.')
+
 parser.add_argument('--margin',    type=int, default=0, help='Graph margin')
 parser.add_argument('--width',     type=int, default=600)
 parser.add_argument('--height',    type=int, default=800)
@@ -145,17 +147,27 @@ while (tweetcount < args.limit) if args.limit is not None else True:
 # Calculate the dot product of the transposed occurrence matrix with the occurrence matrix
 cooccurrencematrix = np.dot(zip(*mergedmatrices), mergedmatrices).tolist()
 
-if args.verbosity > 1:
-    print("Generating co-occurrence graph.", file=sys.stderr)
+if args.outfile is not None:
+    if args.verbosity > 1:
+        print("Saving cooccurrence matrix.", file=sys.stderr)
 
-graph = Graph.Weighted_Adjacency(cooccurrencematrix, mode='undirected', loops=False)
+    import pickle
+    outfile = file(args.outfile, 'w')
 
-visual_style={}
-visual_style['vertex_size'] =  rescale(graph.degree(), out_range=(5, 30))
-visual_style['vertex_label'] = [word.encode('ascii', 'ignore') for word in wordlist]
-visual_style['margin'] = 100
-visual_style['bbox'] = (args.width, args.height)
-visual_style['edge_width'] = rescale(graph.es["weight"], out_range=(1, 8))
-visual_style['layout'] = graph.layout_fruchterman_reingold()
+    pickle.dump(wordlist, outfile)
+    pickle.dump(cooccurrencematrix, outfile)
+else:
+    if args.verbosity > 1:
+        print("Generating co-occurrence graph.", file=sys.stderr)
 
-plot(graph, **visual_style)
+    graph = Graph.Weighted_Adjacency(cooccurrencematrix, mode='undirected', loops=False)
+
+    visual_style={}
+    visual_style['vertex_size'] =  rescale(graph.degree(), out_range=(5, 30))
+    visual_style['vertex_label'] = [word.encode('ascii', 'ignore') for word in wordlist]
+    visual_style['margin'] = 100
+    visual_style['bbox'] = (args.width, args.height)
+    visual_style['edge_width'] = rescale(graph.es["weight"], out_range=(1, 8))
+    visual_style['layout'] = graph.layout_fruchterman_reingold()
+
+    plot(graph, **visual_style)
