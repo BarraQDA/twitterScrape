@@ -28,77 +28,95 @@ import re
 parser = argparse.ArgumentParser(description='Filter twitter CSV file on text column.')
 
 parser.add_argument('-v', '--verbosity', type=int, default=1)
+parser.add_argument('-j', '--jobs',       type=int, help='Number of parallel tasks, default is number of CPUs')
+parser.add_argument('-l', '--limit',      type=int, help='Limit number of tweets to process')
 
-parser.add_argument('-s', '--search', type=str, help='Search string to filter twitter content')
-parser.add_argument('-i', '--ignorecase', action='store_true', help='Ignore case')
-parser.add_argument('-r', '--regexp', action='store_true', help='Use regular expression matching')
-parser.add_argument('-n', '--no',     action='store_true', help='Keep tweets that do not match pattern')
+parser.add_argument('-f', '--filter',    type=str, required=True, help='Python expression evaluated to determine whether tweet is included')
+parser.add_argument('-i', '--ignorecase', action='store_true', help='Convert tweet text to lower case before applying filter')
 
-parser.add_argument('-o', '--outfile', type=str, help='Output file name, otherwise use stdout')
+parser.add_argument('-o', '--outfile', type=str, help='Output CSV file, otherwise use stdout')
 
-parser.add_argument('infile', type=str, help='Input CSV file, or "-" to use stdin')
+parser.add_argument('infile', type=str, help='Input CSV file, otherwise use stdin')
 
 args = parser.parse_args()
 
-ignorecase = args.ignorecase
-no         = args.no
-regexp     = args.regexp
+if args.jobs is None:
+    import multiprocessing
+    args.jobs = multiprocessing.cpu_count()
 
-if regexp:
-    if ignorecase:
-        regexp = re.compile(args.search, re.IGNORECASE)
-    else:
-        regexp = re.compile(args.search)
-else:
-    if ignorecase:
-        search = args.search.lower()
-    else:
-        search = args.search
+if args.verbosity > 1:
+    print("Using " + str(args.jobs) + " jobs.", file=sys.stderr)
 
-if args.infile == '-':
-    infile = sys.stdin
-else:
-    infile = file(args.infile, 'r')
+filter = compile(args.filter, 'filter argument', 'eval')
+def evalfilter(user, date, retweets, favorites, text, lang, geo, mentions, hashtags, id, permalink):
+    if args.ignorecase:
+        text = text.lower()
+    return eval(filter)
 
-# See https://bytes.com/topic/python/answers/513222-csv-comments#post1997980
-def CommentStripper (iterator):
-    for line in iterator:
-        if line [:1] == '#':
-            continue
-        if not line.strip ():
-            continue
-        yield line
-
-inreader=unicodecsv.DictReader(CommentStripper(infile))
-fieldnames = inreader.fieldnames
-
-# Open output file already so we catch file error before doing all the hard work
 if args.outfile is None:
     outfile = sys.stdout
 else:
     outfile = file(args.outfile, 'w')
+
+if args.infile is None:
+    infile = sys.stdin
+else:
+    infile = file(args.infile, 'r')
+
+# Copy comments at start of infile to outfile
+while True:
+    pos = infile.tell()
+    line = infile.readline()
+    if line[:1] == '#':
+        outfile.write(line)
+    else:
+        infile.seek(pos)
+        break
+
+outfile.write('# twitterFilter\n')
+outfile.write('#     outfile=' + (args.outfile or '<stdin>') + '\n')
+outfile.write('#     infile=' + (args.infile or '<stdin>') + '\n')
+if args.limit:
+    outfile.write('#     limit=' + str(args.limit) + '\n')
+outfile.write('#     filter=' + args.filter + '\n')
+if args.ignorecase:
+    outfile.write('#     ignorecase\n')
+
+if args.verbosity > 1:
+    print("Loading twitter data.", file=sys.stderr)
+
+inreader=unicodecsv.DictReader(infile)
+fieldnames = inreader.fieldnames
 
 csvwriter=unicodecsv.DictWriter(outfile, fieldnames=fieldnames, extrasaction='ignore')
 csvwriter.writeheader()
 
 keptcount    = 0
 droppedcount = 0
-
+tweetcount   = 0
 for row in inreader:
-    if regexp:
-        keep = (regexp.search(row['text']) != None) != no
-    else:
-        if ignorecase:
-            keep = (search in row['text'].lower()) != no
-        else:
-            keep = (search in row['text']) != no
+    try:
+        row['retweets'] = int(row['retweets'])
+    except ValueError:
+        row['retweets'] = 0
+    try:
+        row['favorites'] = int(row['favorites'])
+    except ValueError:
+        row['favorites'] = 0
 
+    keep = evalfilter(**row)
     if keep:
         csvwriter.writerow(row)
         keptcount += 1
     else:
         droppedcount += 1
 
-print(str(keptcount) + " rows kept, " + str(droppedcount) + " rows dropped.", file=sys.stderr)
+    tweetcount += 1
+    if args.limit and tweetcount == args.limit:
+        break
 
 outfile.close()
+
+if args.verbosity > 1:
+    print(str(keptcount) + " rows kept, " + str(droppedcount) + " rows dropped.", file=sys.stderr)
+

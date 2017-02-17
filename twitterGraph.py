@@ -19,7 +19,7 @@
 from __future__ import print_function
 import argparse
 from igraph import *
-import pickle
+import unicodecsv
 
 parser = argparse.ArgumentParser(description='Graph twitter cooccurrence matrix.')
 
@@ -29,7 +29,7 @@ parser.add_argument('--margin',    type=int, default=0, help='Graph margin')
 parser.add_argument('--width',     type=int, default=600)
 parser.add_argument('--height',    type=int, default=800)
 
-parser.add_argument('infile', type=str, nargs='?',      help='Input pickled cooccurrence matrix file.')
+parser.add_argument('infile', type=str, nargs='?', help='Input cooccurrence matrix CSV file.')
 
 args = parser.parse_args()
 
@@ -38,8 +38,23 @@ if args.infile is None:
 else:
     infile = file(args.infile, 'r')
 
-wordlist = pickle.load(infile)
-cooccurrencematrix = pickle.load(infile)
+comments = u''
+while True:
+    pos = infile.tell()
+    line = infile.readline()
+    if line[:1] == '#':
+        comments += line
+    else:
+        infile.seek(pos)
+        break
+
+inreader=unicodecsv.reader(infile)
+
+wordlist = next(inreader)[1:]
+cooccurrencematrix = []
+for row in inreader:
+    introw = [int(element) for element in row[1:]]
+    cooccurrencematrix.append(introw)
 
 if args.verbosity > 1:
     print("Generating co-occurrence graph.", file=sys.stderr)

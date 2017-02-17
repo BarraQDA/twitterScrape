@@ -29,16 +29,20 @@ parser = argparse.ArgumentParser(description='Twitter feed regular expression pr
 
 parser.add_argument('-v', '--verbosity',  type=int, default=1)
 parser.add_argument('-j', '--jobs',       type=int, help='Number of parallel tasks, default is number of CPUs')
-parser.add_argument('-b', '--batch',      type=int, default=1000000, help='Number of tweets to process per batch, or zero for unlimited. May affect performance but not results.')
-parser.add_argument('-l', '--limit',     type=int, help='Limit number of tweets to process')
+parser.add_argument('-b', '--batch',      type=int, help='Number of tweets to process per batch. Use to limit memory usage with very large files. May affect performance but not results.')
+parser.add_argument('-l', '--limit',      type=int, help='Limit number of tweets to process')
+parser.add_argument('-f', '--filter',     type=str, help='Python expression evaluated to determine whether tweet is included')
 
-parser.add_argument('-r', '--regexp',     type=str, help='Regular expression.')
+parser.add_argument('-c', '--column',     type=str, default='text', help='Column to apply regular expression')
+parser.add_argument('-r', '--regexp',     type=str, required=True, help='Regular expression applied to tweet text to create output columns.')
 parser.add_argument('-i', '--ignorecase', action='store_true', help='Ignore case in regular expression')
+parser.add_argument('-s', '--score',      type=str, default='1', help='Python expression to evaluate tweet score, for example "1 + retweets + favorites"')
 parser.add_argument('-t', '--threshold',  type=float, help='Threshold value for word to be output')
-parser.add_argument('-n', '--number',     type=int, default=0, help='Maximum number of words to output')
-parser.add_argument('-o', '--outfile',    type=str, help='Output file name, otherwise use stdout.')
+parser.add_argument('-n', '--number',     type=int, default=0, help='Maximum number of results to output')
 
-parser.add_argument('infile', type=str, nargs='?', help='Input CSV file, if missing use stdin.')
+parser.add_argument('-o', '--outfile',    type=str, help='Output CSV file, otherwise use stdout.')
+
+parser.add_argument('infile', type=str, nargs='?', help='Input CSV file, otherwise use stdin.')
 
 args = parser.parse_args()
 
@@ -46,22 +50,16 @@ if args.jobs is None:
     import multiprocessing
     args.jobs = multiprocessing.cpu_count()
 
-if args.regexp is None:
-    raise RuntimeError("Regular expression must be provided.")
-
 if args.verbosity > 1:
     print("Using " + str(args.jobs) + " jobs.", file=sys.stderr)
 
-if args.infile is None:
-    infile = sys.stdin
-else:
-    infile = file(args.infile, 'r')
+if args.batch is None:
+    args.batch = sys.maxint
 
-# Open output file already so we catch file error before doing all the hard work
-if args.outfile is None:
-    outfile = sys.stdout
-else:
-    outfile = file(args.outfile, 'w')
+if args.filter:
+    filter = compile(args.filter, 'filter argument', 'eval')
+    def evalfilter(user, date, retweets, favorites, text, lang, geo, mentions, hashtags, id, permalink):
+        return eval(filter)
 
 if args.ignorecase:
     regexp = re.compile(args.regexp, re.IGNORECASE)
@@ -70,19 +68,49 @@ else:
 
 fields = list(regexp.groupindex)
 
-if args.batch == 0:
-    args.batch = sys.maxint
+score = compile(args.score, 'score argument', 'eval')
+def evalscore(user, date, retweets, favorites, text, lang, geo, mentions, hashtags, id, permalink):
+    return eval(score)
 
-# See https://bytes.com/topic/python/answers/513222-csv-comments#post1997980
-def CommentStripper (iterator):
-    for line in iterator:
-        if line [:1] == '#':
-            continue
-        if not line.strip ():
-            continue
-        yield line
+if args.outfile is None:
+    outfile = sys.stdout
+else:
+    outfile = file(args.outfile, 'w')
 
-inreader=unicodecsv.DictReader(CommentStripper(infile))
+if args.infile is None:
+    infile = sys.stdin
+else:
+    infile = file(args.infile, 'r')
+
+# Copy comments at start of infile to outfile
+while True:
+    pos = infile.tell()
+    line = infile.readline()
+    if line[:1] == '#':
+        outfile.write(line)
+    else:
+        infile.seek(pos)
+        break
+
+outfile.write('# twitterRegExp\n')
+outfile.write('#     outfile=' + (args.outfile or '<stdin>') + '\n')
+outfile.write('#     infile=' + (args.infile or '<stdin>') + '\n')
+if args.limit:
+    outfile.write('#     limit=' + str(args.limit) + '\n')
+if args.filter:
+    outfile.write('#     filter=' + args.filter + '\n')
+if args.column != 'text':
+    outfile.write('#     column=' + args.column+ '\n')
+outfile.write('#     regexp=' + args.regexp + '\n')
+if args.ignorecase:
+    outfile.write('#     ignorecase\n')
+outfile.write('#     score=' + args.score + '\n')
+if args.threshold:
+    outfile.write('#     threshold=' + str(args.threshold) + '\n')
+if args.number:
+    outfile.write('#     number=' + str(args.number) + '\n')
+
+inreader=unicodecsv.DictReader(infile)
 
 if args.verbosity > 1:
     print("Loading twitter data.", file=sys.stderr)
@@ -98,8 +126,21 @@ while (tweetcount < args.limit) if args.limit is not None else True:
     batchcount = 0
     while batchcount < batchtotal:
         try:
-            rows += [next(inreader)]
-            batchcount += 1
+            while batchcount < batchtotal:
+                row = next(inreader)
+                try:
+                    row['retweets'] = int(row['retweets'])
+                except ValueError:
+                    row['retweets'] = 0
+                try:
+                    row['favorites'] = int(row['favorites'])
+                except ValueError:
+                    row['favorites'] = 0
+                batchcount += 1
+                if (not args.filter) or evalfilter(**row):
+                    break
+
+            rows.append(row)
         except StopIteration:
             break
 
@@ -117,15 +158,14 @@ while (tweetcount < args.limit) if args.limit is not None else True:
         result = {}
         for rowindex in p.range(0, rowcount):
             row = rows[rowindex]
-            matches = regexp.finditer(row['text'])
+            matches = regexp.finditer(row[args.column])
             for match in matches:
                 if args.ignorecase:
                     index = tuple(value.lower() for value in match.groupdict().values())
                 else:
                     index = tuple(match.groupdict().values())
 
-                score = 1 + int(row['retweets']) + int(row['favorites'])
-                result[index] = result.get(index, 0) + score
+                result[index] = result.get(index, 0) + evalscore(**row)
 
         if args.verbosity > 3:
             print("Thread " + str(p.thread_num) + " found " + str(len(result)) + " results.", file=sys.stderr)
@@ -152,11 +192,6 @@ if args.number != 0:
 for result in sortedresult:
     for idx in range(len(fields)):
         result[fields[idx]] = result['match'][idx]
-
-outfile.write('# ' + args.regexp)
-if args.ignorecase:
-    outfile.write(', re.IGNORECASE')
-outfile.write('\n')
 
 outunicodecsv=unicodecsv.DictWriter(outfile, fieldnames=fields + ['score'], extrasaction='ignore')
 outunicodecsv.writeheader()

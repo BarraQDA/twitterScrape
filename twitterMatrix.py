@@ -26,26 +26,20 @@ import pymp
 from igraph import *
 import numpy as np
 
-parser = argparse.ArgumentParser(description='Twitter word matrix visualisation.')
+parser = argparse.ArgumentParser(description='Twitter co-occurrence matrix computation.')
 
 parser.add_argument('-v', '--verbosity', type=int, default=1)
 parser.add_argument('-j', '--jobs',      type=int, help='Number of parallel tasks, default is number of CPUs')
 parser.add_argument('-b', '--batch',      type=int, default=1000000, help='Number of tweets to process per batch, or zero for unlimited. May affect performance but not results.')
 parser.add_argument('-l', '--limit',     type=int, help='Limit number of tweets to process')
 
-parser.add_argument('-c', '--column',    type=str, default='text', help='CSV column')
-parser.add_argument('-w', '--words',     type=unicode, help='Comma separated list of words to use in matrix, otherwise scan CSV for most common words')
-
-parser.add_argument('-o', '--outfile',    type=str, help='Output pickle file name.')
-
-parser.add_argument('--margin',    type=int, default=0, help='Graph margin')
-parser.add_argument('--width',     type=int, default=600)
-parser.add_argument('--height',    type=int, default=800)
-
+parser.add_argument('-w', '--words',     type=unicode, required=True, help='Comma separated list of words to use in matrix')
 
 parser.add_argument('--textblob', action='store_true', help='Use textblob for analysis')
 
-parser.add_argument('infile', type=str, nargs='?',      help='Input CSV file, if missing use stdin.')
+parser.add_argument('-o', '--outfile',    type=str, help='Output CSV file, otherwise use stdout.')
+
+parser.add_argument('infile', type=str, nargs='?', help='Input CSV file, otherwise use stdin.')
 
 args = parser.parse_args()
 
@@ -56,24 +50,8 @@ if args.jobs is None:
 if args.verbosity > 1:
     print("Using " + str(args.jobs) + " jobs.", file=sys.stderr)
 
-if args.infile is None:
-    infile = sys.stdin
-else:
-    infile = file(args.infile, 'r')
-
 if args.batch == 0:
     args.batch = sys.maxint
-
-# See https://bytes.com/topic/python/answers/513222-csv-comments#post1997980
-def CommentStripper (iterator):
-    for line in iterator:
-        if line [:1] == '#':
-            continue
-        if not line.strip ():
-            continue
-        yield line
-
-inreader=unicodecsv.DictReader(CommentStripper(infile))
 
 if args.textblob:
     # We want to catch handles and hashtags so need to manage punctuation manually
@@ -86,6 +64,37 @@ if args.textblob:
     wordlist = [Word(word).lemmatize().lower() for word in args.words.split(',')]
 else:
     wordlist = [word.lower() for word in args.words.split(',')]
+
+if args.outfile is None:
+    outfile = sys.stdout
+else:
+    outfile = file(args.outfile, 'w')
+
+if args.infile is None:
+    infile = sys.stdin
+else:
+    infile = file(args.infile, 'r')
+
+# Copy comments at start of infile to outfile
+while True:
+    pos = infile.tell()
+    line = infile.readline()
+    if line[:1] == '#':
+        outfile.write(line)
+    else:
+        infile.seek(pos)
+        break
+
+outfile.write('# twitterMatrix\n')
+outfile.write('#     outfile=' + (args.outfile or '<stdin>') + '\n')
+outfile.write('#     infile=' + (args.infile or '<stdin>') + '\n')
+if args.limit:
+    outfile.write('#     limit=' + str(args.limit) + '\n')
+outfile.write('#     words=' + str(args.words) + '\n')
+if args.textblob:
+    outfile.write('#     textblob\n')
+
+inreader=unicodecsv.DictReader(infile)
 
 if args.verbosity > 1:
     print("Loading twitter data.", file=sys.stderr)
@@ -119,8 +128,7 @@ while (tweetcount < args.limit) if args.limit is not None else True:
     with pymp.Parallel(args.jobs) as p:
         matrix = []
         for rowindex in p.range(0, rowcount):
-            row = rows[rowindex]
-            text = row[args.column]
+            text = rows[rowindex]['text']
 
             if args.textblob:
                 textblob = TextBlob(text, tokenizer=tokenizer)
@@ -130,9 +138,6 @@ while (tweetcount < args.limit) if args.limit is not None else True:
                         lemma = word.lemmatize()
                         if lemma.lower() in wordlist:
                             rowwordlist += [lemma]
-
-                #rowwordlist = [word.lemmatize() for word,pos in textblob.tags if word.lower() not in exclude and pos[0:2] in posinclude]
-
             else:
                 rowwordlist = [word for word in text.split() if word.lower() in wordlist]
 
@@ -147,27 +152,11 @@ while (tweetcount < args.limit) if args.limit is not None else True:
 # Calculate the dot product of the transposed occurrence matrix with the occurrence matrix
 cooccurrencematrix = np.dot(zip(*mergedmatrices), mergedmatrices).tolist()
 
-if args.outfile is not None:
-    if args.verbosity > 1:
-        print("Saving cooccurrence matrix.", file=sys.stderr)
+if args.verbosity > 1:
+    print("Saving co-occurrence matrix.", file=sys.stderr)
 
-    import pickle
-    outfile = file(args.outfile, 'w')
-
-    pickle.dump(wordlist, outfile)
-    pickle.dump(cooccurrencematrix, outfile)
-else:
-    if args.verbosity > 1:
-        print("Generating co-occurrence graph.", file=sys.stderr)
-
-    graph = Graph.Weighted_Adjacency(cooccurrencematrix, mode='undirected', loops=False)
-
-    visual_style={}
-    visual_style['vertex_size'] =  rescale(graph.degree(), out_range=(5, 30))
-    visual_style['vertex_label'] = [word.encode('ascii', 'ignore') for word in wordlist]
-    visual_style['margin'] = 100
-    visual_style['bbox'] = (args.width, args.height)
-    visual_style['edge_width'] = rescale(graph.es["weight"], out_range=(1, 8))
-    visual_style['layout'] = graph.layout_fruchterman_reingold()
-
-    plot(graph, **visual_style)
+outunicodecsv=unicodecsv.writer(outfile)
+outunicodecsv.writerow([''] + wordlist)
+for row in range(0, len(wordlist)):
+    outunicodecsv.writerow([wordlist[row]] + cooccurrencematrix[row])
+outfile.close()
