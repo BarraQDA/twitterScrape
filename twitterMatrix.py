@@ -150,7 +150,9 @@ while (tweetcount < args.limit) if args.limit is not None else True:
         mergedmatrices += list(matrix)
 
 # Calculate the dot product of the transposed occurrence matrix with the occurrence matrix
-cooccurrencematrix = np.dot(zip(*mergedmatrices), mergedmatrices).tolist()
+cooccurrencematrix = np.dot(zip(*mergedmatrices), mergedmatrices)
+np.fill_diagonal(cooccurrencematrix, 0)
+cooccurrencematrix = cooccurrencematrix.tolist()
 
 if args.verbosity > 1:
     print("Saving co-occurrence matrix.", file=sys.stderr)

@@ -54,6 +54,7 @@ wordlist = next(inreader)[1:]
 cooccurrencematrix = []
 for row in inreader:
     introw = [int(element) for element in row[1:]]
+
     cooccurrencematrix.append(introw)
 
 if args.verbosity > 1:
@@ -62,7 +63,7 @@ if args.verbosity > 1:
 graph = Graph.Weighted_Adjacency(cooccurrencematrix, mode='undirected', loops=False)
 
 visual_style={}
-visual_style['vertex_size'] =  rescale(graph.degree(), out_range=(1, 30))
+visual_style['vertex_size'] =  rescale([sum(row) for row in cooccurrencematrix], out_range=(1, 30))
 visual_style['vertex_label'] = [word.encode('ascii', 'ignore') for word in wordlist]
 visual_style['margin'] = 100
 visual_style['bbox'] = (args.width, args.height)
