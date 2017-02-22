@@ -38,7 +38,6 @@ parser.add_argument('-s', '--score',     type=str,                 help='Comma s
 parser.add_argument('-x', '--exclude',   type=unicode, help='Comma separated list of words to exclude from cloud')
 
 parser.add_argument('-m', '--mode',      choices=['textblob', 'word', 'phrase'], default='textblob')
-parser.add_argument('--textblob', action='store_true', help='Use textblob for analysis')
 
 # Arguments to pass to wordcloud
 parser.add_argument('--max_font_size', type=int)
