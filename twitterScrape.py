@@ -35,6 +35,7 @@ parser.add_argument('-l', '--language', type=str, help='Language filter for twit
 parser.add_argument('-q', '--query',    type=str, help='Search string for twitter feed. If undefined, no twitter feed is opened.')
 parser.add_argument('-t', '--timeout',  type=int, default=5, help='Timeout for socket operations.')
 parser.add_argument('-m', '--match',    action='store_true', help='Verify matching tweets are identical.')
+parser.add_argument('-n', '--number',   type=int, default=0, help='Maximum number of results to output')
 
 parser.add_argument('-o', '--outfile', type=str, help='Output file, otherwise use stdout.')
 
@@ -63,6 +64,25 @@ elif os.path.isfile(args.outfile):
     replaceoutfile = True
 else:
     outfile = file(args.outfile, 'wb')
+
+outfile.write('# twitterScrape\n')
+if len(args.infile) > 0:
+    outfile.write('#     infile=' + args.infile[0] + '\n')
+    for fileidx in range(1, len(args.infile)):
+        outfile.write('             ' + args.infile[0] + '\n')
+outfile.write('#     outfile=' + (args.outfile or '<stdout>') + '\n')
+if args.user:
+    outfile.write('#     user=' + args.user + '\n')
+if args.since:
+    outfile.write('#     since=' + args.since + '\n')
+if args.until:
+    outfile.write('#     until=' + args.until + '\n')
+if args.language:
+    outfile.write('#     language=' + args.language + '\n')
+if args.query:
+    outfile.write('#     query=' + args.query + '\n')
+if args.number:
+    outfile.write('#     number=' + str(args.number) + '\n')
 
 # Function to simplify reading tweets from CSV or feed
 def nextornone(generator):
@@ -175,9 +195,15 @@ if headidx is None:
 outunicodecsv=unicodecsv.DictWriter(outfile, fieldnames, extrasaction='ignore')
 outunicodecsv.writeheader()
 
+tweetcount = 0
+
 # Main loop
 while True:
     outunicodecsv.writerow(currow[headidx])
+    tweetcount += 1
+    if args.number and tweetcount == args.number:
+        break
+
     rowcnt[headidx] += 1
     lastid = currow[headidx]['id']
     lastdate = currow[headidx]['date']
