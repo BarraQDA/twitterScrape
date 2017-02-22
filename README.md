@@ -17,4 +17,4 @@ The scripts [twitterCloud.py](https://github.com/BarraQDA/twitterScrape/blob/mas
 
 ## Usage
 
-All of the scripts use the [argparse](https://docs.python.org/3/library/argparse.html) module to parse their arguments.  Calling the script with a single argument '-h' will generate a help message that outlines the usage of the script.
+All of the scripts use the [argparse](https://docs.python.org/3/library/argparse.html) module to parse their arguments.  Calling the script with a single argument '-h' generates a help message that outlines the usage of the script.
