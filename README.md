@@ -23,7 +23,15 @@ The scripts all require a number of libraries that can be installed using pip. I
 
 ## Usage
 
-All of the scripts use the [argparse](https://docs.python.org/3/library/argparse.html) module to parse their arguments.  Calling the script with a single argument '-h' generates a help message that outlines the usage of the script.
+All of the scripts begin with a [shebang](https://en.wikipedia.org/wiki/Shebang_(Unix)) so that they can be directly invoked from the command line on a Unix-like system, including Mac OS, by entering
+
+    <path to script name> <script arguments>
+
+With Windows you will need to do something like
+
+    python <path to script name> <script arguments>
+
+All of the scripts use the [argparse](https://docs.python.org/3/library/argparse.html) module to parse their arguments.  Invoking a script with the single argument `-h` generates a help message that outlines the usage of the script.
 
 ## Get involved
 
