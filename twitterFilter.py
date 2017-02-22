@@ -72,12 +72,12 @@ while True:
     else:
         infile.seek(pos)
         break
-
-outfile.write('# twitterFilter\n')
-outfile.write('#     outfile=' + (args.outfile or '<stdin>') + '\n')
-outfile.write('#     infile=' + (args.infile or '<stdin>') + '\n')
 if args.limit:
     outfile.write('#     limit=' + str(args.limit) + '\n')
+
+outfile.write('# twitterFilter\n')
+outfile.write('#     outfile=' + (args.outfile or '<stdout>') + '\n')
+outfile.write('#     infile=' + (args.infile or '<stdin>') + '\n')
 outfile.write('#     filter=' + args.filter + '\n')
 if args.ignorecase:
     outfile.write('#     ignorecase\n')

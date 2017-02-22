@@ -86,7 +86,7 @@ while True:
         break
 
 outfile.write('# twitterMatrix\n')
-outfile.write('#     outfile=' + (args.outfile or '<stdin>') + '\n')
+outfile.write('#     outfile=' + (args.outfile or '<stdout>') + '\n')
 outfile.write('#     infile=' + (args.infile or '<stdin>') + '\n')
 if args.limit:
     outfile.write('#     limit=' + str(args.limit) + '\n')
