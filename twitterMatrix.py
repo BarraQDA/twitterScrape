@@ -35,7 +35,7 @@ parser.add_argument('-l', '--limit',     type=int, help='Limit number of tweets 
 
 parser.add_argument('-w', '--words',     type=unicode, required=True, help='Comma separated list of words to use in matrix')
 
-parser.add_argument('--textblob', action='store_true', help='Use textblob for analysis')
+parser.add_argument('--textblob', action='store_true', help='Use textblob to tokenise text and lemmatise words')
 
 parser.add_argument('-o', '--outfile',    type=str, help='Output CSV file, otherwise use stdout.')
 
