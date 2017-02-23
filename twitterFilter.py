@@ -29,12 +29,14 @@ parser = argparse.ArgumentParser(description='Filter twitter CSV file on text co
 
 parser.add_argument('-v', '--verbosity', type=int, default=1)
 parser.add_argument('-j', '--jobs',       type=int, help='Number of parallel tasks, default is number of CPUs')
-parser.add_argument('-l', '--limit',      type=int, help='Limit number of tweets to process')
 
 parser.add_argument('-f', '--filter',    type=str, required=True, help='Python expression evaluated to determine whether tweet is included')
 parser.add_argument('-i', '--ignorecase', action='store_true', help='Convert tweet text to lower case before applying filter')
+parser.add_argument('-l', '--limit',      type=int, help='Limit number of tweets to process')
 
 parser.add_argument('-o', '--outfile', type=str, help='Output CSV file, otherwise use stdout')
+parser.add_argument('-n', '--number',   type=int, default=0, help='Maximum number of results to output')
+parser.add_argument('--no-comments',    action='store_true', help='Do not output descriptive comments')
 
 parser.add_argument('infile', type=str, help='Input CSV file, otherwise use stdin')
 
@@ -72,15 +74,18 @@ while True:
     else:
         infile.seek(pos)
         break
-if args.limit:
-    outfile.write('#     limit=' + str(args.limit) + '\n')
 
-outfile.write('# twitterFilter\n')
-outfile.write('#     outfile=' + (args.outfile or '<stdout>') + '\n')
-outfile.write('#     infile=' + (args.infile or '<stdin>') + '\n')
-outfile.write('#     filter=' + args.filter + '\n')
-if args.ignorecase:
-    outfile.write('#     ignorecase\n')
+if not args.no_comments:
+    outfile.write('# twitterFilter\n')
+    outfile.write('#     outfile=' + (args.outfile or '<stdout>') + '\n')
+    outfile.write('#     infile=' + (args.infile or '<stdin>') + '\n')
+    outfile.write('#     filter=' + args.filter + '\n')
+    if args.ignorecase:
+        outfile.write('#     ignorecase\n')
+    if args.limit:
+        outfile.write('#     limit=' + str(args.limit) + '\n')
+    if args.number:
+        outfile.write('#     number=' + str(args.number) + '\n')
 
 if args.verbosity > 1:
     print("Loading twitter data.", file=sys.stderr)
@@ -105,14 +110,17 @@ for row in inreader:
         row['favorites'] = 0
 
     keep = evalfilter(**row)
+
+    tweetcount += 1
     if keep:
         csvwriter.writerow(row)
         keptcount += 1
     else:
         droppedcount += 1
 
-    tweetcount += 1
     if args.limit and tweetcount == args.limit:
+        break
+    if args.number and keptcount == args.number:
         break
 
 outfile.close()

@@ -38,6 +38,7 @@ parser.add_argument('-w', '--words',     type=unicode, required=True, help='Comm
 parser.add_argument('--textblob', action='store_true', help='Use textblob to tokenise text and lemmatise words')
 
 parser.add_argument('-o', '--outfile',    type=str, help='Output CSV file, otherwise use stdout.')
+parser.add_argument('--no-comments',    action='store_true', help='Do not output descriptive comments')
 
 parser.add_argument('infile', type=str, nargs='?', help='Input CSV file, otherwise use stdin.')
 
@@ -85,14 +86,15 @@ while True:
         infile.seek(pos)
         break
 
-outfile.write('# twitterMatrix\n')
-outfile.write('#     outfile=' + (args.outfile or '<stdout>') + '\n')
-outfile.write('#     infile=' + (args.infile or '<stdin>') + '\n')
-if args.limit:
-    outfile.write('#     limit=' + str(args.limit) + '\n')
-outfile.write('#     words=' + str(args.words) + '\n')
-if args.textblob:
-    outfile.write('#     textblob\n')
+if not args.no_comments:
+    outfile.write('# twitterMatrix\n')
+    outfile.write('#     outfile=' + (args.outfile or '<stdout>') + '\n')
+    outfile.write('#     infile=' + (args.infile or '<stdin>') + '\n')
+    if args.limit:
+        outfile.write('#     limit=' + str(args.limit) + '\n')
+    outfile.write('#     words=' + str(args.words) + '\n')
+    if args.textblob:
+        outfile.write('#     textblob\n')
 
 inreader=unicodecsv.DictReader(infile)
 

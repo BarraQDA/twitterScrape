@@ -30,17 +30,19 @@ parser = argparse.ArgumentParser(description='Twitter feed regular expression pr
 parser.add_argument('-v', '--verbosity',  type=int, default=1)
 parser.add_argument('-j', '--jobs',       type=int, help='Number of parallel tasks, default is number of CPUs')
 parser.add_argument('-b', '--batch',      type=int, help='Number of tweets to process per batch. Use to limit memory usage with very large files. May affect performance but not results.')
-parser.add_argument('-l', '--limit',      type=int, help='Limit number of tweets to process')
+
 parser.add_argument('-f', '--filter',     type=str, help='Python expression evaluated to determine whether tweet is included')
+parser.add_argument('-l', '--limit',      type=int, help='Limit number of tweets to process')
 
 parser.add_argument('-c', '--column',     type=str, default='text', help='Column to apply regular expression')
 parser.add_argument('-r', '--regexp',     type=str, required=True, help='Regular expression applied to tweet text to create output columns.')
 parser.add_argument('-i', '--ignorecase', action='store_true', help='Ignore case in regular expression')
 parser.add_argument('-s', '--score',      type=str, default='1', help='Python expression to evaluate tweet score, for example "1 + retweets + favorites"')
 parser.add_argument('-t', '--threshold',  type=float, help='Threshold value for word to be output')
-parser.add_argument('-n', '--number',     type=int, default=0, help='Maximum number of results to output')
 
 parser.add_argument('-o', '--outfile',    type=str, help='Output CSV file, otherwise use stdout.')
+parser.add_argument('-n', '--number',     type=int, default=0, help='Maximum number of results to output')
+parser.add_argument('--no-comments',    action='store_true', help='Do not output descriptive comments')
 
 parser.add_argument('infile', type=str, nargs='?', help='Input CSV file, otherwise use stdin.')
 
@@ -92,23 +94,24 @@ while True:
         infile.seek(pos)
         break
 
-outfile.write('# twitterRegExp\n')
-outfile.write('#     outfile=' + (args.outfile or '<stdout>') + '\n')
-outfile.write('#     infile=' + (args.infile or '<stdin>') + '\n')
-if args.limit:
-    outfile.write('#     limit=' + str(args.limit) + '\n')
-if args.filter:
-    outfile.write('#     filter=' + args.filter + '\n')
-if args.column != 'text':
-    outfile.write('#     column=' + args.column+ '\n')
-outfile.write('#     regexp=' + args.regexp + '\n')
-if args.ignorecase:
-    outfile.write('#     ignorecase\n')
-outfile.write('#     score=' + args.score + '\n')
-if args.threshold:
-    outfile.write('#     threshold=' + str(args.threshold) + '\n')
-if args.number:
-    outfile.write('#     number=' + str(args.number) + '\n')
+if not args.no_comments:
+    outfile.write('# twitterRegExp\n')
+    outfile.write('#     outfile=' + (args.outfile or '<stdout>') + '\n')
+    outfile.write('#     infile=' + (args.infile or '<stdin>') + '\n')
+    if args.limit:
+        outfile.write('#     limit=' + str(args.limit) + '\n')
+    if args.filter:
+        outfile.write('#     filter=' + args.filter + '\n')
+    if args.column != 'text':
+        outfile.write('#     column=' + args.column+ '\n')
+    outfile.write('#     regexp=' + args.regexp + '\n')
+    if args.ignorecase:
+        outfile.write('#     ignorecase\n')
+    outfile.write('#     score=' + args.score + '\n')
+    if args.threshold:
+        outfile.write('#     threshold=' + str(args.threshold) + '\n')
+    if args.number:
+        outfile.write('#     number=' + str(args.number) + '\n')
 
 inreader=unicodecsv.DictReader(infile)
 
