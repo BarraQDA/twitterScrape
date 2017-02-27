@@ -29,12 +29,13 @@ parser = argparse.ArgumentParser(description='Scrape and merge twitter feed usin
 parser.add_argument('-v', '--verbosity', type=int, default=1)
 
 parser.add_argument('-u', '--user',     type=str, help='Twitter username to match.')
-parser.add_argument(      '--since',    type=str, help='Lower bound search date.')
-parser.add_argument(      '--until',    type=str, help='Upper bound search date.')
+parser.add_argument('-q', '--query',    type=str, help='Search string for twitter feed. Either USER or QUERY must be defined to open a twitter feed.')
 parser.add_argument('-l', '--language', type=str, help='Language filter for twitter feed.')
-parser.add_argument('-q', '--query',    type=str, help='Search string for twitter feed. If undefined, no twitter feed is opened.')
 parser.add_argument('-f', '--force',    action='store_true', help='Run twitter query over periods covered by input file(s). Default is to only run twitter period over gaps.')
 parser.add_argument('-t', '--timeout',  type=int, default=5, help='Timeout for socket operations.')
+
+parser.add_argument(      '--since',    type=str, help='Lower bound search date.')
+parser.add_argument(      '--until',    type=str, help='Upper bound search date.')
 
 parser.add_argument('-o', '--outfile',  type=str, help='Output file, otherwise use stdout.')
 parser.add_argument('-n', '--number',   type=int, default=0, help='Maximum number of results to output')
@@ -45,7 +46,7 @@ parser.add_argument('infile', type=str, nargs='*', help='Input CSV files.')
 args = parser.parse_args()
 
 # Import twitter feed modules if we are going to need them
-if args.query:
+if args.query or args.user:
     from TwitterFeed import TwitterFeed
     import urllib2
 
@@ -155,7 +156,7 @@ rowcnt += [0]
 args.infile += ['twitter feed']
 
 # Start twitter feed if already needed
-if args.query and (args.force or args.until is None or headidx is None or args.until > currow[headidx]['date']):
+if (args.query or args.user) and (args.force or args.until is None or headidx is None or args.until > currow[headidx]['date']):
     since = args.since
     if (not args.force) and (headidx is not None):
          since = max(since, dateparser.parse(currow[headidx]['date']).date().isoformat())
