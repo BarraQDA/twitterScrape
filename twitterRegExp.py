@@ -63,10 +63,11 @@ if args.filter:
     def evalfilter(user, date, retweets, favorites, text, lang, geo, mentions, hashtags, id, permalink):
         return eval(filter)
 
+
 if args.ignorecase:
-    regexp = re.compile(args.regexp, re.IGNORECASE)
+    regexp = re.compile(args.regexp, re.IGNORECASE | re.UNICODE)
 else:
-    regexp = re.compile(args.regexp)
+    regexp = re.compile(args.regexp, re.UNICODE)
 
 fields = list(regexp.groupindex)
 
