@@ -148,6 +148,7 @@ else:
 
 # Prepare twitter feed
 twitterfeed = None
+twittersince = None
 httperror = False
 twitteridx = len(inreader)
 inreader += [None]
@@ -323,7 +324,7 @@ while True:
             # Set until date one day past lastdate because twitter returns tweets strictly before until date
             until = (dateparser.parse(lastdate) + datetime.timedelta(days=1)).date().isoformat()
             # This condition catches non-exhausted or different twitter feed
-            if twitterfeed or twittersince > since:
+            if twitterfeed or twittersince is None or twittersince > since:
                 twitterfeed = None
                 twittersince = since
                 twitteruntil = until
