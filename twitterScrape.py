@@ -110,18 +110,18 @@ rowcnt = []
 headidx = None
 for fileidx in range(len(args.infile)):
     thisinfile = file(args.infile[fileidx], 'r')
-    # Copy comments at start of infile to outfile
+    # Copy comments at start of infile to outfile. Avoid using tell/seek since
+    # we want to be able to process stdin.
     while True:
-        pos = thisinfile.tell()
         line = thisinfile.readline()
         if line[:1] == '#':
             outfile.write(line)
         else:
-            thisinfile.seek(pos)
+            fieldnames = next(unicodecsv.reader([line]))
             break
 
     infile += [thisinfile]
-    inreader += [unicodecsv.DictReader(infile[fileidx])]
+    inreader += [unicodecsv.DictReader(infile[fileidx], fieldnames=fieldnames)]
     if inreader[fileidx].fieldnames != inreader[0].fieldnames:
         raise RuntimeError("File: " + args.infile[fileidx] + " has mismatched field names")
 

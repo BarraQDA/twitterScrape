@@ -30,15 +30,18 @@ parser.add_argument('-v', '--verbosity', type=int, default=1)
 
 parser.add_argument('-j', '--jobs', type=int, help='Number of parallel tasks, default is number of CPUs')
 parser.add_argument('-b', '--batch',      type=int, default=1000000, help='Number of tweets to process per batch, or zero for unlimited. May affect performance but not results.')
+
 parser.add_argument('-l', '--limit',     type=int, help='Limit number of tweets to process')
 
-parser.add_argument('-k', '--keyword', type=str, help='Key word for search.')
+parser.add_argument('-k', '--keyword', type=str, required=True, help='Key word for search.')
 parser.add_argument('-t', '--threshold', type=float,
                     help='Threshold value for word to be output')
-parser.add_argument('-n', '--number', type=int, default=100,
-                    help='Limit number of words to output')
+
 parser.add_argument('-o', '--outfile', type=str, nargs='?',
                     help='Output file name, otherwise use stdout.')
+parser.add_argument('-n', '--number', type=int, default=100,
+                    help='Limit number of words to output')
+parser.add_argument('--no-comments',    action='store_true', help='Do not output descriptive comments')
 
 parser.add_argument('--textblob', action='store_true', help='Use textblob for analysis')
 
@@ -51,41 +54,53 @@ if args.jobs is None:
     import multiprocessing
     args.jobs = multiprocessing.cpu_count()
 
-if args.keyword is None:
-    raise RuntimeError("Keyword must be provided.")
+if args.verbosity > 1:
+    print("Using " + str(args.jobs) + " jobs.", file=sys.stderr)
+
+if args.batch == 0:
+    args.batch = sys.maxint
 
 keywordlc = args.keyword.lower()
 
-if args.verbosity > 1:
-    print("Using " + str(args.jobs) + " jobs.", file=sys.stderr)
+if args.outfile is None:
+    outfile = sys.stdout
+else:
+    outfile = file(args.outfile, 'w')
 
 if args.infile is None:
     infile = sys.stdin
 else:
     infile = file(args.infile, 'r')
 
-# Open output file already so we catch file error before doing all the hard work
-if args.outfile is None:
-    outfile = sys.stdout
-else:
-    outfile = file(args.outfile, 'w')
+# Copy comments at start of infile to outfile. Avoid using tell/seek since
+# we want to be able to process stdin.
+while True:
+    line = infile.readline()
+    if line[:1] == '#':
+        outfile.write(line)
+    else:
+        fieldnames = next(unicodecsv.reader([line]))
+        break
+
+if not args.no_comments:
+    outfile.write('# twitterRegExp\n')
+    outfile.write('#     outfile=' + (args.outfile or '<stdout>') + '\n')
+    outfile.write('#     infile=' + (args.infile or '<stdin>') + '\n')
+    if args.limit:
+        outfile.write('#     limit=' + str(args.limit) + '\n')
+    outfile.write('#     keyword=' + args.keyword + '\n')
+    if args.threshold:
+        outfile.write('#     threshold=' + str(args.threshold) + '\n')
+    if args.number:
+        outfile.write('#     number=' + str(args.number) + '\n')
+    if args.textblob:
+        outfile.write('#     textblob\n')
+
+
+inreader=unicodecsv.DictReader(infile, fieldnames=fieldnames)
 
 from nltk.corpus import stopwords
 stop = set(stopwords.words('english'))
-
-if args.batch == 0:
-    args.batch = sys.maxint
-
-# See https://bytes.com/topic/python/answers/513222-csv-comments#post1997980
-def CommentStripper (iterator):
-    for line in iterator:
-        if line [:1] == '#':
-            continue
-        if not line.strip ():
-            continue
-        yield line
-
-inreader=unicodecsv.DictReader(CommentStripper(infile))
 
 if args.textblob:
     # We want to catch handles and hashtags so need to manage punctuation manually

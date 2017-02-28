@@ -84,14 +84,14 @@ if args.infile is None:
 else:
     infile = file(args.infile, 'r')
 
-# Copy comments at start of infile to outfile
+# Copy comments at start of infile to outfile. Avoid using tell/seek since
+# we want to be able to process stdin.
 while True:
-    pos = infile.tell()
     line = infile.readline()
     if line[:1] == '#':
         outfile.write(line)
     else:
-        infile.seek(pos)
+        fieldnames = next(unicodecsv.reader([line]))
         break
 
 if not args.no_comments:
@@ -113,7 +113,7 @@ if not args.no_comments:
     if args.number:
         outfile.write('#     number=' + str(args.number) + '\n')
 
-inreader=unicodecsv.DictReader(infile)
+inreader=unicodecsv.DictReader(infile, fieldnames=fieldnames)
 
 if args.verbosity > 1:
     print("Loading twitter data.", file=sys.stderr)

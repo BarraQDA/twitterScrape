@@ -64,16 +64,15 @@ else:
 if args.batch == 0:
     args.batch = sys.maxint
 
-# See https://bytes.com/topic/python/answers/513222-csv-comments#post1997980
-def CommentStripper (iterator):
-    for line in iterator:
-        if line [:1] == '#':
-            continue
-        if not line.strip ():
-            continue
-        yield line
+# Skip comments at start of infile. Avoid using tell/seek since
+# we want to be able to process stdin.
+while True:
+    line = infile.readline()
+    if line[:1] != '#':
+        fieldnames = next(unicodecsv.reader([line]))
+        break
 
-inreader=unicodecsv.DictReader(CommentStripper(infile))
+inreader=unicodecsv.DictReader(infile, fieldnames=fieldnames)
 
 from nltk.corpus import stopwords
 exclude = set(stopwords.words('english'))
