@@ -44,7 +44,6 @@ class TwitterFeed(object):
             text = []
 
             def add_text(tag, no_tail=False):
-                #print (tag.tag + ' ' + (tag.text or ''))
                 if tag.tag in TwitterFeed.FORCE_SPACE_TAGS:
                     text.append(u' ')
                 if tag.text and not isinstance(tag, lxml.etree._Comment):
@@ -53,9 +52,6 @@ class TwitterFeed(object):
                     add_text(child)
                 if not no_tail and tag.tail:
                     text.append(tag.tail)
-                    #print (tag.tail + '/' + tag.tag)
-                #elif not no_tail:
-                    #print ('/' + tag.tag)
 
             for tag in tweet:
                 add_text(tag, no_tail=True)
