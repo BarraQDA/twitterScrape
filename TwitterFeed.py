@@ -15,6 +15,7 @@
 
 import urllib,urllib2,json,re,datetime,sys,cookielib
 from pyquery import PyQuery
+import lxml
 
 class TwitterFeed(object):
     def __init__(self, language=None, user=None, since=None, until=None, query=None, timeout=None):
@@ -32,7 +33,36 @@ class TwitterFeed(object):
         self.cookieJar = cookielib.CookieJar()
         self.tweets = None
 
+    PARSER=None
+    FORCE_SPACE_TAGS={'a'}
+
     def next(self):
+
+        # Define our own text extraction function as pyquery's is buggy - it puts spaces
+        # in the middle of URLs.
+        def text(tweet):
+            text = []
+
+            def add_text(tag, no_tail=False):
+                #print (tag.tag + ' ' + (tag.text or ''))
+                if tag.tag in TwitterFeed.FORCE_SPACE_TAGS:
+                    text.append(' ')
+                if tag.text and not isinstance(tag, lxml.etree._Comment):
+                    text.append(tag.text)
+                for child in tag.getchildren():
+                    add_text(child)
+                if not no_tail and tag.tail:
+                    text.append(tag.tail)
+                    #print (tag.tail + '/' + tag.tag)
+                #elif not no_tail:
+                    #print ('/' + tag.tag)
+
+            for tag in tweet:
+                add_text(tag, no_tail=True)
+
+            return ''.join(text)
+
+
         if self.opener is None:
             self.opener = urllib2.build_opener(urllib2.HTTPCookieProcessor(self.cookieJar))
             self.opener.addheaders = [
@@ -51,7 +81,7 @@ class TwitterFeed(object):
                     dataJson = json.loads(self.opener.open(self.url + self.position, timeout=self.timeout).read())
                     if dataJson is not None and len(dataJson['items_html'].strip()) > 0:
                         self.position = dataJson['min_position']
-                        self.tweets = PyQuery(dataJson['items_html']).items('div.js-stream-tweet')
+                        self.tweets = PyQuery(dataJson['items_html'], parser=TwitterFeed.PARSER).items('div.js-stream-tweet')
                 except:
                     sys.stderr.write("Unrecognised response from twitter to URL: " + self.url + self.position + '\n')
                     raise
@@ -61,7 +91,7 @@ class TwitterFeed(object):
 
             try:
                 tweet = next(self.tweets)
-                tweetPQ = PyQuery(tweet)
+                tweetPQ = PyQuery(tweet, parser=TwitterFeed.PARSER)
             except StopIteration:
                 self.tweets = None
                 continue
@@ -79,7 +109,8 @@ class TwitterFeed(object):
                                     int(tweetPQ("small.time span.js-short-timestamp").attr("data-time")))
             ret['user']      = tweetPQ("span.username.js-action-profile-name b").text()
             ret['lang']      = tweetPQ("p.js-tweet-text").attr("lang")
-            ret['text']      = re.sub(r"\s+", " ", tweetPQ("p.js-tweet-text").text().replace('# ', '#').replace('@ ', '@'))
+            #ret['text']      = re.sub(r"\s+", " ", tweetPQ("p.js-tweet-text").text().replace('# ', '#').replace('@ ', '@'))
+            ret['text']      = text(tweetPQ("p.js-tweet-text"))
             ret['retweets']  = int(tweetPQ("span.ProfileTweet-action--retweet span.ProfileTweet-actionCount").attr("data-tweet-stat-count").replace(",", ""))
             ret['favorites'] = int(tweetPQ("span.ProfileTweet-action--favorite span.ProfileTweet-actionCount").attr("data-tweet-stat-count").replace(",", ""))
             ret['permalink'] = 'https://twitter.com' + tweetPQ.attr("data-permalink-path")
