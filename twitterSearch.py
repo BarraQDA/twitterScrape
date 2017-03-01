@@ -25,7 +25,7 @@ import sys
 import unicodecsv
 import string
 import pytz
-from datetime import datetime
+import datetime
 
 # Hack away deprecation warning -
 import warnings
@@ -164,7 +164,7 @@ while True:
         if tweet.retweeted_status is None:
             outunicodecsv.writerow({
                 'user': tweet.user.screen_name,
-                'date': datetime.fromtimestamp(tweet.created_at_in_seconds, tz=pytz.UTC).isoformat(),
+                'date': datetime.datetime.utcfromtimestamp(tweet.created_at_in_seconds).isoformat(),
                 'retweets': tweet.retweet_count,
                 'favorites': tweet.favorite_count,
                 'text': tweet.text,
