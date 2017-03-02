@@ -311,7 +311,7 @@ while True:
         inreader[twitteridx] = None
 
     # If no file is now pacing, try opening a new twitter feed
-    while args.query and not any(pacing):
+    while (args.query or args.user) and not any(pacing):
         since = args.since
         if (not args.force) and (headidx is not None):
             since = max(since, dateparser.parse(currow[headidx]['date']).date().isoformat())
@@ -324,7 +324,7 @@ while True:
             # Set until date one day past lastdate because twitter returns tweets strictly before until date
             until = (dateparser.parse(lastdate) + datetime.timedelta(days=1)).date().isoformat()
             # This condition catches non-exhausted or different twitter feed
-            if twitterfeed or twittersince is None or twittersince > since:
+            if twitterfeed or (twittersince and twittersince > since):
                 twitterfeed = None
                 twittersince = since
                 twitteruntil = until
