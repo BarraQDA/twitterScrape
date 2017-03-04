@@ -24,11 +24,13 @@ import string
 import unicodedata
 import pymp
 import re
+from dateutil import parser as dateparser
+from pytimeparse.timeparse import timeparse
 
-parser = argparse.ArgumentParser(description='Twitter feed regular expression processing.')
+parser = argparse.ArgumentParser(description='Twitter feed regular expression analysis.')
 
 parser.add_argument('-v', '--verbosity',  type=int, default=1)
-parser.add_argument('-j', '--jobs',       type=int, help='Number of parallel tasks, default is number of CPUs')
+parser.add_argument('-j', '--jobs',       type=int, help='Number of parallel tasks, default is number of CPUs. May affect performance but not results.')
 parser.add_argument('-b', '--batch',      type=int, help='Number of tweets to process per batch. Use to limit memory usage with very large files. May affect performance but not results.')
 
 parser.add_argument('-f', '--filter',     type=str, help='Python expression evaluated to determine whether tweet is included')
@@ -40,6 +42,8 @@ parser.add_argument('-i', '--ignorecase', action='store_true', help='Ignore case
 parser.add_argument('-s', '--score',      type=str, default='1', help='Python expression to evaluate tweet score, for example "1 + retweets + favorites"')
 parser.add_argument('-t', '--threshold',  type=float, help='Threshold value for word to be output')
 
+parser.add_argument('-p', '--period',     type=str, help='Time period to measure frequency, for example "1 day".')
+
 parser.add_argument('-o', '--outfile',    type=str, help='Output CSV file, otherwise use stdout.')
 parser.add_argument('-n', '--number',     type=int, default=0, help='Maximum number of results to output')
 parser.add_argument('--no-comments',    action='store_true', help='Do not output descriptive comments')
@@ -48,21 +52,24 @@ parser.add_argument('infile', type=str, nargs='?', help='Input CSV file, otherwi
 
 args = parser.parse_args()
 
-if args.jobs is None:
-    import multiprocessing
-    args.jobs = multiprocessing.cpu_count()
+# Multiprocessing is not possible when doing time period processing
+if args.period:
+    args.jobs = 1
+else:
+    if args.jobs is None:
+        import multiprocessing
+        args.jobs = multiprocessing.cpu_count()
 
-if args.verbosity > 1:
-    print("Using " + str(args.jobs) + " jobs.", file=sys.stderr)
+    if args.verbosity > 1:
+        print("Using " + str(args.jobs) + " jobs.", file=sys.stderr)
 
-if args.batch is None:
-    args.batch = sys.maxint
+    if args.batch is None:
+        args.batch = sys.maxint
 
 if args.filter:
     filter = compile(args.filter, 'filter argument', 'eval')
-    def evalfilter(user, date, retweets, favorites, text, lang, geo, mentions, hashtags, id, permalink):
+    def evalfilter(user, date, retweets, favorites, text, lang, geo, mentions, hashtags, id, permalink, **extra):
         return eval(filter)
-
 
 if args.ignorecase:
     regexp = re.compile(args.regexp, re.IGNORECASE | re.UNICODE)
@@ -72,8 +79,13 @@ else:
 fields = list(regexp.groupindex)
 
 score = compile(args.score, 'score argument', 'eval')
-def evalscore(user, date, retweets, favorites, text, lang, geo, mentions, hashtags, id, permalink):
+def evalscore(user, date, retweets, favorites, text, lang, geo, mentions, hashtags, id, permalink, **extra):
     return eval(score)
+
+if args.period:
+    period = timeparse(args.period)
+    if period is None:
+        raise RuntimeError("Period: " + args.period + " not recognised.")
 
 if args.outfile is None:
     outfile = sys.stdout
@@ -108,6 +120,8 @@ if not args.no_comments:
     outfile.write('#     regexp=' + args.regexp + '\n')
     if args.ignorecase:
         outfile.write('#     ignorecase\n')
+    if args.period:
+        outfile.write('#     period=' + str(args.period) + '\n')
     outfile.write('#     score=' + args.score + '\n')
     if args.threshold:
         outfile.write('#     threshold=' + str(args.threshold) + '\n')
@@ -119,18 +133,85 @@ inreader=unicodecsv.DictReader(infile, fieldnames=fieldnames)
 if args.verbosity > 1:
     print("Loading twitter data.", file=sys.stderr)
 
-mergedresult = {}
-tweetcount = 0
-while (tweetcount < args.limit) if args.limit is not None else True:
-    if args.verbosity > 2:
-        print("Loading twitter batch.", file=sys.stderr)
-
-    rows = []
-    batchtotal = min(args.batch, args.limit - tweetcount) if args.limit is not None else args.batch
-    batchcount = 0
-    while batchcount < batchtotal:
+if args.jobs == 1:
+    rows=[]
+    tweetcount = 0
+    runningresult = {}
+    mergedresult = {}
+    while True:
         try:
-            while batchcount < batchtotal:
+            while True:
+                row = next(inreader)
+                if row['id'] == '':
+                    continue
+                try:
+                    row['retweets'] = int(row['retweets'])
+                except ValueError:
+                    row['retweets'] = 0
+                try:
+                    row['favorites'] = int(row['favorites'])
+                except ValueError:
+                    row['favorites'] = 0
+
+                if args.period:
+                    row['datesecs'] = int(dateparser.parse(row['date']).strftime('%s'))
+
+                # Filter out row right now since we are single-threaded anyway
+                if (not args.filter) or evalfilter(**row):
+                    break
+
+        except StopIteration:
+            break
+
+        if args.period:
+            firstrow = rows[0] if len(rows) else None
+            while firstrow and firstrow['datesecs'] - row['datesecs'] > period:
+                indexes = firstrow['indexes']
+                rowscore   = firstrow['score']
+                for index in indexes:
+                    runningresult[index] -= rowscore
+
+                del rows[0]
+                firstrow = rows[0] if len(rows) else None
+
+        matches = regexp.finditer(row[args.column])
+        rowscore = None
+        indexes = []
+        for match in matches:
+            rowscore = rowscore or evalscore(**row)
+            if args.ignorecase:
+                index = tuple(value.lower() for value in match.groupdict().values())
+            else:
+                index = tuple(match.groupdict().values())
+
+            if args.period:
+                indexes.append(index)
+                runningresult[index] = runningresult.get(index, 0) + rowscore
+                mergedresult[index] = max(mergedresult.get(index, 0), runningresult[index])
+            else:
+                mergedresult[index] = mergedresult.get(index, 0) + rowscore
+
+        if args.period and rowscore:
+            row['score']   = rowscore
+            row['indexes'] = indexes
+            rows.append(row)
+
+        tweetcount += 1
+        if args.limit and tweetcount == args.limit:
+            break
+
+else:
+    mergedresult = {}
+    tweetcount = 0
+    while (tweetcount < args.limit) if args.limit is not None else True:
+        if args.verbosity > 2:
+            print("Loading twitter batch.", file=sys.stderr)
+
+        rows = []
+        batchtotal = min(args.batch, args.limit - tweetcount) if args.limit is not None else args.batch
+        batchcount = 0
+        while batchcount < batchtotal:
+            try:
                 row = next(inreader)
                 try:
                     row['retweets'] = int(row['retweets'])
@@ -140,46 +221,50 @@ while (tweetcount < args.limit) if args.limit is not None else True:
                     row['favorites'] = int(row['favorites'])
                 except ValueError:
                     row['favorites'] = 0
-                batchcount += 1
-                if (not args.filter) or evalfilter(**row):
-                    break
 
-            rows.append(row)
-        except StopIteration:
+                batchcount += 1
+                rows.append(row)
+            except StopIteration:
+                break
+
+        if batchcount == 0:
             break
 
-    if batchcount == 0:
-        break
+        if args.verbosity > 2:
+            print("Processing twitter batch.", file=sys.stderr)
 
-    if args.verbosity > 2:
-        print("Processing twitter batch.", file=sys.stderr)
+        tweetcount += batchcount
+        rowcount = len(rows)
 
-    tweetcount += batchcount
-    rowcount = len(rows)
+        results = pymp.shared.list()
+        with pymp.Parallel(args.jobs) as p:
+            result = {}
+            for rowindex in p.range(0, rowcount):
+                row = rows[rowindex]
 
-    results = pymp.shared.list()
-    with pymp.Parallel(args.jobs) as p:
-        result = {}
-        for rowindex in p.range(0, rowcount):
-            row = rows[rowindex]
-            matches = regexp.finditer(row[args.column])
-            for match in matches:
-                if args.ignorecase:
-                    index = tuple(value.lower() for value in match.groupdict().values())
-                else:
-                    index = tuple(match.groupdict().values())
+                if args.filter and not evalfilter(**row):
+                    continue
 
-                result[index] = result.get(index, 0) + evalscore(**row)
+                matches = regexp.finditer(row[args.column])
+                rowscore = None
+                for match in matches:
+                    rowscore = rowscore or evalscore(**row)
+                    if args.ignorecase:
+                        index = tuple(value.lower() for value in match.groupdict().values())
+                    else:
+                        index = tuple(match.groupdict().values())
 
-        if args.verbosity > 3:
-            print("Thread " + str(p.thread_num) + " found " + str(len(result)) + " results.", file=sys.stderr)
+                    result[index] = result.get(index, 0) + rowscore
 
-        with p.lock:
-            results += [result]
+            if args.verbosity > 3:
+                print("Thread " + str(p.thread_num) + " found " + str(len(result)) + " results.", file=sys.stderr)
 
-    for result in results:
-        for index in result:
-            mergedresult[index] = mergedresult.get(index, 0) + result[index]
+            with p.lock:
+                results += [result]
+
+        for result in results:
+            for index in result:
+                mergedresult[index] = mergedresult.get(index, 0) + result[index]
 
 if args.verbosity > 1:
     print("Sorting " + str(len(mergedresult)) + " results.", file=sys.stderr)
