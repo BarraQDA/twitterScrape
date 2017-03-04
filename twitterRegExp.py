@@ -34,13 +34,15 @@ parser.add_argument('-j', '--jobs',       type=int, help='Number of parallel tas
 parser.add_argument('-b', '--batch',      type=int, help='Number of tweets to process per batch. Use to limit memory usage with very large files. May affect performance but not results.')
 
 parser.add_argument('-f', '--filter',     type=str, help='Python expression evaluated to determine whether tweet is included')
+parser.add_argument(      '--since',    type=str, help='Lower bound tweet date.')
+parser.add_argument(      '--until',    type=str, help='Upper bound tweet date.')
 parser.add_argument('-l', '--limit',      type=int, help='Limit number of tweets to process')
 
 parser.add_argument('-c', '--column',     type=str, default='text', help='Column to apply regular expression')
 parser.add_argument('-r', '--regexp',     type=str, required=True, help='Regular expression applied to tweet text to create output columns.')
 parser.add_argument('-i', '--ignorecase', action='store_true', help='Ignore case in regular expression')
 parser.add_argument('-s', '--score',      type=str, default='1', help='Python expression to evaluate tweet score, for example "1 + retweets + favorites"')
-parser.add_argument('-t', '--threshold',  type=float, help='Threshold value for word to be output')
+parser.add_argument('-t', '--threshold',  type=float, help='Threshold score for result to be output')
 
 parser.add_argument('-p', '--period',     type=str, help='Time period to measure frequency, for example "1 day".')
 
@@ -70,6 +72,12 @@ if args.filter:
     filter = compile(args.filter, 'filter argument', 'eval')
     def evalfilter(user, date, retweets, favorites, text, lang, geo, mentions, hashtags, id, permalink, **extra):
         return eval(filter)
+
+# Parse since and until dates
+if args.until:
+    args.until = dateparser.parse(args.until).date().isoformat()
+if args.since:
+    args.since = dateparser.parse(args.since).date().isoformat()
 
 if args.ignorecase:
     regexp = re.compile(args.regexp, re.IGNORECASE | re.UNICODE)
@@ -116,6 +124,10 @@ if not args.no_comments:
         outfile.write('#     limit=' + str(args.limit) + '\n')
     if args.filter:
         outfile.write('#     filter=' + args.filter + '\n')
+    if args.since:
+        outfile.write('#     since=' + args.since+ '\n')
+    if args.until:
+        outfile.write('#     until=' + args.until + '\n')
     if args.column != 'text':
         outfile.write('#     column=' + args.column+ '\n')
     outfile.write('#     regexp=' + args.regexp + '\n')
@@ -158,6 +170,10 @@ if args.jobs == 1:
                     row['datesecs'] = int(dateparser.parse(row['date']).strftime('%s'))
 
                 # Filter out row right now since we are single-threaded anyway
+                if args.since and row['date'] >= args.since:
+                    break
+                if args.until and row['date'] < args.since:
+                    break
                 if (not args.filter) or evalfilter(**row):
                     break
 
@@ -243,6 +259,10 @@ else:
             for rowindex in p.range(0, rowcount):
                 row = rows[rowindex]
 
+                if args.since and row['date'] < args.since:
+                    continue
+                if args.until and row['date'] >= args.until:
+                    continue
                 if args.filter and not evalfilter(**row):
                     continue
 
