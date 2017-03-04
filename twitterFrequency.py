@@ -24,17 +24,19 @@ import string
 import unicodedata
 import pymp
 import re
+import datetime
 from dateutil import parser as dateparser
 from pytimeparse.timeparse import timeparse
+import calendar
 
-parser = argparse.ArgumentParser(description='Twitter feed regular expression analysis.')
+parser = argparse.ArgumentParser(description='Twitter feed frequency matrix producer.')
 
 parser.add_argument('-v', '--verbosity',  type=int, default=1)
 
 parser.add_argument('-f', '--filter',     type=str, nargs='+', help='Python expression evaluated to determine whether tweet is included')
 parser.add_argument('-t', '--title',      type=str, nargs='+', help='Title of column corresponding to filter')
-parser.add_argument(      '--since',    type=str, help='Lower bound tweet date.')
-parser.add_argument(      '--until',    type=str, help='Upper bound tweet date.')
+parser.add_argument(      '--since',      type=str, help='Lower bound tweet date.')
+parser.add_argument(      '--until',      type=str, help='Upper bound tweet date.')
 parser.add_argument('-l', '--limit',      type=int, help='Limit number of tweets to process')
 
 parser.add_argument('-s', '--score',      type=str, default='1', help='Python expression to evaluate tweet score, for example "1 + retweets + favorites"')
@@ -126,7 +128,16 @@ while True:
     try:
         while True:
             row = next(inreader)
-            row['datesecs'] = int(dateparser.parse(row['date']).strftime('%s'))
+            try:
+                row['retweets'] = int(row['retweets'])
+            except ValueError:
+                row['retweets'] = 0
+            try:
+                row['favorites'] = int(row['favorites'])
+            except ValueError:
+                row['favorites'] = 0
+
+            row['datesecs'] = calendar.timegm(dateparser.parse(row['date']).timetuple())
             row['score'] = evalscore(**row)
 
             if not args.since or row['date'] >= args.since:
@@ -137,6 +148,19 @@ while True:
     except StopIteration:
         break
 
+    firstrow = rows[0] if len(rows) > 0 else None
+    while firstrow and firstrow['datesecs'] - row['datesecs'] > period:
+        filters = firstrow['filters']
+        for filteridx in range(len(args.filter)):
+            if filters[filteridx]:
+                runningscore[filteridx] -= firstrow['score']
+
+        if any(filters):
+            outunicodecsv.writerow([datetime.datetime.utcfromtimestamp(firstrow['datesecs'] - period).isoformat()] + runningscore)
+
+        del rows[0]
+        firstrow = rows[0] if len(rows) else None
+
     filters = []
     for filteridx in range(len(args.filter)):
         thisfilter = evalfilter(filteridx, **row)
@@ -144,26 +168,17 @@ while True:
         if thisfilter:
             runningscore[filteridx] += row['score']
 
+    tweetcount += 1
+    if args.limit and tweetcount == args.limit:
+        break
+
     if not any(filters):
         continue
 
     row['filters'] = filters[:]
     rows.append(row)
-    firstrow = rows[0]
-    filters = []
-    while firstrow and firstrow['datesecs'] - row['datesecs'] > period:
-        filters = firstrow['filters']
-        for filteridx in range(len(args.filter)):
-            if filters[filteridx]:
-                runningscore[filteridx] -= firstrow['score']
-
-        del rows[0]
-        firstrow = rows[0] if len(rows) else None
 
     outunicodecsv.writerow([row['date']] + runningscore)
 
-    tweetcount += 1
-    if args.limit and tweetcount == args.limit:
-        break
 
 outfile.close()
