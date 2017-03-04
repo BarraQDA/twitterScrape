@@ -34,8 +34,8 @@ parser.add_argument('-j', '--jobs',       type=int, help='Number of parallel tas
 parser.add_argument('-b', '--batch',      type=int, help='Number of tweets to process per batch. Use to limit memory usage with very large files. May affect performance but not results.')
 
 parser.add_argument('-f', '--filter',     type=str, help='Python expression evaluated to determine whether tweet is included')
-parser.add_argument(      '--since',    type=str, help='Lower bound tweet date.')
-parser.add_argument(      '--until',    type=str, help='Upper bound tweet date.')
+parser.add_argument(      '--since',      type=str, help='Lower bound tweet date.')
+parser.add_argument(      '--until',      type=str, help='Upper bound tweet date.')
 parser.add_argument('-l', '--limit',      type=int, help='Limit number of tweets to process')
 
 parser.add_argument('-c', '--column',     type=str, default='text', help='Column to apply regular expression')
@@ -167,7 +167,7 @@ if args.jobs == 1:
                     row['favorites'] = 0
 
                 if args.period:
-                    row['datesecs'] = int(dateparser.parse(row['date']).strftime('%s'))
+                    row['datesecs'] = calendar.timegm(dateparser.parse(row['date']).timetuple())
 
                 # Filter out row right now since we are single-threaded anyway
                 if args.since and row['date'] >= args.since:
