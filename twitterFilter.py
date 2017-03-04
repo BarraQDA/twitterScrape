@@ -29,13 +29,15 @@ parser = argparse.ArgumentParser(description='Filter twitter CSV file on text co
 
 parser.add_argument('-v', '--verbosity', type=int, default=1)
 
-parser.add_argument('-f', '--filter',    type=str, required=True, help='Python expression evaluated to determine whether tweet is included')
+parser.add_argument('-f', '--filter',     type=str, required=True, help='Python expression evaluated to determine whether tweet is included')
 parser.add_argument('-i', '--ignorecase', action='store_true', help='Convert tweet text to lower case before applying filter')
+parser.add_argument(      '--since',      type=str, help='Lower bound tweet date.')
+parser.add_argument(      '--until',      type=str, help='Upper bound tweet date.')
 parser.add_argument('-l', '--limit',      type=int, help='Limit number of tweets to process')
 
 parser.add_argument('-o', '--outfile', type=str, help='Output CSV file, otherwise use stdout')
-parser.add_argument('-n', '--number',   type=int, default=0, help='Maximum number of results to output')
-parser.add_argument('--no-comments',    action='store_true', help='Do not output descriptive comments')
+parser.add_argument('-n', '--number',  type=int, default=0, help='Maximum number of results to output')
+parser.add_argument('--no-comments',   action='store_true', help='Do not output descriptive comments')
 
 parser.add_argument('infile', type=str, help='Input CSV file, otherwise use stdin')
 
@@ -92,14 +94,16 @@ keptcount    = 0
 droppedcount = 0
 tweetcount   = 0
 for row in inreader:
-    try:
-        row['retweets'] = int(row['retweets'])
-    except ValueError:
-        row['retweets'] = 0
-    try:
-        row['favorites'] = int(row['favorites'])
-    except ValueError:
-        row['favorites'] = 0
+    if row['id'] == '':
+        continue
+    if args.until and row['date'] >= args.until:
+        continue
+    if args.since and row['date'] < args.since:
+        break
+
+    #  Calculate fields because they may be used in filter
+    row['retweets']  = int(row['retweets'])
+    row['favorites'] = int(row['favorites'])
 
     keep = evalfilter(**row)
 

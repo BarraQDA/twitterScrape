@@ -25,6 +25,7 @@ import unicodedata
 import pymp
 import re
 from dateutil import parser as dateparser
+import calendar
 from pytimeparse.timeparse import timeparse
 
 parser = argparse.ArgumentParser(description='Twitter feed regular expression analysis.')
@@ -157,30 +158,26 @@ if args.jobs == 1:
                 row = next(inreader)
                 if row['id'] == '':
                     continue
-                try:
-                    row['retweets'] = int(row['retweets'])
-                except ValueError:
-                    row['retweets'] = 0
-                try:
-                    row['favorites'] = int(row['favorites'])
-                except ValueError:
-                    row['favorites'] = 0
 
-                if args.period:
-                    row['datesecs'] = calendar.timegm(dateparser.parse(row['date']).timetuple())
+                if args.until and row['date'] >= args.until:
+                    continue
+
+                #  Calculate fields because they may be used in filter
+                row['retweets']  = int(row['retweets'])
+                row['favorites'] = int(row['favorites'])
 
                 # Filter out row right now since we are single-threaded anyway
-                if args.since and row['date'] >= args.since:
-                    break
-                if args.until and row['date'] < args.since:
-                    break
                 if (not args.filter) or evalfilter(**row):
                     break
 
         except StopIteration:
             break
 
+        if args.since and row['date'] < args.since:
+            break
+
         if args.period:
+            row['datesecs'] = calendar.timegm(dateparser.parse(row['date']).timetuple())
             firstrow = rows[0] if len(rows) else None
             while firstrow and firstrow['datesecs'] - row['datesecs'] > period:
                 indexes = firstrow['indexes']
@@ -230,17 +227,20 @@ else:
         while batchcount < batchtotal:
             try:
                 row = next(inreader)
-                try:
-                    row['retweets'] = int(row['retweets'])
-                except ValueError:
-                    row['retweets'] = 0
-                try:
-                    row['favorites'] = int(row['favorites'])
-                except ValueError:
-                    row['favorites'] = 0
+                if row['id'] == '':
+                    continue
+
+                if args.until and row['date'] >= args.until:
+                    continue
+                if args.since and row['date'] < args.since:
+                    break
+
+                row['retweets']  = int(row['retweets'])
+                row['favorites'] = int(row['favorites'])
 
                 batchcount += 1
                 rows.append(row)
+
             except StopIteration:
                 break
 

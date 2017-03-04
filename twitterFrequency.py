@@ -128,25 +128,22 @@ while True:
     try:
         while True:
             row = next(inreader)
-            try:
-                row['retweets'] = int(row['retweets'])
-            except ValueError:
-                row['retweets'] = 0
-            try:
-                row['favorites'] = int(row['favorites'])
-            except ValueError:
-                row['favorites'] = 0
+            if row['id'] == '':
+                continue
 
-            row['datesecs'] = calendar.timegm(dateparser.parse(row['date']).timetuple())
-            row['score'] = evalscore(**row)
-
-            if not args.since or row['date'] >= args.since:
-                break
-            if not args.until or row['date'] < args.since:
+            if args.until and row['date'] < args.until:
                 break
 
     except StopIteration:
         break
+
+    if args.since and row['date'] < args.since:
+        break
+
+    row['retweets']  = int(row['retweets'])
+    row['favorites'] = int(row['favorites'])
+    row['datesecs']  = calendar.timegm(dateparser.parse(row['date']).timetuple())
+    row['score']     = evalscore(**row)
 
     firstrow = rows[0] if len(rows) > 0 else None
     while firstrow and firstrow['datesecs'] - row['datesecs'] > period:
