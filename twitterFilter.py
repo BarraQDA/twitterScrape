@@ -28,7 +28,6 @@ import re
 parser = argparse.ArgumentParser(description='Filter twitter CSV file on text column.')
 
 parser.add_argument('-v', '--verbosity', type=int, default=1)
-parser.add_argument('-j', '--jobs',       type=int, help='Number of parallel tasks, default is number of CPUs')
 
 parser.add_argument('-f', '--filter',    type=str, required=True, help='Python expression evaluated to determine whether tweet is included')
 parser.add_argument('-i', '--ignorecase', action='store_true', help='Convert tweet text to lower case before applying filter')
@@ -41,13 +40,6 @@ parser.add_argument('--no-comments',    action='store_true', help='Do not output
 parser.add_argument('infile', type=str, help='Input CSV file, otherwise use stdin')
 
 args = parser.parse_args()
-
-if args.jobs is None:
-    import multiprocessing
-    args.jobs = multiprocessing.cpu_count()
-
-if args.verbosity > 1:
-    print("Using " + str(args.jobs) + " jobs.", file=sys.stderr)
 
 filter = compile(args.filter, 'filter argument', 'eval')
 def evalfilter(user, date, retweets, favorites, text, lang, geo, mentions, hashtags, id, permalink):
