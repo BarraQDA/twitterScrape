@@ -81,7 +81,8 @@ else:
 while True:
     line = infile.readline()
     if line[:1] == '#':
-        outfile.write(line)
+        if not args.no_comments:
+            outfile.write(line)
     else:
         fieldnames = next(unicodecsv.reader([line]))
         break
