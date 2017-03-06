@@ -19,18 +19,22 @@
 from __future__ import print_function
 import argparse
 import sys
-import unicodecsv
+from TwitterFeed import TwitterRead
 import string
 import unicodedata
 import pymp
-import re
+from dateutil import parser as dateparser
 from wordcloud import WordCloud
 
 parser = argparse.ArgumentParser(description='Twitter feed word cloud.')
 
 parser.add_argument('-v', '--verbosity', type=int, default=1)
 parser.add_argument('-j', '--jobs',      type=int, help='Number of parallel tasks, default is number of CPUs')
-parser.add_argument('-b', '--batch',      type=int, default=1000000, help='Number of tweets to process per batch, or zero for unlimited. May affect performance but not results.')
+parser.add_argument('-b', '--batch',      type=int, default=100000, help='Number of tweets to process per batch. Use to limit memory usage with very large files. May affect performance but not results.')
+
+parser.add_argument('-f', '--filter',     type=str, help='Python expression evaluated to determine whether tweet is included')
+parser.add_argument(      '--since',      type=str, help='Lower bound tweet date.')
+parser.add_argument(      '--until',      type=str, help='Upper bound tweet date.')
 parser.add_argument('-l', '--limit',     type=int, help='Limit number of tweets to process')
 
 parser.add_argument('-c', '--column',    type=str, default='text', help='Text column')
@@ -56,23 +60,21 @@ if args.jobs is None:
 if args.verbosity > 1:
     print("Using " + str(args.jobs) + " jobs.", file=sys.stderr)
 
-if args.infile is None:
-    infile = sys.stdin
-else:
-    infile = file(args.infile, 'r')
-
 if args.batch == 0:
     args.batch = sys.maxint
 
-# Skip comments at start of infile. Avoid using tell/seek since
-# we want to be able to process stdin.
-while True:
-    line = infile.readline()
-    if line[:1] != '#':
-        fieldnames = next(unicodecsv.reader([line]))
-        break
+if args.filter:
+    filter = compile(args.filter, 'filter argument', 'eval')
+    def evalfilter(user, date, retweets, favorites, text, lang, geo, mentions, hashtags, id, permalink, **extra):
+        return eval(filter)
 
-inreader=unicodecsv.DictReader(infile, fieldnames=fieldnames)
+# Parse since and until dates
+if args.until:
+    args.until = dateparser.parse(args.until).date().isoformat()
+if args.since:
+    args.since = dateparser.parse(args.since).date().isoformat()
+
+twitterread  = TwitterRead(args.infile, since=args.since, until=args.until, limit=args.limit)
 
 from nltk.corpus import stopwords
 exclude = set(stopwords.words('english'))
@@ -92,17 +94,15 @@ if args.verbosity > 1:
     print("Loading twitter data.", file=sys.stderr)
 
 mergedscoredicts = {}
-tweetcount = 0
-while (tweetcount < args.limit) if args.limit is not None else True:
+while True:
     if args.verbosity > 2:
         print("Loading twitter batch.", file=sys.stderr)
 
     rows = []
-    batchtotal = min(args.batch, args.limit - tweetcount) if args.limit is not None else args.batch
     batchcount = 0
-    while batchcount < batchtotal:
+    while batchcount < args.batch:
         try:
-            rows += [next(inreader)]
+            rows.append(next(twitterread))
             batchcount += 1
         except StopIteration:
             break
@@ -113,7 +113,6 @@ while (tweetcount < args.limit) if args.limit is not None else True:
     if args.verbosity > 2:
         print("Processing twitter batch.", file=sys.stderr)
 
-    tweetcount += batchcount
     rowcount = len(rows)
 
     scoredicts = pymp.shared.list()
@@ -121,6 +120,9 @@ while (tweetcount < args.limit) if args.limit is not None else True:
         scoredict = {}
         for rowindex in p.range(0, rowcount):
             row = rows[rowindex]
+            if args.filter and not evalfilter(**row):
+                continue
+
             text = row[args.column]
             if args.mode == 'textblob':
                 textblob = TextBlob(text, tokenizer=tokenizer)

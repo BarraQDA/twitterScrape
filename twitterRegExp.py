@@ -103,9 +103,7 @@ else:
     outfile = file(args.outfile, 'w')
 
 twitterread  = TwitterRead(args.infile, since=args.since, until=args.until, limit=args.limit)
-if args.no_comments:
-    comments = None
-else:
+if not args.no_comments:
     comments=twitterread.comments
 
     comments += '# twitterRegExp\n'
@@ -195,14 +193,11 @@ else:
             print("Loading twitter batch.", file=sys.stderr)
 
         rows = []
-        batchtotal = min(args.batch, args.limit - twitterread.count) if args.limit is not None else args.batch
         batchcount = 0
-        while batchcount < batchtotal:
+        while batchcount < args.batch:
             try:
-                row = next(twitterread)
+                rows.append(next(twitterread))
                 batchcount += 1
-                rows.append(row)
-
             except StopIteration:
                 break
 

@@ -19,6 +19,7 @@
 from __future__ import print_function
 import argparse
 import sys
+from TwitterFeed import TwitterRead
 import unicodecsv
 import string
 import unicodedata
@@ -78,42 +79,29 @@ if args.outfile is None:
 else:
     outfile = file(args.outfile, 'w')
 
-if args.infile is None:
-    infile = sys.stdin
-else:
-    infile = file(args.infile, 'r')
-
-# Copy comments at start of infile to outfile. Avoid using tell/seek since
-# we want to be able to process stdin.
-while True:
-    line = infile.readline()
-    if line[:1] == '#':
-        if not args.no_comments:
-            outfile.write(line)
-    else:
-        fieldnames = next(unicodecsv.reader([line]))
-        break
-
+twitterread  = TwitterRead(args.infile, since=args.since, until=args.until, limit=args.limit)
 if not args.no_comments:
-    outfile.write('# twitterFrequency\n')
-    outfile.write('#     outfile=' + (args.outfile or '<stdout>') + '\n')
-    outfile.write('#     infile=' + (args.infile or '<stdin>') + '\n')
+    comments=twitterread.comments
+
+    comments += '# twitterFrequency\n'
+    comments += '#     outfile=' + (args.outfile or '<stdout>') + '\n'
+    comments += '#     infile=' + (args.infile or '<stdin>') + '\n'
     if args.limit:
-        outfile.write('#     limit=' + str(args.limit) + '\n')
+        comments += '#     limit=' + str(args.limit) + '\n'
     for filter in args.filter:
-        outfile.write('#     filter=' + filter + '\n')
+        comments += '#     filter=' + filter + '\n'
     if args.title:
         for title in args.title:
-            outfile.write('#     title=' + title + '\n')
+            comments += '#     title=' + title + '\n'
     if args.since:
-        outfile.write('#     since=' + args.since+ '\n')
+        comments += '#     since=' + args.since+ '\n'
     if args.until:
-        outfile.write('#     until=' + args.until + '\n')
-    outfile.write('#     score=' + args.score + '\n')
+        comments += '#     until=' + args.until + '\n'
+    comments += '#     score=' + args.score + '\n'
     if args.period:
-        outfile.write('#     period=' + str(args.period) + '\n')
+        comments += '#     period=' + str(args.period) + '\n'
 
-inreader=unicodecsv.DictReader(infile, fieldnames=fieldnames)
+    outfile.write(comments)
 
 outunicodecsv=unicodecsv.writer(outfile)
 outunicodecsv.writerow(['date'] + args.title)
@@ -122,26 +110,13 @@ if args.verbosity > 1:
     print("Loading twitter data.", file=sys.stderr)
 
 rows=[]
-tweetcount = 0
 runningscore = [0] * len(args.filter)
 while True:
     try:
-        while True:
-            row = next(inreader)
-            if row['id'] == '':
-                continue
-
-            if args.until and row['date'] < args.until:
-                break
-
+        row = next(twitterread)
     except StopIteration:
         break
 
-    if args.since and row['date'] < args.since:
-        break
-
-    row['retweets']  = int(row['retweets'])
-    row['favorites'] = int(row['favorites'])
     row['datesecs']  = calendar.timegm(dateparser.parse(row['date']).timetuple())
     row['score']     = evalscore(**row)
 
@@ -165,8 +140,7 @@ while True:
         if thisfilter:
             runningscore[filteridx] += row['score']
 
-    tweetcount += 1
-    if args.limit and tweetcount == args.limit:
+    if args.limit and twitterread.count == args.limit:
         break
 
     if not any(filters):
