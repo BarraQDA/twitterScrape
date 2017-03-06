@@ -18,11 +18,10 @@
 
 from __future__ import print_function
 import argparse
+from TwitterFeed import TwitterRead, TwitterWrite
 import sys
-import unicodecsv
 from textblob import TextBlob
 import string
-import unicodedata
 import pymp
 import operator
 
@@ -30,7 +29,7 @@ parser = argparse.ArgumentParser(description='Filter twitter CSV file on text co
 
 parser.add_argument('-v', '--verbosity', type=int, default=1)
 parser.add_argument('-j', '--jobs',       type=int, help='Number of parallel tasks, default is number of CPUs. May affect performance but not results.')
-parser.add_argument('-b', '--batch',      type=int, help='Number of tweets to process per batch. Use to limit memory usage with very large files. May affect performance but not results.')
+parser.add_argument('-b', '--batch',      type=int, default=100000, help='Number of tweets to process per batch. Use to limit memory usage with very large files. May affect performance but not results.')
 
 parser.add_argument('-p', '--prelude',    type=str, nargs="*", help='Python code to execute before processing')
 parser.add_argument('-f', '--filter',     type=str, required=True, help='Python expression evaluated to determine whether tweet is included')
@@ -57,6 +56,12 @@ if args.jobs is None:
 if args.verbosity > 1:
     print("Using " + str(args.jobs) + " jobs.", file=sys.stderr)
 
+# Parse since and until dates
+if args.until:
+    args.until = dateparser.parse(args.until).date().isoformat()
+if args.since:
+    args.since = dateparser.parse(args.since).date().isoformat()
+
 if args.batch is None:
     args.batch = sys.maxint
 
@@ -73,97 +78,52 @@ def evalfilter(user, date, retweets, favorites, text, lang, geo, mentions, hasht
         text = text.lower()
     return eval(filter)
 
-if args.outfile is None:
-    outfile = sys.stdout
+twitterread  = TwitterRead(args.infile, since=args.since, until=args.until, limit=args.limit)
+if args.no_comments:
+    comments = None
 else:
-    outfile = file(args.outfile, 'w')
+    comments=twitterread.comments
 
-if args.infile is None:
-    infile = sys.stdin
-else:
-    infile = file(args.infile, 'r')
-
-# Copy comments at start of infile to outfile. Avoid using tell/seek since
-# we want to be able to process stdin.
-while True:
-    line = infile.readline()
-    if line[:1] == '#':
-        if not args.no_comments:
-            outfile.write(line)
-    else:
-        fieldnames = next(unicodecsv.reader([line]))
-        break
-
-if not args.no_comments:
-    outfile.write('# twitterFilter\n')
-    outfile.write('#     outfile=' + (args.outfile or '<stdout>') + '\n')
-    outfile.write('#     infile=' + (args.infile or '<stdin>') + '\n')
+    comments += '# twitterFilter\n'
+    comments += '#     outfile=' + (args.outfile or '<stdout>') + '\n'
+    comments += '#     infile=' + (args.infile or '<stdin>') + '\n'
     if args.prelude:
         for line in args.prelude:
-            outfile.write('#     prelude=' + line + '\n')
-    outfile.write('#     filter=' + args.filter + '\n')
+            comments += '#     prelude=' + line + '\n'
+    comments += '#     filter=' + args.filter + '\n'
     if args.invert:
-        outfile.write('#     invert\n')
+        comments += '#     invert\n'
     if args.ignorecase:
-        outfile.write('#     ignorecase\n')
+        comments += '#     ignorecase\n'
     if args.limit:
-        outfile.write('#     limit=' + str(args.limit) + '\n')
+        comments += '#     limit=' + str(args.limit) + '\n'
     if args.number:
-        outfile.write('#     number=' + str(args.number) + '\n')
+        comments += '#     number=' + str(args.number) + '\n'
+
+twitterwrite = TwitterWrite(args.outfile, comments=comments, fieldnames=twitterread.fieldnames)
 
 if args.verbosity > 1:
     print("Loading twitter data.", file=sys.stderr)
 
-inreader=unicodecsv.DictReader(infile, fieldnames=fieldnames)
-
-csvwriter=unicodecsv.DictWriter(outfile, fieldnames=fieldnames, extrasaction='ignore')
-csvwriter.writeheader()
-
-keptcount    = 0
-tweetcount   = 0
 if args.jobs == 1:
-    for row in inreader:
-        if row['id'] == '':
-            continue
-        if args.until and row['date'] >= args.until:
-            continue
-        if args.since and row['date'] < args.since:
-            break
-
-        #  Calculate fields because they may be used in filter
-        row['retweets']  = int(row['retweets'])
-        row['favorites'] = int(row['favorites'])
-
+    for row in twitterread:
         keep = evalfilter(**row) or False
 
-        tweetcount += 1
         if keep != args.invert:
-            csvwriter.writerow(row)
-            keptcount += 1
+            twitterwrite.write(row)
 
-        if args.limit and tweetcount == args.limit:
-            break
-        if args.number and keptcount == args.number:
+        if args.number and twitterwrite.count == args.number:
             break
 else:
-    while (tweetcount < args.limit) if args.limit is not None else True:
+    while True:
         if args.verbosity > 2:
             print("Loading twitter batch.", file=sys.stderr)
 
         rows = []
-        batchtotal = min(args.batch, args.limit - tweetcount) if args.limit is not None else args.batch
         batchcount = 0
-        while batchcount < batchtotal:
+        while batchcount < args.batch:
             try:
-                row = next(inreader)
-                if row['id'] == '':
-                    continue
-
-                if args.until and row['date'] >= args.until:
-                    continue
-                if args.since and row['date'] < args.since:
-                    break
-
+                row = next(twitterread)
                 batchcount += 1
                 rows.append(row)
 
@@ -176,53 +136,38 @@ else:
         if args.verbosity > 2:
             print("Processing twitter batch.", file=sys.stderr)
 
-        tweetcount += batchcount
         rowcount = len(rows)
-
         results = pymp.shared.list()
         with pymp.Parallel(args.jobs) as p:
             result = []
-            thiskeptcount    = 0
             for rowindex in p.range(0, rowcount):
                 row = rows[rowindex]
-                row['retweets']  = int(row['retweets'])
-                row['favorites'] = int(row['favorites'])
-
                 keep = evalfilter(**row) or False
-
                 if keep != args.invert:
                     result.append(row)
-                    thiskeptcount += 1
 
             with p.lock:
                 results.append(result)
 
-        resultidx = [0] * args.jobs
-        resultlen = [len(result) for result in results]
-        firstid   = [(results[idx][resultidx[idx]]['id'] if resultidx[idx] < resultlen[idx] else 0) for idx in range(args.jobs) ]
-        resultcnt = len([idx for idx in resultidx if resultidx[idx] < resultlen[idx]])
-        while True:
-            maxidx, _ = max(enumerate(firstid), key=lambda p: p[1])
+        if args.verbosity > 2:
+            print("Merging twitter batch.", file=sys.stderr)
 
-            csvwriter.writerow(results[maxidx][resultidx[maxidx]])
-            keptcount += 1
-            if args.number and keptcount == args.number:
+        mergedresult = []
+        for result in results:
+            mergedresult += result
+
+        sortedresult = sorted(mergedresult,
+                              key=lambda item: item['id'],
+                              reverse=True)
+        for row in sortedresult:
+            twitterwrite.write(row)
+            if args.number and twitterwrite.count == args.number:
                 break
 
-            resultidx[maxidx] += 1
-            if resultidx[maxidx] < resultlen[maxidx]:
-                firstid[maxidx] = results[maxidx][resultidx[maxidx]]['id']
-            else:
-                firstid[maxidx] = 0
-                resultcnt -= 1
-                if resultcnt == 0:
-                    break
-
-        if args.number and keptcount == args.number:
+        if args.number and twitterwrite.count == args.number:
             break
 
-outfile.close()
-
 if args.verbosity > 1:
-    print(str(keptcount) + " rows kept, " + str(tweetcount - keptcount) + " rows dropped.", file=sys.stderr)
+    print(str(twitterwrite.count) + " rows kept, " + str(twitterread.count - twitterwrite.count) + " rows dropped.", file=sys.stderr)
 
+del twitterwrite
