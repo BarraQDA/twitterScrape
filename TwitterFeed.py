@@ -16,6 +16,7 @@
 import urllib,urllib2,json,re,datetime,sys,cookielib
 from pyquery import PyQuery
 import lxml
+import unicodecsv
 
 class TwitterFeed(object):
     def __init__(self, language=None, user=None, since=None, until=None, query=None, timeout=None):
@@ -118,3 +119,99 @@ class TwitterFeed(object):
             ret['hashtags']  = " ".join(re.compile('(#\\w*)').findall(ret['text']))
 
             return ret
+
+class TwitterRead(object):
+    def __init__(self, filename, since=None, until=None, limit=None, blanks=False):
+        if filename is None:
+            self.file = sys.stdin
+        else:
+            self.file = file(filename, 'r')
+
+        self.since  = since
+        self.until  = until
+        self.limit  = limit
+        self.blanks = blanks
+
+        # Extract comments at start of file
+        self.comments = ''
+        while True:
+            line = self.file.readline()
+            if line[:1] == '#':
+                self.comments += line
+            else:
+                self.fieldnames = next(unicodecsv.reader([line]))
+                break
+
+        self.csvreader = unicodecsv.DictReader(self.file, fieldnames=self.fieldnames)
+        self.count = 0
+
+    def __iter__(self):
+        return self
+
+    def __del__(self):
+        self.file.close()
+
+    def comments(self):
+        return self.comments
+
+    def fieldnames(self):
+        return self.fieldnames
+
+    def next(self):
+        if self.limit and self.count > self.limit:
+            raise StopIteration
+
+        while True:
+            row = next(self.csvreader)
+            if row['id'] == '':
+                if self.blanks:
+                    row['id'] = None
+                    break
+                else:
+                    continue
+
+            if self.until and row['date'] >= self.until:
+                continue
+            if self.since and row['date'] < self.since:
+                raise StopIteration
+
+            row['id']        = int(row['id'])
+            row['retweets']  = int(row['retweets'])
+            row['favorites'] = int(row['favorites'])
+
+            break
+
+        self.count += 1
+
+        return row
+
+    def count(self):
+        return self.count
+
+class TwitterWrite(object):
+    def __init__(self, filename, comments=None, fieldnames=None):
+        if filename is None:
+            self.file = sys.stdout
+        else:
+            self.file = file(filename, 'w')
+
+        if comments is not None:
+            self.file.write(comments)
+
+        if fieldnames is None:
+            fieldnames = ['user', 'date', 'retweets', 'favorites', 'text', 'lang', 'geo', 'mentions', 'hashtags', 'id', 'permalink']
+
+        self.csvwriter = unicodecsv.DictWriter(self.file, fieldnames=fieldnames, extrasaction='ignore')
+        self.csvwriter.writeheader()
+
+        self.count = 0
+
+    def __del__(self):
+        self.file.close()
+
+    def write(self, row):
+        self.csvwriter.writerow(row)
+        self.count += 1
+
+    def count(self):
+        return self.count
