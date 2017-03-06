@@ -19,6 +19,7 @@
 from __future__ import print_function
 import argparse
 import sys
+from TwitterFeed import TwitterRead
 import unicodecsv
 import string
 import unicodedata
@@ -32,7 +33,7 @@ parser = argparse.ArgumentParser(description='Twitter feed regular expression an
 
 parser.add_argument('-v', '--verbosity',  type=int, default=1)
 parser.add_argument('-j', '--jobs',       type=int, help='Number of parallel tasks, default is number of CPUs. May affect performance but not results.')
-parser.add_argument('-b', '--batch',      type=int, help='Number of tweets to process per batch. Use to limit memory usage with very large files. May affect performance but not results.')
+parser.add_argument('-b', '--batch',      type=int, default=100000, help='Number of tweets to process per batch. Use to limit memory usage with very large files. May affect performance but not results.')
 
 parser.add_argument('-f', '--filter',     type=str, help='Python expression evaluated to determine whether tweet is included')
 parser.add_argument(      '--since',      type=str, help='Lower bound tweet date.')
@@ -101,53 +102,40 @@ if args.outfile is None:
 else:
     outfile = file(args.outfile, 'w')
 
-if args.infile is None:
-    infile = sys.stdin
+twitterread  = TwitterRead(args.infile, since=args.since, until=args.until, limit=args.limit)
+if args.no_comments:
+    comments = None
 else:
-    infile = file(args.infile, 'r')
+    comments=twitterread.comments
 
-# Copy comments at start of infile to outfile. Avoid using tell/seek since
-# we want to be able to process stdin.
-while True:
-    line = infile.readline()
-    if line[:1] == '#':
-        if not args.no_comments:
-            outfile.write(line)
-    else:
-        fieldnames = next(unicodecsv.reader([line]))
-        break
-
-if not args.no_comments:
-    outfile.write('# twitterRegExp\n')
-    outfile.write('#     outfile=' + (args.outfile or '<stdout>') + '\n')
-    outfile.write('#     infile=' + (args.infile or '<stdin>') + '\n')
+    comments += '# twitterRegExp\n'
+    comments += '#     outfile=' + (args.outfile or '<stdout>') + '\n'
+    comments += '#     infile=' + (args.infile or '<stdin>') + '\n'
     if args.limit:
-        outfile.write('#     limit=' + str(args.limit) + '\n')
+        comments += '#     limit=' + str(args.limit) + '\n'
     if args.filter:
-        outfile.write('#     filter=' + args.filter + '\n')
+        comments += '#     filter=' + args.filter + '\n'
     if args.since:
-        outfile.write('#     since=' + args.since+ '\n')
+        comments += '#     since=' + args.since+ '\n'
     if args.until:
-        outfile.write('#     until=' + args.until + '\n')
+        comments += '#     until=' + args.until + '\n'
     if args.column != 'text':
-        outfile.write('#     column=' + args.column+ '\n')
-    outfile.write('#     regexp=' + args.regexp + '\n')
+        comments += '#     column=' + args.column+ '\n'
+    comments += '#     regexp=' + args.regexp + '\n'
     if args.ignorecase:
-        outfile.write('#     ignorecase\n')
+        comments += '#     ignorecase\n'
     if args.period:
-        outfile.write('#     period=' + str(args.period) + '\n')
-    outfile.write('#     score=' + args.score + '\n')
+        comments += '#     period=' + str(args.period) + '\n'
+    comments += '#     score=' + args.score + '\n'
     if args.threshold:
-        outfile.write('#     threshold=' + str(args.threshold) + '\n')
+        comments += '#     threshold=' + str(args.threshold) + '\n'
     if args.number:
-        outfile.write('#     number=' + str(args.number) + '\n')
+        comments += '#     number=' + str(args.number) + '\n'
 
-inreader=unicodecsv.DictReader(infile, fieldnames=fieldnames)
+    outfile.write(comments)
 
 if args.verbosity > 1:
     print("Loading twitter data.", file=sys.stderr)
-
-tweetcount = 0
 
 if args.jobs == 1:
     rows=[]
@@ -156,25 +144,11 @@ if args.jobs == 1:
     while True:
         try:
             while True:
-                row = next(inreader)
-                if row['id'] == '':
-                    continue
-
-                if args.until and row['date'] >= args.until:
-                    continue
-
-                #  Calculate fields because they may be used in filter
-                row['retweets']  = int(row['retweets'])
-                row['favorites'] = int(row['favorites'])
-
-                # Filter out row right now since we are single-threaded anyway
+                row = next(twitterread)
                 if (not args.filter) or evalfilter(**row):
                     break
 
         except StopIteration:
-            break
-
-        if args.since and row['date'] < args.since:
             break
 
         if args.period:
@@ -211,30 +185,21 @@ if args.jobs == 1:
             row['indexes'] = indexes
             rows.append(row)
 
-        tweetcount += 1
-        if args.limit and tweetcount == args.limit:
+        if args.limit and twitterread.count == args.limit:
             break
 
 else:
     mergedresult = {}
-    while (tweetcount < args.limit) if args.limit is not None else True:
+    while True:
         if args.verbosity > 2:
             print("Loading twitter batch.", file=sys.stderr)
 
         rows = []
-        batchtotal = min(args.batch, args.limit - tweetcount) if args.limit is not None else args.batch
+        batchtotal = min(args.batch, args.limit - twitterread.count) if args.limit is not None else args.batch
         batchcount = 0
         while batchcount < batchtotal:
             try:
-                row = next(inreader)
-                if row['id'] == '':
-                    continue
-
-                if args.until and row['date'] >= args.until:
-                    continue
-                if args.since and row['date'] < args.since:
-                    break
-
+                row = next(twitterread)
                 batchcount += 1
                 rows.append(row)
 
@@ -247,17 +212,12 @@ else:
         if args.verbosity > 2:
             print("Processing twitter batch.", file=sys.stderr)
 
-        tweetcount += batchcount
         rowcount = len(rows)
-
         results = pymp.shared.list()
         with pymp.Parallel(args.jobs) as p:
             result = {}
             for rowindex in p.range(0, rowcount):
                 row = rows[rowindex]
-                row['retweets']  = int(row['retweets'])
-                row['favorites'] = int(row['favorites'])
-
                 if args.filter and not evalfilter(**row):
                     continue
 
@@ -272,7 +232,7 @@ else:
 
                     result[index] = result.get(index, 0) + rowscore
 
-            if args.verbosity > 3:
+            if args.verbosity > 2:
                 print("Thread " + str(p.thread_num) + " found " + str(len(result)) + " results.", file=sys.stderr)
 
             with p.lock:

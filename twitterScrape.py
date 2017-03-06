@@ -18,8 +18,8 @@
 
 from __future__ import print_function
 import argparse
+from TwitterFeed import TwitterRead, TwitterWrite
 import sys, os
-import unicodecsv
 from dateutil import parser as dateparser
 import datetime
 import shutil
@@ -56,73 +56,56 @@ if args.until:
 if args.since:
     args.since = dateparser.parse(args.since).date().isoformat()
 
-# Process outfile depending on whether it exists or not
-replaceoutfile = False
-if args.outfile is None:
-    outfile = sys.stdout
-elif os.path.isfile(args.outfile):
+# Handle in situ replacement of output file
+tempoutfile = None
+if args.outfile is not None and os.path.isfile(args.outfile):
     args.infile += [args.outfile]
-    outfile = file(args.outfile + '.part', 'wb')
-    replaceoutfile = True
-else:
-    outfile = file(args.outfile, 'wb')
+    tempoutfile = args.outfile + '.part'
 
-if not args.no_comments:
-    outfile.write('# twitterScrape\n')
+if args.no_comments:
+    comments = None
+else:
+    comments = ''
+
+    comments += '# twitterScrape\n'
     if len(args.infile) > 0:
-        outfile.write('#     infile=' + args.infile[0] + '\n')
+        comments += '#     infile=' + args.infile[0] + '\n'
         for fileidx in range(1, len(args.infile)):
-            outfile.write('             ' + args.infile[0] + '\n')
-    outfile.write('#     outfile=' + (args.outfile or '<stdout>') + '\n')
+            comments += '             ' + args.infile[0] + '\n'
+    comments += '#     outfile=' + (args.outfile or '<stdout>') + '\n'
     if args.user:
-        outfile.write('#     user=' + args.user + '\n')
+        comments += '#     user=' + args.user + '\n'
     if args.since:
-        outfile.write('#     since=' + args.since + '\n')
+        comments += '#     since=' + args.since + '\n'
     if args.until:
-        outfile.write('#     until=' + args.until + '\n')
+        comments += '#     until=' + args.until + '\n'
     if args.language:
-        outfile.write('#     language=' + args.language + '\n')
+        comments += '#     language=' + args.language + '\n'
     if args.query:
-        outfile.write('#     query=' + args.query + '\n')
+        comments += '#     query=' + args.query + '\n'
     if args.force:
-        outfile.write('#     force\n')
+        comments += '#     force\n'
     if args.number:
-        outfile.write('#     number=' + str(args.number) + '\n')
+        comments += '#     number=' + str(args.number) + '\n'
+
 
 # Function to simplify reading tweets from CSV or feed
-def nextornone(generator):
+def nextornone(reader):
     try:
-        row = next(generator)
-        # Detect blank line in CSV
-        if row['id'] == '':
-            row['id'] = None
-        else:
-            row['id'] = int(row['id'])
-        return row
+        return next(reader)
     except StopIteration:
         return None
 
 # Open and read first row from input files
-infile = []
 inreader = []
 currow = []
 rowcnt = []
 headidx = None
 for fileidx in range(len(args.infile)):
-    thisinfile = file(args.infile[fileidx], 'r')
-    # Copy comments at start of infile to outfile. Avoid using tell/seek since
-    # we want to be able to process stdin.
-    while True:
-        line = thisinfile.readline()
-        if line[:1] == '#':
-            if not args.no_comments:
-                outfile.write(line)
-        else:
-            fieldnames = next(unicodecsv.reader([line]))
-            break
+    thisinreader = TwitterRead(args.infile[fileidx], since=args.since, until=args.until, blanks=True)
+    comments += thisinreader.comments
 
-    infile += [thisinfile]
-    inreader += [unicodecsv.DictReader(infile[fileidx], fieldnames=fieldnames)]
+    inreader += [thisinreader]
     if inreader[fileidx].fieldnames != inreader[0].fieldnames:
         raise RuntimeError("File: " + args.infile[fileidx] + " has mismatched field names")
 
@@ -209,16 +192,12 @@ if headidx is None:
         print("Nothing to do.", file=sys.stderr)
     sys.exit()
 
-outunicodecsv=unicodecsv.DictWriter(outfile, fieldnames, extrasaction='ignore')
-outunicodecsv.writeheader()
-
-tweetcount = 0
+twitterwrite = TwitterWrite(tempoutfile if tempoutfile else args.outfile, comments=comments, fieldnames=fieldnames)
 
 # Main loop
 while True:
-    outunicodecsv.writerow(currow[headidx])
-    tweetcount += 1
-    if args.number and tweetcount == args.number:
+    twitterwrite.write(currow[headidx])
+    if args.number and twitterwrite.count == args.number:
         break
 
     rowcnt[headidx] += 1
@@ -352,9 +331,6 @@ while True:
                                     until=twitteruntil, since=twittersince)
 
         if twitterfeed:
-            # This can take a while and might fail so flush the output file.
-            outfile.flush()
-
             try:
                 if args.verbosity > 1:
                     print("Searching twitter feed for id:" + str(lastid), file=sys.stderr)
@@ -396,7 +372,7 @@ while True:
                     print("End of twitter feed", file=sys.stderr)
 
     if not any(pacing):
-        outunicodecsv.writerow({})
+        twitterwrite.write({})
         if headidx is not None:
             print("Possible missing tweets between id: " + str(lastid) + " - " + dateparser.parse(lastdate).isoformat() + " and " + str(currow[headidx]['id']) + " - " + dateparser.parse(currow[headidx]['date']).isoformat(), file=sys.stderr)
         else:
@@ -404,6 +380,6 @@ while True:
             break
 
 # Finish up
-outfile.close()
-if replaceoutfile:
-    shutil.move(args.outfile + '.part', args.outfile)
+del twitterwrite
+if tempoutfile:
+    shutil.move(tempoutfile, args.outfile)
