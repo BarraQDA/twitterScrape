@@ -147,9 +147,10 @@ inreader=unicodecsv.DictReader(infile, fieldnames=fieldnames)
 if args.verbosity > 1:
     print("Loading twitter data.", file=sys.stderr)
 
+tweetcount = 0
+
 if args.jobs == 1:
     rows=[]
-    tweetcount = 0
     runningresult = {}
     mergedresult = {}
     while True:
@@ -216,7 +217,6 @@ if args.jobs == 1:
 
 else:
     mergedresult = {}
-    tweetcount = 0
     while (tweetcount < args.limit) if args.limit is not None else True:
         if args.verbosity > 2:
             print("Loading twitter batch.", file=sys.stderr)
@@ -234,9 +234,6 @@ else:
                     continue
                 if args.since and row['date'] < args.since:
                     break
-
-                row['retweets']  = int(row['retweets'])
-                row['favorites'] = int(row['favorites'])
 
                 batchcount += 1
                 rows.append(row)
@@ -258,11 +255,9 @@ else:
             result = {}
             for rowindex in p.range(0, rowcount):
                 row = rows[rowindex]
+                row['retweets']  = int(row['retweets'])
+                row['favorites'] = int(row['favorites'])
 
-                if args.since and row['date'] < args.since:
-                    continue
-                if args.until and row['date'] >= args.until:
-                    continue
                 if args.filter and not evalfilter(**row):
                     continue
 
@@ -281,7 +276,7 @@ else:
                 print("Thread " + str(p.thread_num) + " found " + str(len(result)) + " results.", file=sys.stderr)
 
             with p.lock:
-                results += [result]
+                results.append(result)
 
         for result in results:
             for index in result:
