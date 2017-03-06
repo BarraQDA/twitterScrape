@@ -32,6 +32,7 @@ parser.add_argument('-v', '--verbosity', type=int, default=1)
 parser.add_argument('-j', '--jobs',      type=int, help='Number of parallel tasks, default is number of CPUs')
 parser.add_argument('-b', '--batch',      type=int, default=100000, help='Number of tweets to process per batch. Use to limit memory usage with very large files. May affect performance but not results.')
 
+parser.add_argument('-p', '--prelude',    type=str, nargs="*", help='Python code to execute before processing')
 parser.add_argument('-f', '--filter',     type=str, help='Python expression evaluated to determine whether tweet is included')
 parser.add_argument(      '--since',      type=str, help='Lower bound tweet date.')
 parser.add_argument(      '--until',      type=str, help='Upper bound tweet date.')
@@ -62,6 +63,13 @@ if args.verbosity > 1:
 
 if args.batch == 0:
     args.batch = sys.maxint
+
+if args.prelude:
+    if args.verbosity > 1:
+        print("Executing prelude code.", file=sys.stderr)
+
+    for line in args.prelude:
+        exec(line)
 
 if args.filter:
     filter = compile(args.filter, 'filter argument', 'eval')

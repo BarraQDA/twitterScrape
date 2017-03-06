@@ -34,6 +34,7 @@ parser = argparse.ArgumentParser(description='Twitter feed frequency matrix prod
 
 parser.add_argument('-v', '--verbosity',  type=int, default=1)
 
+parser.add_argument('-p', '--prelude',    type=str, nargs="*", help='Python code to execute before processing')
 parser.add_argument('-f', '--filter',     type=str, nargs='+', help='Python expression evaluated to determine whether tweet is included')
 parser.add_argument('-t', '--title',      type=str, nargs='+', help='Title of column corresponding to filter')
 parser.add_argument(      '--since',      type=str, help='Lower bound tweet date.')
@@ -42,7 +43,7 @@ parser.add_argument('-l', '--limit',      type=int, help='Limit number of tweets
 
 parser.add_argument('-s', '--score',      type=str, default='1', help='Python expression to evaluate tweet score, for example "1 + retweets + favorites"')
 
-parser.add_argument('-p', '--period',     type=str, default='1 day', help='Time period to measure frequency, for example "1 day".')
+parser.add_argument(      '--interval',   type=str, default='1 day', help='Interval for measuring frequency, for example "1 day".')
 
 parser.add_argument('-o', '--outfile',    type=str, help='Output CSV file, otherwise use stdout.')
 parser.add_argument('--no-comments',    action='store_true', help='Do not output descriptive comments')
@@ -50,6 +51,13 @@ parser.add_argument('--no-comments',    action='store_true', help='Do not output
 parser.add_argument('infile', type=str, nargs='?', help='Input CSV file, otherwise use stdin.')
 
 args = parser.parse_args()
+
+if args.prelude:
+    if args.verbosity > 1:
+        print("Executing prelude code.", file=sys.stderr)
+
+    for line in args.prelude:
+        exec(line)
 
 filteridx = 0
 compiledfilters = []
@@ -70,9 +78,9 @@ score = compile(args.score, 'score argument', 'eval')
 def evalscore(user, date, retweets, favorites, text, lang, geo, mentions, hashtags, id, permalink, **extra):
     return eval(score)
 
-period = timeparse(args.period)
-if period is None:
-    raise RuntimeError("Period: " + args.period + " not recognised.")
+interval = timeparse(args.interval)
+if interval is None:
+    raise RuntimeError("Interval: " + args.interval + " not recognised.")
 
 if args.outfile is None:
     outfile = sys.stdout
@@ -98,8 +106,8 @@ if not args.no_comments:
     if args.until:
         comments += '#     until=' + args.until + '\n'
     comments += '#     score=' + args.score + '\n'
-    if args.period:
-        comments += '#     period=' + str(args.period) + '\n'
+    if args.interval:
+        comments += '#     interval=' + str(args.interval) + '\n'
 
     outfile.write(comments)
 
@@ -121,14 +129,14 @@ while True:
     row['score']     = evalscore(**row)
 
     firstrow = rows[0] if len(rows) > 0 else None
-    while firstrow and firstrow['datesecs'] - row['datesecs'] > period:
+    while firstrow and firstrow['datesecs'] - row['datesecs'] > interval:
         filters = firstrow['filters']
         for filteridx in range(len(args.filter)):
             if filters[filteridx]:
                 runningscore[filteridx] -= firstrow['score']
 
         if any(filters):
-            outunicodecsv.writerow([datetime.datetime.utcfromtimestamp(firstrow['datesecs'] - period).isoformat()] + runningscore)
+            outunicodecsv.writerow([datetime.datetime.utcfromtimestamp(firstrow['datesecs'] - interval).isoformat()] + runningscore)
 
         del rows[0]
         firstrow = rows[0] if len(rows) else None

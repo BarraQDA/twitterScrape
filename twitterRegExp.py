@@ -35,6 +35,7 @@ parser.add_argument('-v', '--verbosity',  type=int, default=1)
 parser.add_argument('-j', '--jobs',       type=int, help='Number of parallel tasks, default is number of CPUs. May affect performance but not results.')
 parser.add_argument('-b', '--batch',      type=int, default=100000, help='Number of tweets to process per batch. Use to limit memory usage with very large files. May affect performance but not results.')
 
+parser.add_argument('-p', '--prelude',    type=str, nargs="*", help='Python code to execute before processing')
 parser.add_argument('-f', '--filter',     type=str, help='Python expression evaluated to determine whether tweet is included')
 parser.add_argument(      '--since',      type=str, help='Lower bound tweet date.')
 parser.add_argument(      '--until',      type=str, help='Upper bound tweet date.')
@@ -46,7 +47,7 @@ parser.add_argument('-i', '--ignorecase', action='store_true', help='Ignore case
 parser.add_argument('-s', '--score',      type=str, default='1', help='Python expression to evaluate tweet score, for example "1 + retweets + favorites"')
 parser.add_argument('-t', '--threshold',  type=float, help='Threshold score for result to be output')
 
-parser.add_argument('-p', '--period',     type=str, help='Time period to measure frequency, for example "1 day".')
+parser.add_argument(      '--interval',   type=str, help='Interval for measuring frequency, for example "1 day".')
 
 parser.add_argument('-o', '--outfile',    type=str, help='Output CSV file, otherwise use stdout.')
 parser.add_argument('-n', '--number',     type=int, default=0, help='Maximum number of results to output')
@@ -56,8 +57,8 @@ parser.add_argument('infile', type=str, nargs='?', help='Input CSV file, otherwi
 
 args = parser.parse_args()
 
-# Multiprocessing is not possible when doing time period processing
-if args.period:
+# Multiprocessing is not possible when doing time interval processing
+if args.interval:
     args.jobs = 1
 else:
     if args.jobs is None:
@@ -69,6 +70,13 @@ else:
 
     if args.batch is None:
         args.batch = sys.maxint
+
+if args.prelude:
+    if args.verbosity > 1:
+        print("Executing prelude code.", file=sys.stderr)
+
+    for line in args.prelude:
+        exec(line)
 
 if args.filter:
     filter = compile(args.filter, 'filter argument', 'eval')
@@ -92,10 +100,10 @@ score = compile(args.score, 'score argument', 'eval')
 def evalscore(user, date, retweets, favorites, text, lang, geo, mentions, hashtags, id, permalink, **extra):
     return eval(score)
 
-if args.period:
-    period = timeparse(args.period)
-    if period is None:
-        raise RuntimeError("Period: " + args.period + " not recognised.")
+if args.interval:
+    interval = timeparse(args.interval)
+    if interval is None:
+        raise RuntimeError("Interval: " + args.interval + " not recognised.")
 
 if args.outfile is None:
     outfile = sys.stdout
@@ -122,8 +130,8 @@ if not args.no_comments:
     comments += '#     regexp=' + args.regexp + '\n'
     if args.ignorecase:
         comments += '#     ignorecase\n'
-    if args.period:
-        comments += '#     period=' + str(args.period) + '\n'
+    if args.interval:
+        comments += '#     interval=' + str(args.interval) + '\n'
     comments += '#     score=' + args.score + '\n'
     if args.threshold:
         comments += '#     threshold=' + str(args.threshold) + '\n'
@@ -149,10 +157,10 @@ if args.jobs == 1:
         except StopIteration:
             break
 
-        if args.period:
+        if args.interval:
             row['datesecs'] = calendar.timegm(dateparser.parse(row['date']).timetuple())
             firstrow = rows[0] if len(rows) else None
-            while firstrow and firstrow['datesecs'] - row['datesecs'] > period:
+            while firstrow and firstrow['datesecs'] - row['datesecs'] > interval:
                 indexes = firstrow['indexes']
                 rowscore   = firstrow['score']
                 for index in indexes:
@@ -171,14 +179,14 @@ if args.jobs == 1:
             else:
                 index = tuple(match.groupdict().values())
 
-            if args.period:
+            if args.interval:
                 indexes.append(index)
                 runningresult[index] = runningresult.get(index, 0) + rowscore
                 mergedresult[index] = max(mergedresult.get(index, 0), runningresult[index])
             else:
                 mergedresult[index] = mergedresult.get(index, 0) + rowscore
 
-        if args.period and rowscore:
+        if args.interval and rowscore:
             row['score']   = rowscore
             row['indexes'] = indexes
             rows.append(row)
