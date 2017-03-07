@@ -75,19 +75,18 @@ else:
     comments += '#     outfile=' + (args.outfile or '<stdout>') + '\n'
     if args.user:
         comments += '#     user=' + args.user + '\n'
-    if args.since:
-        comments += '#     since=' + args.since + '\n'
-    if args.until:
-        comments += '#     until=' + args.until + '\n'
     if args.language:
         comments += '#     language=' + args.language + '\n'
     if args.query:
         comments += '#     query=' + args.query + '\n'
+    if args.since:
+        comments += '#     since=' + args.since + '\n'
+    if args.until:
+        comments += '#     until=' + args.until + '\n'
     if args.force:
         comments += '#     force\n'
     if args.number:
         comments += '#     number=' + str(args.number) + '\n'
-
 
 # Function to simplify reading tweets from CSV or feed
 def nextornone(reader):

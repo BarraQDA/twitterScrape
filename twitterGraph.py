@@ -38,14 +38,11 @@ if args.infile is None:
 else:
     infile = file(args.infile, 'r')
 
-comments = u''
+# Skip comments at start of infile.
 while True:
-    pos = infile.tell()
     line = infile.readline()
-    if line[:1] == '#':
-        comments += line
-    else:
-        infile.seek(pos)
+    if line[:1] != '#':
+        fieldnames = next(unicodecsv.reader([line]))
         break
 
 inreader=unicodecsv.reader(infile)

@@ -48,8 +48,7 @@ if args.infile is None:
 else:
     infile = file(args.infile, 'r')
 
-# Copy comments at start of infile to outfile. Avoid using tell/seek since
-# we want to be able to process stdin.
+# Skip comments at start of infile.
 while True:
     line = infile.readline()
     if line[:1] != '#':

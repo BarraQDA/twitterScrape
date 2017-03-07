@@ -82,7 +82,7 @@ twitterread  = TwitterRead(args.infile, since=args.since, until=args.until, limi
 if args.no_comments:
     comments = None
 else:
-    comments=twitterread.comments
+    comments = ''
 
     comments += '# twitterFilter\n'
     comments += '#     outfile=' + (args.outfile or '<stdout>') + '\n'
@@ -97,10 +97,16 @@ else:
         comments += '#     invert\n'
     if args.ignorecase:
         comments += '#     ignorecase\n'
+    if args.since:
+        comments += '#     since=' + args.since+ '\n'
+    if args.until:
+        comments += '#     until=' + args.until + '\n'
     if args.limit:
         comments += '#     limit=' + str(args.limit) + '\n'
     if args.number:
         comments += '#     number=' + str(args.number) + '\n'
+
+    comments += twitterread.comments
 
 twitterwrite = TwitterWrite(args.outfile, comments=comments, fieldnames=twitterread.fieldnames)
 if args.reject:

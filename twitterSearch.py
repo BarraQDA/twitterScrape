@@ -71,13 +71,24 @@ else:
     outfile = file(args.outfile, 'w')
 
 if not args.no_comments:
-    outfile.write('# twitterSearch\n')
-    outfile.write('#     outfile=' + (args.outfile or '<stdout>') + '\n')
-    if args.query:
-        outfile.write('#     query=' + args.query + '\n')
-    if args.number:
-        outfile.write('#     number=' + str(args.number) + '\n')
+    comments = ''
 
+    comments += '# twitterSearch\n'
+    comments += '#     outfile=' + (args.outfile or '<stdout>') + '\n'
+    if args.user:
+        comments += '#     user=' + args.user + '\n'
+    if args.query:
+        comments += '#     query=' + args.query + '\n'
+    if args.language:
+        comments += '#     language=' + args.language + '\n'
+    if args.since:
+        comments += '#     since=' + args.since+ '\n'
+    if args.until:
+        comments += '#     until=' + args.until + '\n'
+    if args.number:
+        comments += '#     number=' + str(args.number) + '\n'
+
+    outfile.write(comments)
 
 # Twitter URLs
 REQUEST_TOKEN_URL = 'https://api.twitter.com/oauth/request_token'

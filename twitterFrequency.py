@@ -89,7 +89,7 @@ else:
 
 twitterread  = TwitterRead(args.infile, since=args.since, until=args.until, limit=args.limit)
 if not args.no_comments:
-    comments=twitterread.comments
+    comments = ''
 
     comments += '# twitterFrequency\n'
     comments += '#     outfile=' + (args.outfile or '<stdout>') + '\n'
@@ -108,6 +108,8 @@ if not args.no_comments:
     comments += '#     score=' + args.score + '\n'
     if args.interval:
         comments += '#     interval=' + str(args.interval) + '\n'
+
+    comments += twitterread.comments
 
     outfile.write(comments)
 

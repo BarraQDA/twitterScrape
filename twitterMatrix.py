@@ -99,7 +99,7 @@ else:
 
 twitterread  = TwitterRead(args.infile, since=args.since, until=args.until, limit=args.limit)
 if not args.no_comments:
-    comments=twitterread.comments
+    comments = ''
 
     comments += '# twitterMatrix\n'
     comments += '#     outfile=' + (args.outfile or '<stdout>') + '\n'
@@ -112,9 +112,12 @@ if not args.no_comments:
         comments += '#     since=' + args.since+ '\n'
     if args.until:
         comments += '#     until=' + args.until + '\n'
+    comments += '#     column=' + args.column + '\n'
     comments += '#     words=' + str(args.words) + '\n'
     if args.textblob:
         comments += '#     textblob\n'
+
+    comments += twitterread.comments
 
     outfile.write(comments)
 
