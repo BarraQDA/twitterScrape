@@ -47,7 +47,7 @@ parser.add_argument('-i', '--ignorecase', action='store_true', help='Ignore case
 parser.add_argument('-s', '--score',      type=str, default='1', help='Python expression to evaluate tweet score, for example "1 + retweets + favorites"')
 parser.add_argument('-t', '--threshold',  type=float, help='Threshold score for result to be output')
 
-parser.add_argument(      '--interval',   type=str, help='Interval for measuring frequency, for example "1 day".')
+parser.add_argument('-in', '--interval',  type=str, help='Interval for measuring frequency, for example "1 day".')
 
 parser.add_argument('-o', '--outfile',    type=str, help='Output CSV file, otherwise use stdout.')
 parser.add_argument('-n', '--number',     type=int, default=0, help='Maximum number of results to output')
