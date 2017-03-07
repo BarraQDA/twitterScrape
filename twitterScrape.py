@@ -66,6 +66,10 @@ if args.no_comments:
     comments = None
 else:
     comments = ''
+    if args.outfile:
+        comments += (' ' + args.outfile + ' ').center(80, '#') + '\n'
+    else:
+        comments += '#' * 80 + '\n'
 
     comments += '# twitterScrape\n'
     if len(args.infile) > 0:
@@ -87,6 +91,8 @@ else:
         comments += '#     force\n'
     if args.number:
         comments += '#     number=' + str(args.number) + '\n'
+
+    comments += '#' * 80 + '\n'
 
 # Function to simplify reading tweets from CSV or feed
 def nextornone(reader):

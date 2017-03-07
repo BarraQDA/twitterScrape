@@ -112,7 +112,12 @@ else:
 
 twitterread  = TwitterRead(args.infile, since=args.since, until=args.until, limit=args.limit)
 if not args.no_comments:
-    commnets = ''
+    comments = ''
+    if args.outfile:
+        comments += (' ' + args.outfile + ' ').center(80, '#') + '\n'
+    else:
+        comments += '#' * 80 + '\n'
+
     comments += '# twitterRegExp\n'
     comments += '#     outfile=' + (args.outfile or '<stdout>') + '\n'
     comments += '#     infile=' + (args.infile or '<stdin>') + '\n'

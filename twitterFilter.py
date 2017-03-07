@@ -83,6 +83,10 @@ if args.no_comments:
     comments = None
 else:
     comments = ''
+    if args.outfile:
+        comments += (' ' + args.outfile + ' ').center(80, '#') + '\n'
+    else:
+        comments += '#' * 80 + '\n'
 
     comments += '# twitterFilter\n'
     comments += '#     outfile=' + (args.outfile or '<stdout>') + '\n'
