@@ -24,6 +24,7 @@ from textblob import TextBlob
 import string
 import pymp
 import operator
+from dateutil import parser as dateparser
 
 parser = argparse.ArgumentParser(description='Filter twitter CSV file on text column.')
 
@@ -35,7 +36,6 @@ parser.add_argument('-p', '--prelude',    type=str, nargs="*", help='Python code
 parser.add_argument('-f', '--filter',     type=str, required=True, help='Python expression evaluated to determine whether tweet is included')
 parser.add_argument(      '--invert',     action='store_true', help='Invert filter, that is, output those tweets that do not match filter')
 
-parser.add_argument('-i', '--ignorecase', action='store_true', help='Convert tweet text to lower case before applying filter')
 parser.add_argument(      '--since',      type=str, help='Lower bound tweet date.')
 parser.add_argument(      '--until',      type=str, help='Upper bound tweet date.')
 parser.add_argument('-l', '--limit',      type=int, help='Limit number of tweets to process')
@@ -45,7 +45,7 @@ parser.add_argument('-r', '--rejfile',  type=str, help='Output CSV file for reje
 parser.add_argument('-n', '--number',  type=int, default=0, help='Maximum number of results to output')
 parser.add_argument('--no-comments',   action='store_true', help='Do not output descriptive comments')
 
-parser.add_argument('infile', type=str, help='Input CSV file, otherwise use stdin')
+parser.add_argument('infile', type=str, nargs='?', help='Input CSV file, otherwise use stdin')
 
 args = parser.parse_args()
 
@@ -68,8 +68,6 @@ if args.prelude:
 
 filter = compile(args.filter, 'filter argument', 'eval')
 def evalfilter(user, date, retweets, favorites, text, lang, geo, mentions, hashtags, id, permalink):
-    if args.ignorecase:
-        text = text.lower()
     return eval(filter)
 
 # Parse since and until dates
@@ -85,7 +83,7 @@ else:
     if args.outfile:
         outcomments = (' ' + args.outfile + ' ').center(80, '#') + '\n'
     else:
-        outcomments += '#' * 80 + '\n'
+        outcomments = '#' * 80 + '\n'
 
     if args.rejfile:
         rejcomments = (' ' + args.rejfile + ' ').center(80, '#') + '\n'
@@ -103,8 +101,6 @@ else:
     comments += '#     filter=' + args.filter + '\n'
     if args.invert:
         comments += '#     invert\n'
-    if args.ignorecase:
-        comments += '#     ignorecase\n'
     if args.since:
         comments += '#     since=' + args.since+ '\n'
     if args.until:
