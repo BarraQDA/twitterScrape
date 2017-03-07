@@ -41,7 +41,7 @@ parser.add_argument(      '--until',      type=str, help='Upper bound tweet date
 parser.add_argument('-l', '--limit',      type=int, help='Limit number of tweets to process')
 
 parser.add_argument('-o', '--outfile', type=str, help='Output CSV file, otherwise use stdout')
-parser.add_argument('-r', '--reject',  type=str, help='Output CSV file for rejected tweets')
+parser.add_argument('-r', '--rejfile',  type=str, help='Output CSV file for rejected tweets')
 parser.add_argument('-n', '--number',  type=int, default=0, help='Maximum number of results to output')
 parser.add_argument('--no-comments',   action='store_true', help='Do not output descriptive comments')
 
@@ -82,16 +82,20 @@ twitterread  = TwitterRead(args.infile, since=args.since, until=args.until, limi
 if args.no_comments:
     comments = None
 else:
-    comments = ''
     if args.outfile:
-        comments += (' ' + args.outfile + ' ').center(80, '#') + '\n'
+        outcomments = (' ' + args.outfile + ' ').center(80, '#') + '\n'
     else:
-        comments += '#' * 80 + '\n'
+        outcomments += '#' * 80 + '\n'
+
+    if args.rejfile:
+        rejcomments = (' ' + args.rejfile + ' ').center(80, '#') + '\n'
+
+    comments = ''
 
     comments += '# twitterFilter\n'
     comments += '#     outfile=' + (args.outfile or '<stdout>') + '\n'
-    if args.reject:
-        comments += '#     reject=' + args.reject + '\n'
+    if args.rejfile:
+        comments += '#     reject=' + args.rejfile + '\n'
     comments += '#     infile=' + (args.infile or '<stdin>') + '\n'
     if args.prelude:
         for line in args.prelude:
@@ -112,9 +116,9 @@ else:
 
     comments += twitterread.comments
 
-twitterwrite = TwitterWrite(args.outfile, comments=comments, fieldnames=twitterread.fieldnames)
-if args.reject:
-    rejectwrite = TwitterWrite(args.reject, comments=comments, fieldnames=twitterread.fieldnames)
+twitterwrite = TwitterWrite(args.outfile, comments=outcomments+comments, fieldnames=twitterread.fieldnames)
+if args.rejfile:
+    rejectwrite = TwitterWrite(args.rejfile, comments=rejcomments+comments, fieldnames=twitterread.fieldnames)
 
 if args.verbosity > 1:
     print("Loading twitter data.", file=sys.stderr)
@@ -125,7 +129,7 @@ if args.jobs == 1:
 
         if keep != args.invert:
             twitterwrite.write(row)
-        elif args.reject:
+        elif args.rejfile:
             rejectwrite.write(row)
 
         if args.number and twitterwrite.count == args.number:
@@ -154,11 +158,11 @@ else:
 
         rowcount = len(rows)
         results = pymp.shared.list()
-        if args.reject:
+        if args.rejfile:
             rejects = pymp.shared.list()
         with pymp.Parallel(args.jobs) as p:
             result = []
-            if args.reject:
+            if args.rejfile:
                 reject = []
             for rowindex in p.range(0, rowcount):
                 row = rows[rowindex]
@@ -166,12 +170,12 @@ else:
                 row['keep'] = keep
                 if keep != args.invert:
                     result.append(row)
-                elif args.reject:
+                elif args.rejfile:
                     reject.append(row)
 
             with p.lock:
                 results.append(result)
-                if args.reject:
+                if args.rejfile:
                     rejects.append(reject)
 
         if args.verbosity > 2:
@@ -189,7 +193,7 @@ else:
             if args.number and twitterwrite.count == args.number:
                 break
 
-        if args.reject:
+        if args.rejfile:
             mergedreject = []
             for reject in rejects:
                 mergedreject += reject
