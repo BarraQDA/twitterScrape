@@ -129,8 +129,7 @@ if not args.no_comments:
         comments += '#     since=' + args.since+ '\n'
     if args.until:
         comments += '#     until=' + args.until + '\n'
-    if args.column != 'text':
-        comments += '#     column=' + args.column+ '\n'
+    comments += '#     column=' + args.column+ '\n'
     comments += '#     regexp=' + args.regexp + '\n'
     if args.ignorecase:
         comments += '#     ignorecase\n'
