@@ -158,7 +158,7 @@ class TwitterRead(object):
         return self.fieldnames
 
     def next(self):
-        if self.limit and self.count > self.limit:
+        if self.limit and self.count == self.limit:
             raise StopIteration
 
         while True:
@@ -185,9 +185,6 @@ class TwitterRead(object):
 
         return row
 
-    def count(self):
-        return self.count
-
 class TwitterWrite(object):
     def __init__(self, filename, comments=None, fieldnames=None):
         if filename is None:
@@ -205,6 +202,7 @@ class TwitterWrite(object):
         self.csvwriter.writeheader()
 
         self.count = 0
+        self.filename = filename
 
     def __del__(self):
         self.file.close()
@@ -212,6 +210,3 @@ class TwitterWrite(object):
     def write(self, row):
         self.csvwriter.writerow(row)
         self.count += 1
-
-    def count(self):
-        return self.count
