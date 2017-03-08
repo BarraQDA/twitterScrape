@@ -36,6 +36,8 @@ class TwitterFeed(object):
 
     PARSER=None
     FORCE_SPACE_TAGS={'a'}
+    MENTIONREGEXP=re.compile(r'(@\w*)', re.UNICODE)
+    HASHTAGREGEXP=re.compile(r'(#\w*)', re.UNICODE)
 
     def next(self):
 
@@ -115,8 +117,8 @@ class TwitterFeed(object):
             geoSpan = tweetPQ('span.Tweet-geo')
             ret['geo'] = geoSpan.attr('title') if len(geoSpan) > 0 else ''
 
-            ret['mentions']  = " ".join(re.compile('(@\\w*)').findall(ret['text']))
-            ret['hashtags']  = " ".join(re.compile('(#\\w*)').findall(ret['text']))
+            ret['mentions']  = " ".join(TwitterFeed.MENTIONREGEXP.findall(ret['text']))
+            ret['hashtags']  = " ".join(TwitterFeed.HASHTAGREGEXP.findall(ret['text']))
 
             return ret
 
