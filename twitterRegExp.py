@@ -28,12 +28,23 @@ import re
 from dateutil import parser as dateparser
 import calendar
 from pytimeparse.timeparse import timeparse
+from operator import sub, add
 
-parser = argparse.ArgumentParser(description='Twitter CSV file regular expression analysis.')
+# Presets
+
+presets = {
+    'hashtags':{ 'column':'hashtags', 'regexp':r'(?P<hashtag>#\w+)',       'ignorecase':True },
+    'mentions':{ 'column':'mentions', 'regexp':r'(?P<mention>@\w+)',       'ignorecase':True },
+    'links':   { 'column':'text',     'regexp':r'(?P<link>https?://\S+)',  'ignorecase':True }
+}
+
+parser = argparse.ArgumentParser(description='Twitter CSV file regular expression extraction.')
 
 parser.add_argument('-v', '--verbosity',  type=int, default=1)
 parser.add_argument('-j', '--jobs',       type=int, help='Number of parallel tasks, default is number of CPUs. May affect performance but not results.')
 parser.add_argument('-b', '--batch',      type=int, default=100000, help='Number of tweets to process per batch. Use to limit memory usage with very large files. May affect performance but not results.')
+
+parser.add_argument(      '--preset',     choices=presets)
 
 parser.add_argument('-p', '--prelude',    type=str, nargs="*", help='Python code to execute before processing')
 parser.add_argument('-f', '--filter',     type=str, help='Python expression evaluated to determine whether tweet is included')
@@ -42,10 +53,10 @@ parser.add_argument(      '--until',      type=str, help='Upper bound tweet date
 parser.add_argument('-l', '--limit',      type=int, help='Limit number of tweets to process')
 
 parser.add_argument('-c', '--column',     type=str, default='text', help='Column to apply regular expression')
-parser.add_argument('-r', '--regexp',     type=str, required=True, help='Regular expression applied to tweet text to create output columns.')
+parser.add_argument('-r', '--regexp',     type=str, help='Regular expression applied to tweet text to create output columns.')
 parser.add_argument('-i', '--ignorecase', action='store_true', help='Ignore case in regular expression')
-parser.add_argument('-s', '--score',      type=str, default='1', help='Python expression to evaluate tweet score, for example "1 + retweets + favorites"')
-parser.add_argument('-t', '--threshold',  type=float, help='Threshold score for result to be output')
+parser.add_argument('-s', '--score',      type=str, nargs="*", default='1', help='Python expression(s) to evaluate tweet score(s), for example "1 + retweets + favorites"')
+parser.add_argument('-t', '--threshold',  type=float, help='Threshold (first) score for result to be output')
 
 parser.add_argument('-in', '--interval',  type=str, help='Interval for measuring frequency, for example "1 day".')
 
@@ -56,6 +67,17 @@ parser.add_argument('--no-comments',    action='store_true', help='Do not output
 parser.add_argument('infile', type=str, nargs='?', help='Input CSV file, otherwise use stdin.')
 
 args = parser.parse_args()
+
+# Process presets
+
+if args.preset:
+    values = presets[args.preset]
+    for name in values.keys():
+        if not getattr(args, name):
+            setattr(args, name, values[name])
+
+if not args.regexp:
+    raise RuntimeError("At least one of 'preset' and 'regexp' must be specified.")
 
 # Multiprocessing is not possible when doing time interval processing
 if args.interval:
@@ -96,9 +118,12 @@ else:
 
 fields = list(regexp.groupindex)
 
-score = compile(args.score, 'score argument', 'eval')
+score = []
+for scoreitem in args.score:
+    score.append(compile(scoreitem, scoreitem, 'eval'))
+
 def evalscore(user, date, retweets, favorites, text, lang, geo, mentions, hashtags, id, permalink, **extra):
-    return eval(score)
+    return [eval(scoreitem) for scoreitem in score]
 
 if args.interval:
     interval = timeparse(args.interval)
@@ -138,7 +163,8 @@ if not args.no_comments:
         comments += '#     ignorecase\n'
     if args.interval:
         comments += '#     interval=' + str(args.interval) + '\n'
-    comments += '#     score=' + args.score + '\n'
+    for scoreitem in args.score:
+        comments += '#     score=' + scoreitem + '\n'
     if args.threshold:
         comments += '#     threshold=' + str(args.threshold) + '\n'
     if args.number:
@@ -169,10 +195,10 @@ if args.jobs == 1:
             row['datesecs'] = calendar.timegm(dateparser.parse(row['date']).timetuple())
             firstrow = rows[0] if len(rows) else None
             while firstrow and firstrow['datesecs'] - row['datesecs'] > interval:
-                indexes = firstrow['indexes']
-                rowscore   = firstrow['score']
+                indexes  = firstrow['indexes']
+                rowscore = firstrow['score']
                 for index in indexes:
-                    runningresult[index] -= rowscore
+                    runningresult[index] = map(sub, runningresult[index], rowscore)
 
                 del rows[0]
                 firstrow = rows[0] if len(rows) else None
@@ -189,10 +215,11 @@ if args.jobs == 1:
 
             if args.interval:
                 indexes.append(index)
-                runningresult[index] = runningresult.get(index, 0) + rowscore
-                mergedresult[index] = max(mergedresult.get(index, 0), runningresult[index])
+                runningresult[index] = map(add, runningresult.get(index, [0] * len(score)), rowscore)
+                curmergedresult = mergedresult.get(index, [0] * len(score))
+                mergedresult[index] = [max(curmergedresult[idx], runningresult[index][idx]) for idx in range(len(score))]
             else:
-                mergedresult[index] = mergedresult.get(index, 0) + rowscore
+                mergedresult[index] = map(add, mergedresult.get(index, [0] * len(score)), rowscore)
 
         if args.interval and rowscore:
             row['score']   = rowscore
@@ -241,7 +268,7 @@ else:
                     else:
                         index = tuple(match.groupdict().values())
 
-                    result[index] = result.get(index, 0) + rowscore
+                    result[index] = map(add, result.get(index, [0] * len(score)), rowscore)
 
             if args.verbosity > 2:
                 print("Thread " + str(p.thread_num) + " found " + str(len(result)) + " results.", file=sys.stderr)
@@ -251,16 +278,16 @@ else:
 
         for result in results:
             for index in result:
-                mergedresult[index] = mergedresult.get(index, 0) + result[index]
+                mergedresult[index] = map(add, mergedresult.get(index, [0] * len(score)), result[index])
 
 if args.verbosity > 1:
     print("Sorting " + str(len(mergedresult)) + " results.", file=sys.stderr)
 
+# Sort on first score value
 sortedresult = sorted([{'match': match, 'score':mergedresult[match]}
-                                for match in mergedresult.keys()
-                                if mergedresult[match] >= args.threshold or 0],
-                           key=lambda item: item['score'],
-                           reverse=True)
+                           for match in mergedresult.keys() if mergedresult[match][0] >= args.threshold or 0],
+                      key=lambda item: item['score'][0],
+                      reverse=True)
 
 if args.number != 0:
     sortedresult = sortedresult[0:args.number]
@@ -268,8 +295,10 @@ if args.number != 0:
 for result in sortedresult:
     for idx in range(len(fields)):
         result[fields[idx]] = result['match'][idx]
+    for idx in range(len(score)):
+        result[args.score[idx]] = result['score'][idx]
 
-outunicodecsv=unicodecsv.DictWriter(outfile, fieldnames=fields + ['score'], extrasaction='ignore')
+outunicodecsv=unicodecsv.DictWriter(outfile, fieldnames=fields + args.score, extrasaction='ignore')
 outunicodecsv.writeheader()
 if len(sortedresult) > 0:
     outunicodecsv.writerows(sortedresult)
