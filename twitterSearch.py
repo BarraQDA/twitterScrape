@@ -112,7 +112,7 @@ if args.application_only_auth:
         )
 else:
     if not all([args.access_token_key, args.access_token_secret]):
-        oauth_client = OAuth1Session(consumer_key, client_secret=consumer_secret, callback_uri='oob')
+        oauth_client = OAuth1Session(args.consumer_key, client_secret=args.consumer_secret, callback_uri='oob')
 
         resp = oauth_client.fetch_request_token(REQUEST_TOKEN_URL)
         url = oauth_client.authorization_url(AUTHORIZATION_URL)
@@ -123,7 +123,7 @@ else:
         print('Enter your pincode? ', file=sys.stderr)
         pincode = raw_input()
 
-        oauth_client = OAuth1Session(consumer_key, client_secret=consumer_secret,
+        oauth_client = OAuth1Session(args.consumer_key, client_secret=args.consumer_secret,
                                     resource_owner_key=resp.get('oauth_token'),
                                     resource_owner_secret=resp.get('oauth_token_secret'),
                                     verifier=pincode)
@@ -135,8 +135,8 @@ else:
         print('    --access-token-key ' + args.access_token_key + ' --access-token-secret ' + args.access_token_secret, file=sys.stderr)
 
     api = twitter.Api(
-                consumer_key=consumer_key,
-                consumer_secret=consumer_secret,
+                consumer_key=args.consumer_key,
+                consumer_secret=args.consumer_secret,
                 access_token_key=args.access_token_key,
                 access_token_secret=args.access_token_secret
         )
