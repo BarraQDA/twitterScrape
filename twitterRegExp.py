@@ -290,8 +290,7 @@ if args.verbosity > 1:
 # Sort on first score value
 sortedresult = sorted([{'match': match, 'score':mergedresult[match]}
                            for match in mergedresult.keys() if mergedresult[match][0] >= args.threshold or 0],
-                      key=lambda item: item['score'][0],
-                      reverse=True)
+                      key=lambda item: (-item['score'][0], item['match']))
 
 if args.number != 0:
     sortedresult = sortedresult[0:args.number]
