@@ -20,28 +20,30 @@ from __future__ import print_function
 import argparse
 from TwitterFeed import TwitterRead, TwitterWrite
 import sys
-from textblob import TextBlob
 import string
 import pymp
-import operator
 from dateutil import parser as dateparser
+import re
 
-parser = argparse.ArgumentParser(description='Filter twitter CSV file on text column.')
+parser = argparse.ArgumentParser(description='Filter twitter CSV file using regular or python expression.')
 
 parser.add_argument('-v', '--verbosity', type=int, default=1)
 parser.add_argument('-j', '--jobs',       type=int, help='Number of parallel tasks, default is number of CPUs. May affect performance but not results.')
 parser.add_argument('-b', '--batch',      type=int, default=100000, help='Number of tweets to process per batch. Use to limit memory usage with very large files. May affect performance but not results.')
 
 parser.add_argument('-p', '--prelude',    type=str, nargs="*", help='Python code to execute before processing')
-parser.add_argument('-f', '--filter',     type=str, required=True, help='Python expression evaluated to determine whether tweet is included')
-parser.add_argument(      '--invert',     action='store_true', help='Invert filter, that is, output those tweets that do not match filter')
+parser.add_argument('-f', '--filter',     type=str, help='Python expression evaluated to determine whether tweet is included')
+parser.add_argument('-c', '--column',     type=str, default='text', help='Column to apply regular expression')
+parser.add_argument('-r', '--regexp',     type=str, help='Regular expression applied to tweet text to create output columns.')
+parser.add_argument('-i', '--ignorecase', action='store_true', help='Ignore case in regular expression')
+parser.add_argument(      '--invert',     action='store_true', help='Invert filter, that is, output those tweets that do not pass filter and/or regular expression')
 
 parser.add_argument(      '--since',      type=str, help='Lower bound tweet date.')
 parser.add_argument(      '--until',      type=str, help='Upper bound tweet date.')
 parser.add_argument('-l', '--limit',      type=int, help='Limit number of tweets to process')
 
 parser.add_argument('-o', '--outfile', type=str, help='Output CSV file, otherwise use stdout')
-parser.add_argument('-r', '--rejfile',  type=str, help='Output CSV file for rejected tweets')
+parser.add_argument(      '--rejfile',  type=str, help='Output CSV file for rejected tweets')
 parser.add_argument('-n', '--number',  type=int, default=0, help='Maximum number of results to output')
 parser.add_argument('--no-comments',   action='store_true', help='Do not output descriptive comments')
 
@@ -66,9 +68,16 @@ if args.prelude:
     for line in args.prelude:
         exec(line)
 
-filter = compile(args.filter, 'filter argument', 'eval')
-def evalfilter(user, date, retweets, favorites, text, lang, geo, mentions, hashtags, id, permalink):
-    return eval(filter)
+if args.filter:
+    filter = compile(args.filter, 'filter argument', 'eval')
+    def evalfilter(user, date, retweets, favorites, text, lang, geo, mentions, hashtags, id, permalink):
+        return eval(filter)
+
+if args.regexp:
+    if args.ignorecase:
+        regexp = re.compile(args.regexp, re.IGNORECASE | re.UNICODE)
+    else:
+        regexp = re.compile(args.regexp, re.UNICODE)
 
 # Parse since and until dates
 if args.until:
@@ -98,13 +107,17 @@ else:
     if args.prelude:
         for line in args.prelude:
             comments += '#     prelude=' + line + '\n'
-    comments += '#     filter=' + args.filter + '\n'
+    if args.filter:
+        comments += '#     filter=' + args.filter + '\n'
     if args.invert:
         comments += '#     invert\n'
     if args.since:
         comments += '#     since=' + args.since+ '\n'
     if args.until:
         comments += '#     until=' + args.until + '\n'
+    if args.regexp:
+        comments += '#     column=' + args.column+ '\n'
+        comments += '#     regexp=' + args.regexp + '\n'
     if args.limit:
         comments += '#     limit=' + str(args.limit) + '\n'
     if args.number:
@@ -121,7 +134,11 @@ if args.verbosity > 1:
 
 if args.jobs == 1:
     for row in twitterread:
-        keep = evalfilter(**row) or False
+        keep = True
+        if args.filter:
+            keep = (evalfilter(**row) or False) and keep
+        if args.regexp:
+            keep = (regexp.search(row[args.column]) or False) and keep
 
         if keep != args.invert:
             twitterwrite.write(row)
@@ -162,7 +179,12 @@ else:
                 reject = []
             for rowindex in p.range(0, rowcount):
                 row = rows[rowindex]
-                keep = evalfilter(**row) or False
+                keep = True
+                if args.filter:
+                    keep = (evalfilter(**row) or False) and keep
+                if args.regexp:
+                    keep = (regexp.search(row[args.column]) or False) and keep
+
                 row['keep'] = keep
                 if keep != args.invert:
                     result.append(row)
