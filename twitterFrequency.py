@@ -100,6 +100,9 @@ if not args.no_comments:
     comments += '#     infile=' + (args.infile or '<stdin>') + '\n'
     if args.limit:
         comments += '#     limit=' + str(args.limit) + '\n'
+    if args.prelude:
+        for line in args.prelude:
+            comments += '#     prelude=' + line + '\n'
     for filter in args.filter:
         comments += '#     filter=' + filter + '\n'
     if args.title:

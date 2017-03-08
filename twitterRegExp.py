@@ -29,7 +29,7 @@ from dateutil import parser as dateparser
 import calendar
 from pytimeparse.timeparse import timeparse
 
-parser = argparse.ArgumentParser(description='Twitter feed regular expression analysis.')
+parser = argparse.ArgumentParser(description='Twitter CSV file regular expression analysis.')
 
 parser.add_argument('-v', '--verbosity',  type=int, default=1)
 parser.add_argument('-j', '--jobs',       type=int, help='Number of parallel tasks, default is number of CPUs. May affect performance but not results.')
@@ -123,6 +123,9 @@ if not args.no_comments:
     comments += '#     infile=' + (args.infile or '<stdin>') + '\n'
     if args.limit:
         comments += '#     limit=' + str(args.limit) + '\n'
+    if args.prelude:
+        for line in args.prelude:
+            comments += '#     prelude=' + line + '\n'
     if args.filter:
         comments += '#     filter=' + args.filter + '\n'
     if args.since:
