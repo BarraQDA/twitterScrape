@@ -52,7 +52,7 @@ parser.add_argument(      '--since',      type=str, help='Lower bound tweet date
 parser.add_argument(      '--until',      type=str, help='Upper bound tweet date.')
 parser.add_argument('-l', '--limit',      type=int, help='Limit number of tweets to process')
 
-parser.add_argument('-c', '--column',     type=str, default='text', help='Column to apply regular expression')
+parser.add_argument('-c', '--column',     type=str, help='Column to apply regular expression, default is "text"')
 parser.add_argument('-r', '--regexp',     type=str, help='Regular expression applied to tweet text to create output columns.')
 parser.add_argument('-i', '--ignorecase', action='store_true', help='Ignore case in regular expression')
 parser.add_argument('-s', '--score',      type=str, nargs="*", default='1', help='Python expression(s) to evaluate tweet score(s), for example "1 + retweets + favorites"')
@@ -76,8 +76,12 @@ if args.preset:
         if not getattr(args, name):
             setattr(args, name, values[name])
 
+# Need to handle required arguments and defaults manually so that presets can work
+
 if not args.regexp:
     raise RuntimeError("At least one of 'preset' and 'regexp' must be specified.")
+if not args.column:
+    args.column = 'text'
 
 # Multiprocessing is not possible when doing time interval processing
 if args.interval:
