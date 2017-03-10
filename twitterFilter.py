@@ -118,6 +118,8 @@ else:
     if args.regexp:
         comments += '#     column=' + args.column+ '\n'
         comments += '#     regexp=' + args.regexp + '\n'
+    if args.ignorecase:
+        comments += '#     ignorecase\n'
     if args.limit:
         comments += '#     limit=' + str(args.limit) + '\n'
     if args.number:
