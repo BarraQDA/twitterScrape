@@ -55,7 +55,7 @@ graph = Graph(directed=True)
 rowcount = 0
 for row in inreader:
     if row[0] not in nodes:
-        graph.add_vertex(row[0], label=row[0]')
+        graph.add_vertex(row[0], label=row[0])
         nodes.add(row[0])
     if row[1] not in nodes:
         graph.add_vertex(row[1], label=row[1])
