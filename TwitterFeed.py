@@ -36,8 +36,8 @@ class TwitterFeed(object):
 
     PARSER=None
     FORCE_SPACE_TAGS={'a'}
-    MENTIONREGEXP=re.compile(r'(@\w*)', re.UNICODE)
-    HASHTAGREGEXP=re.compile(r'(#\w*)', re.UNICODE)
+    MENTIONREGEXP=re.compile(r'(@\w+)', re.UNICODE)
+    HASHTAGREGEXP=re.compile(r'(#\w+)', re.UNICODE)
 
     def next(self):
 
