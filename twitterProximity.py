@@ -29,7 +29,7 @@ parser = argparse.ArgumentParser(description='Word proximity calculator.')
 parser.add_argument('-v', '--verbosity', type=int, default=1)
 
 parser.add_argument('-j', '--jobs', type=int, help='Number of parallel tasks, default is number of CPUs')
-parser.add_argument('-b', '--batch',      type=int, default=1000000, help='Number of tweets to process per batch, or zero for unlimited. May affect performance but not results.')
+parser.add_argument('-b', '--batch',      type=int, default=100000, help='Number of tweets to process per batch, or zero for unlimited. May affect performance but not results.')
 
 parser.add_argument('-l', '--limit',     type=int, help='Limit number of tweets to process')
 
