@@ -69,7 +69,7 @@ def twitterNetwork(arglist):
             print("Executing prelude code.", file=sys.stderr)
 
         for line in args.prelude:
-            exec(line)
+            exec(line) in globals()
 
     if args.filter:
         filter = compile(args.filter, 'filter argument', 'eval')
