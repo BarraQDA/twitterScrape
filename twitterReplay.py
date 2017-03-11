@@ -85,11 +85,16 @@ if args.no_comments:
 
 arglist += infile
 
-if args.dry_run:
-    print(arglist)
-else:
+if args.verbosity > 1:
+    print("Command: " + cmd + " " + ' '.join(arglist), file=sys.stderr)
+
+if not args.dry_run:
     if outfile == args.infile:
-        shutil.move(file, file + '.bak')
+        bakfile = file + '.bak'
+        if args.verbosity > 1:
+            print("Renaming " + file + " to " + bakfile, file=sys.stderr)
+
+        shutil.move(file, bakfile)
 
     module = importlib.import_module(cmd)
     function = getattr(module, cmd)
