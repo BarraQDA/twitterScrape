@@ -25,209 +25,214 @@ import pymp
 from dateutil import parser as dateparser
 import re
 
-parser = argparse.ArgumentParser(description='Filter twitter CSV file using regular or python expression.')
+def twitterFilter(arglist):
 
-parser.add_argument('-v', '--verbosity', type=int, default=1)
-parser.add_argument('-j', '--jobs',       type=int, help='Number of parallel tasks, default is number of CPUs. May affect performance but not results.')
-parser.add_argument('-b', '--batch',      type=int, default=100000, help='Number of tweets to process per batch. Use to limit memory usage with very large files. May affect performance but not results.')
+    parser = argparse.ArgumentParser(description='Filter twitter CSV file using regular or python expression.')
 
-parser.add_argument('-p', '--prelude',    type=str, nargs="*", help='Python code to execute before processing')
-parser.add_argument('-f', '--filter',     type=str, help='Python expression evaluated to determine whether tweet is included')
-parser.add_argument('-c', '--column',     type=str, default='text', help='Column to apply regular expression')
-parser.add_argument('-r', '--regexp',     type=str, help='Regular expression applied to tweet text to create output columns.')
-parser.add_argument('-i', '--ignorecase', action='store_true', help='Ignore case in regular expression')
-parser.add_argument(      '--invert',     action='store_true', help='Invert filter, that is, output those tweets that do not pass filter and/or regular expression')
+    parser.add_argument('-v', '--verbosity', type=int, default=1)
+    parser.add_argument('-j', '--jobs',       type=int, help='Number of parallel tasks, default is number of CPUs. May affect performance but not results.')
+    parser.add_argument('-b', '--batch',      type=int, default=100000, help='Number of tweets to process per batch. Use to limit memory usage with very large files. May affect performance but not results.')
 
-parser.add_argument(      '--since',      type=str, help='Lower bound tweet date.')
-parser.add_argument(      '--until',      type=str, help='Upper bound tweet date.')
-parser.add_argument('-l', '--limit',      type=int, help='Limit number of tweets to process')
+    parser.add_argument('-p', '--prelude',    type=str, nargs="*", help='Python code to execute before processing')
+    parser.add_argument('-f', '--filter',     type=str, help='Python expression evaluated to determine whether tweet is included')
+    parser.add_argument('-c', '--column',     type=str, default='text', help='Column to apply regular expression')
+    parser.add_argument('-r', '--regexp',     type=str, help='Regular expression applied to tweet text to create output columns.')
+    parser.add_argument('-i', '--ignorecase', action='store_true', help='Ignore case in regular expression')
+    parser.add_argument(      '--invert',     action='store_true', help='Invert filter, that is, output those tweets that do not pass filter and/or regular expression')
 
-parser.add_argument('-o', '--outfile', type=str, help='Output CSV file, otherwise use stdout')
-parser.add_argument(      '--rejfile',  type=str, help='Output CSV file for rejected tweets')
-parser.add_argument('-n', '--number',  type=int, default=0, help='Maximum number of results to output')
-parser.add_argument('--no-comments',   action='store_true', help='Do not output descriptive comments')
+    parser.add_argument(      '--since',      type=str, help='Lower bound tweet date.')
+    parser.add_argument(      '--until',      type=str, help='Upper bound tweet date.')
+    parser.add_argument('-l', '--limit',      type=int, help='Limit number of tweets to process')
 
-parser.add_argument('infile', type=str, nargs='?', help='Input CSV file, otherwise use stdin')
+    parser.add_argument('-o', '--outfile', type=str, help='Output CSV file, otherwise use stdout')
+    parser.add_argument(      '--rejfile',  type=str, help='Output CSV file for rejected tweets')
+    parser.add_argument('-n', '--number',  type=int, default=0, help='Maximum number of results to output')
+    parser.add_argument('--no-comments',   action='store_true', help='Do not output descriptive comments')
 
-args = parser.parse_args()
+    parser.add_argument('infile', type=str, nargs='?', help='Input CSV file, otherwise use stdin')
 
-if args.jobs is None:
-    import multiprocessing
-    args.jobs = multiprocessing.cpu_count()
+    args = parser.parse_args(arglist)
 
-if args.verbosity > 1:
-    print("Using " + str(args.jobs) + " jobs.", file=sys.stderr)
+    if args.jobs is None:
+        import multiprocessing
+        args.jobs = multiprocessing.cpu_count()
 
-if args.batch is None:
-    args.batch = sys.maxint
-
-if args.prelude:
     if args.verbosity > 1:
-        print("Executing prelude code.", file=sys.stderr)
+        print("Using " + str(args.jobs) + " jobs.", file=sys.stderr)
 
-    for line in args.prelude:
-        exec(line)
+    if args.batch is None:
+        args.batch = sys.maxint
 
-if args.filter:
-    filter = compile(args.filter, 'filter argument', 'eval')
-    def evalfilter(user, date, retweets, favorites, text, lang, geo, mentions, hashtags, id, permalink):
-        return eval(filter)
-
-if args.regexp:
-    if args.ignorecase:
-        regexp = re.compile(args.regexp, re.IGNORECASE | re.UNICODE)
-    else:
-        regexp = re.compile(args.regexp, re.UNICODE)
-
-# Parse since and until dates
-if args.until:
-    args.until = dateparser.parse(args.until).date().isoformat()
-if args.since:
-    args.since = dateparser.parse(args.since).date().isoformat()
-
-twitterread  = TwitterRead(args.infile, since=args.since, until=args.until, limit=args.limit)
-if args.no_comments:
-    comments = None
-else:
-    if args.outfile:
-        outcomments = (' ' + args.outfile + ' ').center(80, '#') + '\n'
-    else:
-        outcomments = '#' * 80 + '\n'
-
-    if args.rejfile:
-        rejcomments = (' ' + args.rejfile + ' ').center(80, '#') + '\n'
-
-    comments = ''
-
-    comments += '# twitterFilter\n'
-    comments += '#     outfile=' + (args.outfile or '<stdout>') + '\n'
-    if args.rejfile:
-        comments += '#     reject=' + args.rejfile + '\n'
-    comments += '#     infile=' + (args.infile or '<stdin>') + '\n'
     if args.prelude:
+        if args.verbosity > 1:
+            print("Executing prelude code.", file=sys.stderr)
+
         for line in args.prelude:
-            comments += '#     prelude=' + line + '\n'
+            exec(line) in globals()
+
     if args.filter:
-        comments += '#     filter=' + args.filter + '\n'
-    if args.invert:
-        comments += '#     invert\n'
-    if args.since:
-        comments += '#     since=' + args.since+ '\n'
-    if args.until:
-        comments += '#     until=' + args.until + '\n'
+        filter = compile(args.filter, 'filter argument', 'eval')
+        def evalfilter(user, date, retweets, favorites, text, lang, geo, mentions, hashtags, id, permalink):
+            return eval(filter)
+
     if args.regexp:
-        comments += '#     column=' + args.column+ '\n'
-        comments += '#     regexp=' + args.regexp + '\n'
-    if args.ignorecase:
-        comments += '#     ignorecase\n'
-    if args.limit:
-        comments += '#     limit=' + str(args.limit) + '\n'
-    if args.number:
-        comments += '#     number=' + str(args.number) + '\n'
+        if args.ignorecase:
+            regexp = re.compile(args.regexp, re.IGNORECASE | re.UNICODE)
+        else:
+            regexp = re.compile(args.regexp, re.UNICODE)
 
-    comments += twitterread.comments
+    # Parse since and until dates
+    if args.until:
+        args.until = dateparser.parse(args.until).date().isoformat()
+    if args.since:
+        args.since = dateparser.parse(args.since).date().isoformat()
 
-twitterwrite = TwitterWrite(args.outfile, comments=outcomments+comments, fieldnames=twitterread.fieldnames)
-if args.rejfile:
-    rejectwrite = TwitterWrite(args.rejfile, comments=rejcomments+comments, fieldnames=twitterread.fieldnames)
+    twitterread  = TwitterRead(args.infile, since=args.since, until=args.until, limit=args.limit)
+    if args.no_comments:
+        comments = None
+    else:
+        if args.outfile:
+            outcomments = (' ' + args.outfile + ' ').center(80, '#') + '\n'
+        else:
+            outcomments = '#' * 80 + '\n'
 
-if args.verbosity > 1:
-    print("Loading twitter data.", file=sys.stderr)
+        if args.rejfile:
+            rejcomments = (' ' + args.rejfile + ' ').center(80, '#') + '\n'
 
-if args.jobs == 1:
-    for row in twitterread:
-        keep = True
+        comments = ''
+
+        comments += '# twitterFilter\n'
+        comments += '#     outfile=' + (args.outfile or '<stdout>') + '\n'
+        if args.rejfile:
+            comments += '#     rejfile=' + args.rejfile + '\n'
+        comments += '#     infile=' + (args.infile or '<stdin>') + '\n'
+        if args.prelude:
+            for line in args.prelude:
+                comments += '#     prelude=' + line + '\n'
         if args.filter:
-            keep = (evalfilter(**row) or False) and keep
+            comments += '#     filter=' + args.filter + '\n'
+        if args.invert:
+            comments += '#     invert\n'
+        if args.since:
+            comments += '#     since=' + args.since+ '\n'
+        if args.until:
+            comments += '#     until=' + args.until + '\n'
         if args.regexp:
-            keep = (regexp.search(row[args.column]) or False) and keep
+            comments += '#     column=' + args.column+ '\n'
+            comments += '#     regexp=' + args.regexp + '\n'
+        if args.ignorecase:
+            comments += '#     ignorecase\n'
+        if args.limit:
+            comments += '#     limit=' + str(args.limit) + '\n'
+        if args.number:
+            comments += '#     number=' + str(args.number) + '\n'
 
-        if keep != args.invert:
-            twitterwrite.write(row)
-        elif args.rejfile:
-            rejectwrite.write(row)
+        comments += twitterread.comments
 
-        if args.number and twitterwrite.count == args.number:
-            break
-else:
-    while True:
-        if args.verbosity > 2:
-            print("Loading twitter batch.", file=sys.stderr)
+    twitterwrite = TwitterWrite(args.outfile, comments=outcomments+comments, fieldnames=twitterread.fieldnames)
+    if args.rejfile:
+        rejectwrite = TwitterWrite(args.rejfile, comments=rejcomments+comments, fieldnames=twitterread.fieldnames)
 
-        rows = []
-        batchcount = 0
-        while batchcount < args.batch:
-            try:
-                row = next(twitterread)
-                batchcount += 1
-                rows.append(row)
+    if args.verbosity > 1:
+        print("Loading twitter data.", file=sys.stderr)
 
-            except StopIteration:
+    if args.jobs == 1:
+        for row in twitterread:
+            keep = True
+            if args.filter:
+                keep = (evalfilter(**row) or False) and keep
+            if args.regexp:
+                keep = (regexp.search(row[args.column]) or False) and keep
+
+            if keep != args.invert:
+                twitterwrite.write(row)
+            elif args.rejfile:
+                rejectwrite.write(row)
+
+            if args.number and twitterwrite.count == args.number:
+                break
+    else:
+        while True:
+            if args.verbosity > 2:
+                print("Loading twitter batch.", file=sys.stderr)
+
+            rows = []
+            batchcount = 0
+            while batchcount < args.batch:
+                try:
+                    row = next(twitterread)
+                    batchcount += 1
+                    rows.append(row)
+
+                except StopIteration:
+                    break
+
+            if batchcount == 0:
                 break
 
-        if batchcount == 0:
-            break
+            if args.verbosity > 2:
+                print("Processing twitter batch.", file=sys.stderr)
 
-        if args.verbosity > 2:
-            print("Processing twitter batch.", file=sys.stderr)
-
-        rowcount = len(rows)
-        results = pymp.shared.list()
-        if args.rejfile:
-            rejects = pymp.shared.list()
-        with pymp.Parallel(args.jobs) as p:
-            result = []
+            rowcount = len(rows)
+            results = pymp.shared.list()
             if args.rejfile:
-                reject = []
-            for rowindex in p.range(0, rowcount):
-                row = rows[rowindex]
-                keep = True
-                if args.filter:
-                    keep = (evalfilter(**row) or False) and keep
-                if args.regexp:
-                    keep = (regexp.search(row[args.column]) or False) and keep
-
-                row['keep'] = keep
-                if keep != args.invert:
-                    result.append(row)
-                elif args.rejfile:
-                    reject.append(row)
-
-            with p.lock:
-                results.append(result)
+                rejects = pymp.shared.list()
+            with pymp.Parallel(args.jobs) as p:
+                result = []
                 if args.rejfile:
-                    rejects.append(reject)
+                    reject = []
+                for rowindex in p.range(0, rowcount):
+                    row = rows[rowindex]
+                    keep = True
+                    if args.filter:
+                        keep = (evalfilter(**row) or False) and keep
+                    if args.regexp:
+                        keep = (regexp.search(row[args.column]) or False) and keep
 
-        if args.verbosity > 2:
-            print("Merging twitter batch.", file=sys.stderr)
+                    row['keep'] = keep
+                    if keep != args.invert:
+                        result.append(row)
+                    elif args.rejfile:
+                        reject.append(row)
 
-        mergedresult = []
-        for result in results:
-            mergedresult += result
+                with p.lock:
+                    results.append(result)
+                    if args.rejfile:
+                        rejects.append(reject)
 
-        sortedresult = sorted(mergedresult,
-                              key=lambda item: item['id'],
-                              reverse=True)
-        for row in sortedresult:
-            twitterwrite.write(row)
+            if args.verbosity > 2:
+                print("Merging twitter batch.", file=sys.stderr)
+
+            mergedresult = []
+            for result in results:
+                mergedresult += result
+
+            sortedresult = sorted(mergedresult,
+                                key=lambda item: item['id'],
+                                reverse=True)
+            for row in sortedresult:
+                twitterwrite.write(row)
+                if args.number and twitterwrite.count == args.number:
+                    break
+
+            if args.rejfile:
+                mergedreject = []
+                for reject in rejects:
+                    mergedreject += reject
+
+                sortedreject = sorted(mergedreject,
+                                    key=lambda item: item['id'],
+                                    reverse=True)
+                for row in sortedreject:
+                    rejectwrite.write(row)
+
             if args.number and twitterwrite.count == args.number:
                 break
 
-        if args.rejfile:
-            mergedreject = []
-            for reject in rejects:
-                mergedreject += reject
+    if args.verbosity > 1:
+        print(str(twitterwrite.count) + " rows kept, " + str(twitterread.count - twitterwrite.count) + " rows dropped.", file=sys.stderr)
 
-            sortedreject = sorted(mergedreject,
-                                key=lambda item: item['id'],
-                                reverse=True)
-            for row in sortedreject:
-                rejectwrite.write(row)
+    del twitterwrite
 
-        if args.number and twitterwrite.count == args.number:
-            break
-
-if args.verbosity > 1:
-    print(str(twitterwrite.count) + " rows kept, " + str(twitterread.count - twitterwrite.count) + " rows dropped.", file=sys.stderr)
-
-del twitterwrite
+if __name__ == '__main__':
+    twitterFilter(None)
