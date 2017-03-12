@@ -23,19 +23,19 @@ from TwitterFeed import TwitterRead
 import re
 import shutil
 import importlib
+import os
+import datetime
+from dateutil import parser as dateparser
 
 parser = argparse.ArgumentParser(description='Replay twitter file processing.')
 
-parser.add_argument('-v', '--verbosity',  type=int, default=1)
-parser.add_argument('-j', '--jobs',       type=int, help='Number of parallel tasks, default is number of CPUs. May affect performance but not results.')
-parser.add_argument('-b', '--batch',      type=int, default=100000, help='Number of tweets to process per batch. Use to limit memory usage with very large files. May affect performance but not results.')
-parser.add_argument('--no-comments',    action='store_true', help='Do not output descriptive comments')
-
-parser.add_argument('--dry-run',       action='store_true', help='Print but do not execute command')
+parser.add_argument('-v', '--verbosity', type=int, default=1)
+parser.add_argument('-f', '--force',     action='store_true', help='Replay command even if infile is not more recent.')
+parser.add_argument('--dry-run',         action='store_true', help='Print but do not execute command')
 
 parser.add_argument('infile',  type=str, nargs='*', help='Input CSV files with comments to replay.')
 
-args = parser.parse_args()
+args, extraargs = parser.parse_known_args()
 
 for infilename in args.infile:
     if args.verbosity > 1:
@@ -46,6 +46,7 @@ for infilename in args.infile:
     fileregexp = re.compile(r"#+ (.+) #+", re.UNICODE)
     cmdregexp = re.compile(r"#\s+(\w+)", re.UNICODE)
     argregexp = re.compile(r"#\s+(\w+)(?:=(.+))?", re.UNICODE)
+    infileregexp = re.compile(r"(.+) (\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?)", re.UNICODE)
 
     comments = twitterread.comments.splitlines()
     del twitterread
@@ -68,7 +69,16 @@ for infilename in args.infile:
         argvalue = argmatch.group(2)
 
         if argname == 'infile':
-            replayinfile.append(argvalue)
+            infilematch = infileregexp.match(argvalue)
+            if infilematch:
+                infilename = infilematch.group(1)
+                infilestamp = dateparser.parse(infilematch.group(2))
+                curfilestamp = datetime.datetime.utcfromtimestamp(os.path.getctime(infilename))
+            else:
+                infilename = argvalue
+                infilestamp = None
+
+            replayinfile.append(infilename)
         else:
             if argname == 'outfile':
                 replayoutfile = argvalue
@@ -81,26 +91,25 @@ for infilename in args.infile:
 
         argmatch = argregexp.match(comments.pop(0))
 
-    arglist += ['--verbosity', str(args.verbosity), '--batch', str(args.batch)]
-    if args.jobs:
-        arglist += ['--jobs', str(args.jobs)]
-    if args.no_comments:
-        arglist += ['--no-comments']
-
+    arglist += extraargs
     arglist += replayinfile
 
     if args.verbosity > 1:
         print("Command: " + cmd + " " + ' '.join(arglist), file=sys.stderr)
 
     if not args.dry_run:
-        if replayoutfile == infilename:
-            bakfile = file + '.bak'
+        if args.force or curfilestamp > infilestamp:
+            if replayoutfile == infilename:
+                bakfile = file + '.bak'
+                if args.verbosity > 1:
+                    print("Renaming " + file + " to " + bakfile, file=sys.stderr)
+
+                shutil.move(file, bakfile)
+
+            module = importlib.import_module(cmd)
+            function = getattr(module, cmd)
+            function(arglist)
+        else:
             if args.verbosity > 1:
-                print("Renaming " + file + " to " + bakfile, file=sys.stderr)
-
-            shutil.move(file, bakfile)
-
-        module = importlib.import_module(cmd)
-        function = getattr(module, cmd)
-        function(arglist)
+                print("Infile is not more recent, command not executed", file=sys.stderr)
 
