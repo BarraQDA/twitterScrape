@@ -17,6 +17,8 @@ import urllib,urllib2,json,re,datetime,sys,cookielib
 from pyquery import PyQuery
 import lxml
 import unicodecsv
+import os
+import datetime
 
 class TwitterFeed(object):
     def __init__(self, language=None, user=None, since=None, until=None, query=None, timeout=None):
@@ -126,8 +128,10 @@ class TwitterRead(object):
     def __init__(self, filename, since=None, until=None, limit=None, blanks=False):
         if filename is None:
             self.file = sys.stdin
+            self.mtime = None
         else:
             self.file = file(filename, 'r')
+            self.mtime = datetime.datetime.utcfromtimestamp(os.path.getctime(filename))
 
         self.since  = since
         self.until  = until
@@ -177,9 +181,18 @@ class TwitterRead(object):
             if self.since and row['date'] < self.since:
                 raise StopIteration
 
-            row['id']        = int(row['id'])
-            row['retweets']  = int(row['retweets'])
-            row['favorites'] = int(row['favorites'])
+            try:
+                row['id'] = int(row['id'])
+            except TypeError:
+                row['id'] = 0
+            try:
+                row['retweets'] = int(row['retweets'])
+            except TypeError:
+                row['retweets'] = 0
+            try:
+                row['favorites'] = int(row['favorites'])
+            except TypeError:
+                row['favorites'] = 0
 
             break
 
