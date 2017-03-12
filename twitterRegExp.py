@@ -55,7 +55,7 @@ def twitterRegExp(arglist):
     parser.add_argument('-c', '--column',     type=str, help='Column to apply regular expression, default is "text"')
     parser.add_argument('-r', '--regexp',     type=str, help='Regular expression applied to tweet text to create output columns.')
     parser.add_argument('-i', '--ignorecase', action='store_true', help='Ignore case in regular expression')
-    parser.add_argument('-s', '--score',      type=str, nargs="*", default='1', help='Python expression(s) to evaluate tweet score(s), for example "1 + retweets + favorites"')
+    parser.add_argument('-s', '--score',      type=str, nargs="*", default=['1'], help='Python expression(s) to evaluate tweet score(s), for example "1 + retweets + favorites"')
     parser.add_argument('-t', '--threshold',  type=float, help='Threshold (first) score for result to be output')
 
     parser.add_argument('-in', '--interval',  type=str, help='Interval for measuring frequency, for example "1 day".')
@@ -136,7 +136,7 @@ def twitterRegExp(arglist):
 
         comments += '# twitterRegExp\n'
         comments += '#     outfile=' + (args.outfile or '<stdout>') + '\n'
-        comments += '#     infile=' + (args.infile or '<stdin>') + '\n'
+        comments += '#     infile=' + (args.infile or '<stdin>') + (' ' + twitterread.mtime.isoformat() if twitterread.mtime else '') + '\n'
         if args.limit:
             comments += '#     limit=' + str(args.limit) + '\n'
         if args.prelude:
