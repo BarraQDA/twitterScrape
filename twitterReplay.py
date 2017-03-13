@@ -29,7 +29,7 @@ import datetime
 parser = argparse.ArgumentParser(description='Replay twitter file processing.')
 
 parser.add_argument('-v', '--verbosity', type=int, default=1)
-parser.add_argument('-d', '--depth',     type=int, help='Depth of command history to replay.')
+parser.add_argument('-d', '--depth',     type=int, default=1, help='Depth of command history to replay.')
 parser.add_argument('-f', '--force',     action='store_true', help='Replay command even if infile is not more recent.')
 parser.add_argument('--dry-run',         action='store_true', help='Print but do not execute command')
 
