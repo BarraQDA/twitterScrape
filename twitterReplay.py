@@ -105,24 +105,14 @@ for infilename in args.infile:
     execute = args.force
     while cmd:
         if not execute:
-            print (outfilename, infilelist)
             outfilestamp = datetime.datetime.utcfromtimestamp(os.path.getmtime(outfilename))
-            print (outfilename, str(outfilestamp))
             for infilename in infilelist:
                 infilestamp = datetime.datetime.utcfromtimestamp(os.path.getmtime(infilename))
-                print (infilename, str(infilestamp))
                 if infilestamp > outfilestamp:
                     execute = True
                     break
 
         if execute and infilelist:
-            #bakfile = outfilename + '.bak'
-            #if args.verbosity > 1:
-                #print("Renaming " + outfilename + " to " + bakfile, file=sys.stderr)
-
-            #if not args.dry_run:
-                #shutil.move(outfilename, bakfile)
-
             if args.verbosity > 1:
                 print("Executing: " + cmd + ' ' + ' '.join(arglist), file=sys.stderr)
 
