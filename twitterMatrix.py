@@ -56,14 +56,14 @@ if args.jobs is None:
     import multiprocessing
     args.jobs = multiprocessing.cpu_count()
 
-if args.verbosity > 1:
+if args.verbosity >= 1:
     print("Using " + str(args.jobs) + " jobs.", file=sys.stderr)
 
 if args.batch == 0:
     args.batch = sys.maxint
 
 if args.prelude:
-    if args.verbosity > 1:
+    if args.verbosity >= 1:
         print("Executing prelude code.", file=sys.stderr)
 
     for line in args.prelude:
@@ -128,12 +128,12 @@ if not args.no_comments:
 
     outfile.write(comments)
 
-if args.verbosity > 1:
+if args.verbosity >= 1:
     print("Loading twitter data.", file=sys.stderr)
 
 mergedmatrices = []
 while True:
-    if args.verbosity > 2:
+    if args.verbosity >= 2:
         print("Loading twitter batch.", file=sys.stderr)
 
     rows = []
@@ -148,7 +148,7 @@ while True:
     if batchcount == 0:
         break
 
-    if args.verbosity > 2:
+    if args.verbosity >= 2:
         print("Processing twitter batch.", file=sys.stderr)
 
     rowcount = len(rows)
@@ -185,7 +185,7 @@ cooccurrencematrix = np.dot(zip(*mergedmatrices), mergedmatrices)
 np.fill_diagonal(cooccurrencematrix, 0)
 cooccurrencematrix = cooccurrencematrix.tolist()
 
-if args.verbosity > 1:
+if args.verbosity >= 1:
     print("Saving co-occurrence matrix.", file=sys.stderr)
 
 outunicodecsv=unicodecsv.writer(outfile)

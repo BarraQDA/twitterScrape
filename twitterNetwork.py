@@ -61,14 +61,14 @@ def twitterNetwork(arglist):
         import multiprocessing
         args.jobs = multiprocessing.cpu_count()
 
-    if args.verbosity > 1:
+    if args.verbosity >= 1:
         print("Using " + str(args.jobs) + " jobs.", file=sys.stderr)
 
     if args.batch == 0:
         args.batch = sys.maxint
 
     if args.prelude:
-        if args.verbosity > 1:
+        if args.verbosity >= 1:
             print("Executing prelude code.", file=sys.stderr)
 
         for line in args.prelude:
@@ -141,14 +141,14 @@ def twitterNetwork(arglist):
 
         outfile.write(comments)
 
-    if args.verbosity > 1:
+    if args.verbosity >= 1:
         print("Loading twitter data.", file=sys.stderr)
 
     mergededge = {}
     mergedfromtotal = {}
     mergedtototal = {}
     while True:
-        if args.verbosity > 2:
+        if args.verbosity >= 2:
             print("Loading twitter batch.", file=sys.stderr)
 
         rows = []
@@ -163,7 +163,7 @@ def twitterNetwork(arglist):
         if batchcount == 0:
             break
 
-        if args.verbosity > 2:
+        if args.verbosity >= 2:
             print("Processing twitter batch.", file=sys.stderr)
 
         rowcount = len(rows)
@@ -183,7 +183,7 @@ def twitterNetwork(arglist):
                 rowto    = evalto(**row)
                 rowscore = evalscore(**row)
 
-                if args.verbosity > 3:
+                if args.verbosity >= 3:
                     print ("From: " + str(rowfrom), file=sys.stderr)
                     print ("To: " + str(rowto), file=sys.stderr)
 
@@ -211,7 +211,7 @@ def twitterNetwork(arglist):
             for toitem in tototal.keys():
                 mergedtototal[toitem] = mergedtototal.get(toitem, 0) + tototal[toitem]
 
-    if args.verbosity > 1:
+    if args.verbosity >= 1:
         print("Saving network matrix.", file=sys.stderr)
 
     outunicodecsv=unicodecsv.writer(outfile)

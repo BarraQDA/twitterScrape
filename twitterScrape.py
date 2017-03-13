@@ -121,13 +121,13 @@ for fileidx in range(len(args.infile)):
         if headidx is None or currowitem['id'] > currow[headidx]['id']:
             headidx = fileidx
 
-    if args.verbosity > 2:
+    if args.verbosity >= 2:
         if currowitem:
             print("Read id: " + str(currowitem['id']) + " from " + args.infile[fileidx], file=sys.stderr)
         else:
             print("End of " + args.infile[fileidx], file=sys.stderr)
 
-if headidx is not None and args.verbosity > 2:
+if headidx is not None and args.verbosity >= 2:
     print("Head input is " + args.infile[headidx], file=sys.stderr)
 
 if len(args.infile) > 0:
@@ -155,7 +155,7 @@ if (args.query or args.user) and (args.force or args.until is None or headidx is
     twitteruntil = args.until
 
     while True:
-        if args.verbosity > 1:
+        if args.verbosity >= 1:
             print("Opening twitter feed with until:" + (twitteruntil or '') + ", since:" + (twittersince or ''), file=sys.stderr)
         try:
             twitterfeed = TwitterFeed(language=args.language, user=args.user, query=args.query,
@@ -163,11 +163,11 @@ if (args.query or args.user) and (args.force or args.until is None or headidx is
             currowitem = nextornone(twitterfeed)
             break
         except (urllib2.HTTPError, urllib2.URLError) as err:
-            if args.verbosity > 2:
+            if args.verbosity >= 2:
                 print(err, file=sys.stderr)
             pass
 
-    if args.verbosity > 2:
+    if args.verbosity >= 2:
         if currowitem:
             print("Read id: " + str(currowitem['id']) + " from twitter feed", file=sys.stderr)
 
@@ -177,23 +177,23 @@ if (args.query or args.user) and (args.force or args.until is None or headidx is
         currowitem['date'] = currowitem['datetime'].isoformat()
         if headidx is None or currowitem['id'] > currow[headidx]['id']:
             headidx = twitteridx
-            if args.verbosity > 2:
+            if args.verbosity >= 2:
                 print("Head input is twitter feed", file=sys.stderr)
     else:
         twitterfeed = None
-        if args.verbosity > 1:
+        if args.verbosity >= 1:
             print("Twitter feed returned no results", file=sys.stderr)
 
 pacing = [(headidx is not None and currow[fileidx] and currow[fileidx]['id'] == currow[headidx]['id'])
                 for fileidx in range(len(inreader))]
 
-if args.verbosity > 2:
+if args.verbosity >= 2:
     for fileidx in range(len(inreader)):
         if pacing[fileidx]:
             print(args.infile[fileidx] + " is pacing", file=sys.stderr)
 
 if headidx is None:
-    if args.verbosity > 1:
+    if args.verbosity >= 1:
         print("Nothing to do.", file=sys.stderr)
     sys.exit()
 
@@ -217,16 +217,16 @@ while True:
                 currow[fileidx] = nextornone(inreader[fileidx])
             except (urllib2.HTTPError, urllib2.URLError) as err:
                 httperror = True
-                if args.verbosity > 2:
+                if args.verbosity >= 2:
                     print(err, file=sys.stderr)
 
-            if args.verbosity > 2:
+            if args.verbosity >= 2:
                 if currow[fileidx]:
                     print("Read id: " + str(currow[fileidx]['id']) + " from " + args.infile[fileidx], file=sys.stderr)
                 else:
                     print("End of " + args.infile[fileidx], file=sys.stderr)
             if currow[fileidx] is None:
-                if args.verbosity > 1:
+                if args.verbosity >= 1:
                     print("Closing " + args.infile[fileidx] + " after " + str(rowcnt[fileidx]) + " rows.", file=sys.stderr)
                 rowcnt[fileidx] = 0
                 pacing[fileidx] = False
@@ -237,7 +237,7 @@ while True:
             # Test for blank record in CSV
             elif currow[fileidx]['id'] == None:
                 currow[fileidx] = None
-                if args.verbosity > 1:
+                if args.verbosity >= 1:
                     print(args.infile[fileidx] + " has gap after id:" + str(currowid) + " - " + currowdate, file=sys.stderr)
 
     headidx = None
@@ -251,14 +251,14 @@ while True:
             # The follow section is executed following a blank line in a CSV file
             if currow[fileidx] is None:
                 currow[fileidx] = nextornone(inreader[fileidx])
-                if args.verbosity > 2:
+                if args.verbosity >= 2:
                     if currow[fileidx]:
                         print("Read id: " + str(currow[fileidx]['id']) + " from " + args.infile[fileidx], file=sys.stderr)
                     else:
                         print("End of " + args.infile[fileidx], file=sys.stderr)
                 pacing[fileidx] = False
                 if currow[fileidx] is None:
-                    if args.verbosity > 1:
+                    if args.verbosity >= 1:
                         print("Closing " + args.infile[fileidx] + " after " + str(rowcnt[fileidx]) + " rows.", file=sys.stderr)
                     rowcnt[fileidx] = 0
                     inreader[fileidx] = None
@@ -275,17 +275,17 @@ while True:
                         pacing[fileidx] = False
                 elif headidx is not None:
                     if currow[fileidx]['id'] == currow[headidx]['id']:
-                        if args.verbosity > 2:
+                        if args.verbosity >= 2:
                             print(args.infile[fileidx] + " now pacing.", file=sys.stderr)
                         pacing[fileidx] = True
 
     headidx = nextheadidx
-    if args.verbosity > 2:
+    if args.verbosity >= 2:
         print("Head input is " + (args.infile[headidx] if headidx is not None else 'empty'), file=sys.stderr)
 
     # Stop reading twitter feed if it is now paced by an input file
     if (not args.force) and inreader[twitteridx] and any(pacing[0:-1]):
-        if args.verbosity > 1:
+        if args.verbosity >= 1:
             print("Closing " + args.infile[twitteridx] + " after " + str(rowcnt[twitteridx]) + " rows.", file=sys.stderr)
 
         # Remember last date from twitter feed so we can re-use the feed later.
@@ -303,7 +303,7 @@ while True:
 
         # Restart twitter feed if last tweet was a day ahead or if since argument was too late
         if twitterfeed and (args.force or (twittersince <= since and dateparser.parse(twitterdate).date() == dateparser.parse(lastdate).date())):
-            if args.verbosity > 1:
+            if args.verbosity >= 1:
                 print("Continuing twitter feed with until:" + (twitteruntil or '') + ", since:" + (twittersince or ''), file=sys.stderr)
         else:
             # Set until date one day past lastdate because twitter returns tweets strictly before until date
@@ -329,7 +329,7 @@ while True:
             else:
                 break
 
-            if args.verbosity > 1:
+            if args.verbosity >= 1:
                 print("Opening twitter feed with until:" + twitteruntil + ", since:" + (twittersince or ''), file=sys.stderr)
 
             twitterfeed = TwitterFeed(language=args.language, user=args.user, query=args.query,
@@ -337,13 +337,13 @@ while True:
 
         if twitterfeed:
             try:
-                if args.verbosity > 1:
+                if args.verbosity >= 1:
                     print("Searching twitter feed for id:" + str(lastid), file=sys.stderr)
                 currowitem = nextornone(twitterfeed)
                 while currowitem and currowitem['id'] > lastid:
                     currowitem = nextornone(twitterfeed)
 
-                if args.verbosity > 1:
+                if args.verbosity >= 1:
                     if currowitem:
                         print("Found id:" + str(currowitem['id']), file=sys.stderr)
 
@@ -352,12 +352,12 @@ while True:
                         currowitem = nextornone(twitterfeed)
                         if currowitem:
                             pacing[twitteridx] = True
-                            if args.verbosity > 2:
+                            if args.verbosity >= 2:
                                 print("Twitter feed now pacing.", file=sys.stderr)
 
             except (urllib2.HTTPError, urllib2.URLError) as err:
                 httperror = True
-                if args.verbosity > 1:
+                if args.verbosity >= 1:
                     print(err, file=sys.stderr)
 
             if currowitem:
@@ -367,13 +367,13 @@ while True:
                 currow[twitteridx] = currowitem
                 if headidx is None or currowitem['id'] > currow[headidx]['id']:
                     headidx = twitteridx
-                    if args.verbosity > 2:
+                    if args.verbosity >= 2:
                         print("Head input is twitter feed", file=sys.stderr)
 
                 break
             else:
                 twitterfeed = None
-                if args.verbosity > 1:
+                if args.verbosity >= 1:
                     print("End of twitter feed", file=sys.stderr)
 
     if not any(pacing):

@@ -88,14 +88,14 @@ def twitterRegExp(arglist):
         if args.jobs is None:
             args.jobs = multiprocessing.cpu_count()
 
-        if args.verbosity > 1:
+        if args.verbosity >= 1:
             print("Using " + str(args.jobs) + " jobs.", file=sys.stderr)
 
         if args.batch is None:
             args.batch = sys.maxint
 
     if args.prelude:
-        if args.verbosity > 1:
+        if args.verbosity >= 1:
             print("Executing prelude code.", file=sys.stderr)
 
         for line in args.prelude:
@@ -171,7 +171,7 @@ def twitterRegExp(arglist):
 
         outfile.write(comments + twitterread.comments)
 
-    if args.verbosity > 1:
+    if args.verbosity >= 1:
         print("Loading twitter data.", file=sys.stderr)
 
     # NB Code for single- and multi-threaded processing is separate
@@ -230,7 +230,7 @@ def twitterRegExp(arglist):
 
     else:
         while True:
-            if args.verbosity > 2:
+            if args.verbosity >= 2:
                 print("Loading twitter batch.", file=sys.stderr)
 
             rows = []
@@ -245,7 +245,7 @@ def twitterRegExp(arglist):
             if batchcount == 0:
                 break
 
-            if args.verbosity > 2:
+            if args.verbosity >= 2:
                 print("Processing twitter batch.", file=sys.stderr)
 
             rowcount = len(rows)
@@ -268,7 +268,7 @@ def twitterRegExp(arglist):
 
                         result[index] = map(add, result.get(index, [0] * len(score)), rowscore)
 
-                if args.verbosity > 2:
+                if args.verbosity >= 2:
                     print("Thread " + str(p.thread_num) + " found " + str(len(result)) + " results.", file=sys.stderr)
 
                 with p.lock:
@@ -278,7 +278,7 @@ def twitterRegExp(arglist):
                 for index in result:
                     mergedresult[index] = map(add, mergedresult.get(index, [0] * len(score)), result[index])
 
-    if args.verbosity > 1:
+    if args.verbosity >= 1:
         print("Sorting " + str(len(mergedresult)) + " results.", file=sys.stderr)
 
     # Sort on first score value

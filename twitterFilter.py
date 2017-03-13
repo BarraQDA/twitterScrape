@@ -57,14 +57,14 @@ def twitterFilter(arglist):
         import multiprocessing
         args.jobs = multiprocessing.cpu_count()
 
-    if args.verbosity > 1:
+    if args.verbosity >= 1:
         print("Using " + str(args.jobs) + " jobs.", file=sys.stderr)
 
     if args.batch is None:
         args.batch = sys.maxint
 
     if args.prelude:
-        if args.verbosity > 1:
+        if args.verbosity >= 1:
             print("Executing prelude code.", file=sys.stderr)
 
         for line in args.prelude:
@@ -133,7 +133,7 @@ def twitterFilter(arglist):
     if args.rejfile:
         rejectwrite = TwitterWrite(args.rejfile, comments=rejcomments+comments, fieldnames=twitterread.fieldnames)
 
-    if args.verbosity > 1:
+    if args.verbosity >= 1:
         print("Loading twitter data.", file=sys.stderr)
 
     if args.jobs == 1:
@@ -153,7 +153,7 @@ def twitterFilter(arglist):
                 break
     else:
         while True:
-            if args.verbosity > 2:
+            if args.verbosity >= 2:
                 print("Loading twitter batch.", file=sys.stderr)
 
             rows = []
@@ -170,7 +170,7 @@ def twitterFilter(arglist):
             if batchcount == 0:
                 break
 
-            if args.verbosity > 2:
+            if args.verbosity >= 2:
                 print("Processing twitter batch.", file=sys.stderr)
 
             rowcount = len(rows)
@@ -200,7 +200,7 @@ def twitterFilter(arglist):
                     if args.rejfile:
                         rejects.append(reject)
 
-            if args.verbosity > 2:
+            if args.verbosity >= 2:
                 print("Merging twitter batch.", file=sys.stderr)
 
             mergedresult = []
@@ -229,7 +229,7 @@ def twitterFilter(arglist):
             if args.number and twitterwrite.count == args.number:
                 break
 
-    if args.verbosity > 1:
+    if args.verbosity >= 1:
         print(str(twitterwrite.count) + " rows kept, " + str(twitterread.count - twitterwrite.count) + " rows dropped.", file=sys.stderr)
 
     del twitterwrite

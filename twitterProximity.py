@@ -54,7 +54,7 @@ if args.jobs is None:
     import multiprocessing
     args.jobs = multiprocessing.cpu_count()
 
-if args.verbosity > 1:
+if args.verbosity >= 1:
     print("Using " + str(args.jobs) + " jobs.", file=sys.stderr)
 
 if args.batch == 0:
@@ -110,13 +110,13 @@ if args.textblob:
     from nltk.tokenize import RegexpTokenizer
     tokenizer=RegexpTokenizer(r'https?://[^"\' ]+|[@|#]?\w+')
 
-if args.verbosity > 1:
+if args.verbosity >= 1:
     print("Loading twitter data.", file=sys.stderr)
 
 mergedscore = {}
 tweetcount = 0
 while (tweetcount < args.limit) if args.limit is not None else True:
-    if args.verbosity > 2:
+    if args.verbosity >= 2:
         print("Loading twitter batch.", file=sys.stderr)
 
     rows = []
@@ -132,7 +132,7 @@ while (tweetcount < args.limit) if args.limit is not None else True:
     if batchcount == 0:
         break
 
-    if args.verbosity > 2:
+    if args.verbosity >= 2:
         print("Processing twitter batch.", file=sys.stderr)
 
     tweetcount += batchcount
@@ -165,7 +165,7 @@ while (tweetcount < args.limit) if args.limit is not None else True:
                         wordscore = 1.0 / proximity
                         score[word] = score.get(word, 0) + wordscore
 
-        if args.verbosity > 1:
+        if args.verbosity >= 1:
             print("Thread " + str(p.thread_num) + " analysed " + str(len(score)) + " words.", file=sys.stderr)
 
         with p.lock:
@@ -175,7 +175,7 @@ while (tweetcount < args.limit) if args.limit is not None else True:
         for word in score:
             mergedscore[word] = mergedscore.get(word, 0) + score[word]
 
-if args.verbosity > 1:
+if args.verbosity >= 1:
     print("Sorting " + str(len(mergedscore)) + " words.", file=sys.stderr)
 
 sortedscore = sorted([{'word': word, 'score':mergedscore[word]}

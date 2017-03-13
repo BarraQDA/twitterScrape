@@ -165,7 +165,7 @@ while True:
     query += (' until:' + args.until)   if args.until    else ''
     query += ('&count=' + str(args.number - tweetcount)) if args.number else ''
     query += ('&max_id='+str(maxid)) if maxid else ''
-    if args.verbosity > 2:
+    if args.verbosity >= 2:
         print('Query: ' + query, file=sys.stderr)
     tweets = api.GetSearch(raw_query=query)
     if len(tweets) == 0:

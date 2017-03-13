@@ -43,7 +43,7 @@ argregexp = re.compile(r"#\s+(\w+)(?:=(.+))?", re.UNICODE)
 
 depth = 0
 for infilename in args.infile:
-    if args.verbosity > 1:
+    if args.verbosity >= 1:
          print("Replaying " + infilename, file=sys.stderr)
 
     twitterread  = TwitterRead(infilename)
@@ -113,7 +113,7 @@ for infilename in args.infile:
                     break
 
         if execute and infilelist:
-            if args.verbosity > 1:
+            if args.verbosity >= 1:
                 print("Executing: " + cmd + ' ' + ' '.join(arglist), file=sys.stderr)
 
             if not args.dry_run:
@@ -121,7 +121,7 @@ for infilename in args.infile:
                 function = getattr(module, cmd)
                 function(arglist)
         else:
-            if args.verbosity > 2:
+            if args.verbosity >= 2:
                 print("Command not executed: " + cmd + ' ' + ' '.join(arglist), file=sys.stderr)
 
         if replaystack:

@@ -54,7 +54,7 @@ def twitterFrequency(arglist):
     args = parser.parse_args(arglist)
 
     if args.prelude:
-        if args.verbosity > 1:
+        if args.verbosity >= 1:
             print("Executing prelude code.", file=sys.stderr)
 
         for line in args.prelude:
@@ -127,7 +127,7 @@ def twitterFrequency(arglist):
     outunicodecsv=unicodecsv.writer(outfile)
     outunicodecsv.writerow(['date'] + args.title)
 
-    if args.verbosity > 1:
+    if args.verbosity >= 1:
         print("Loading twitter data.", file=sys.stderr)
 
     rows=[]

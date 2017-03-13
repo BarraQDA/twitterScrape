@@ -58,14 +58,14 @@ if args.jobs is None:
     import multiprocessing
     args.jobs = multiprocessing.cpu_count()
 
-if args.verbosity > 1:
+if args.verbosity >= 1:
     print("Using " + str(args.jobs) + " jobs.", file=sys.stderr)
 
 if args.batch == 0:
     args.batch = sys.maxint
 
 if args.prelude:
-    if args.verbosity > 1:
+    if args.verbosity >= 1:
         print("Executing prelude code.", file=sys.stderr)
 
     for line in args.prelude:
@@ -98,12 +98,12 @@ if args.mode == 'textblob':
     from nltk.tokenize import RegexpTokenizer
     tokenizer=RegexpTokenizer(r'https?://[^"\' ]+|[@|#]?\w+')
 
-if args.verbosity > 1:
+if args.verbosity >= 1:
     print("Loading twitter data.", file=sys.stderr)
 
 mergedscoredicts = {}
 while True:
-    if args.verbosity > 2:
+    if args.verbosity >= 2:
         print("Loading twitter batch.", file=sys.stderr)
 
     rows = []
@@ -118,7 +118,7 @@ while True:
     if batchcount == 0:
         break
 
-    if args.verbosity > 2:
+    if args.verbosity >= 2:
         print("Processing twitter batch.", file=sys.stderr)
 
     rowcount = len(rows)
@@ -164,7 +164,7 @@ while True:
 
 mergedscoredicts = mergedscoredicts.items()
 
-if args.verbosity > 1:
+if args.verbosity >= 1:
     print("Generating word cloud.", file=sys.stderr)
 
 # Generate a word cloud image
