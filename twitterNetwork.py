@@ -21,6 +21,8 @@ import argparse
 import sys
 from TwitterFeed import TwitterRead
 import unicodecsv
+import os
+import shutil
 import string
 import unicodedata
 from dateutil import parser as dateparser
@@ -98,6 +100,9 @@ def twitterNetwork(arglist):
     if args.outfile is None:
         outfile = sys.stdout
     else:
+        if os.path.exists(args.outfile):
+            shutil.move(args.outfile, args.outfile + '.bak')
+
         outfile = file(args.outfile, 'w')
 
     twitterread  = TwitterRead(args.infile, since=args.since, until=args.until, limit=args.limit)
@@ -129,6 +134,8 @@ def twitterNetwork(arglist):
             comments += '#     fromthreshold=' + str(args.fromthreshold) + '\n'
         if args.tothreshold:
             comments += '#     tothreshold=' + str(args.tothreshold) + '\n'
+        if args.threshold:
+            comments += '#     threshold=' + str(args.threshold) + '\n'
 
         comments += twitterread.comments
 
@@ -209,7 +216,7 @@ def twitterNetwork(arglist):
 
     outunicodecsv=unicodecsv.writer(outfile)
     outunicodecsv.writerow(['from', 'to', 'score'])
-    for duple in mergededge.keys():
+    for duple, value in sorted(mergededge.iteritems(), key=lambda (k,v): (-v,k)):
         fromitem = duple[0]
         if mergedfromtotal[fromitem] < (args.fromthreshold or 0):
             continue
@@ -220,7 +227,7 @@ def twitterNetwork(arglist):
         if mergededge[duple] < (args.threshold or 0):
             continue
 
-        outunicodecsv.writerow([fromitem, toitem, mergededge[duple]])
+        outunicodecsv.writerow([fromitem, toitem, value])
 
     outfile.close()
 

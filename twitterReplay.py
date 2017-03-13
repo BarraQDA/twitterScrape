@@ -113,12 +113,12 @@ for infilename in args.infile:
                     break
 
         if execute and infilelist:
-            bakfile = outfilename + '.bak'
-            if args.verbosity > 1:
-                print("Renaming " + outfilename + " to " + bakfile, file=sys.stderr)
+            #bakfile = outfilename + '.bak'
+            #if args.verbosity > 1:
+                #print("Renaming " + outfilename + " to " + bakfile, file=sys.stderr)
 
-            if not args.dry_run:
-                shutil.move(outfilename, bakfile)
+            #if not args.dry_run:
+                #shutil.move(outfilename, bakfile)
 
             if args.verbosity > 1:
                 print("Executing: " + cmd + ' ' + ' '.join(arglist), file=sys.stderr)

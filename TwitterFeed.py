@@ -18,6 +18,7 @@ from pyquery import PyQuery
 import lxml
 import unicodecsv
 import os
+import shutil
 import datetime
 
 class TwitterFeed(object):
@@ -203,6 +204,9 @@ class TwitterWrite(object):
         if filename is None:
             self.file = sys.stdout
         else:
+            if os.path.exists(filename):
+                shutil.move(filename, filename + '.bak')
+
             self.file = file(filename, 'w')
 
         if comments is not None:

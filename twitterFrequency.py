@@ -86,6 +86,9 @@ def twitterFrequency(arglist):
     if args.outfile is None:
         outfile = sys.stdout
     else:
+        if os.path.exists(args.outfile):
+            shutil.move(args.outfile, args.outfile + '.bak')
+
         outfile = file(args.outfile, 'w')
 
     twitterread  = TwitterRead(args.infile, since=args.since, until=args.until, limit=args.limit)
