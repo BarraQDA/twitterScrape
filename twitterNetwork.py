@@ -44,8 +44,9 @@ def twitterNetwork(arglist):
     parser.add_argument(      '--from',      type=str, required=True, dest='fromcode', help='Python code evaluated to generate "from" code(s), for example "user"')
     parser.add_argument(      '--to',        type=str, required=True, help='Python code evaluated to generate "to" code(s), for example "mentions.split()')
     parser.add_argument('-s', '--score',     type=str, default='1', help='Python expression to evaluate tweet score(s), for example "1 + retweets + favorites"')
-    parser.add_argument('-tt', '--tothreshold', type=float, help='Threshold score for "from" matrix to be included')
-    parser.add_argument('-ft', '--fromthreshold', type=float, help='Threshold score for "from" matrix to be included')
+    parser.add_argument('-tt', '--tothreshold', type=float, help='Threshold score for "from" vector to be included')
+    parser.add_argument('-ft', '--fromthreshold', type=float, help='Threshold score for "from" vector to be included')
+    parser.add_argument('-t',  '--threshold', type=float, help='Threshold score for pair to be included')
 
     parser.add_argument('-o', '--outfile',    type=str, help='Output CSV file, otherwise use stdout.')
     parser.add_argument('--no-comments',    action='store_true', help='Do not output descriptive comments')
@@ -175,6 +176,10 @@ def twitterNetwork(arglist):
                 rowto    = evalto(**row)
                 rowscore = evalscore(**row)
 
+                if args.verbosity > 3:
+                    print ("From: " + str(rowfrom), file=sys.stderr)
+                    print ("To: " + str(rowto), file=sys.stderr)
+
                 for fromitem in rowfrom:
                     for toitem in rowto:
                         duple = (fromitem, toitem)
@@ -206,10 +211,13 @@ def twitterNetwork(arglist):
     outunicodecsv.writerow(['from', 'to', 'score'])
     for duple in mergededge.keys():
         fromitem = duple[0]
-        if mergedfromtotal[fromitem] < (args.fromthreshold or sys.maxint):
+        if mergedfromtotal[fromitem] < (args.fromthreshold or 0):
             continue
         toitem = duple[1]
-        if mergedtototal[toitem] < (args.tothreshold or sys.maxint):
+        if mergedtototal[toitem] < (args.tothreshold or 0):
+            continue
+
+        if mergededge[duple] < (args.threshold or 0):
             continue
 
         outunicodecsv.writerow([fromitem, toitem, mergededge[duple]])
