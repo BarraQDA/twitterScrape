@@ -136,7 +136,7 @@ def twitterRegExp(arglist):
 
         comments += '# twitterRegExp\n'
         comments += '#     outfile=' + (args.outfile or '<stdout>') + '\n'
-        comments += '#     infile=' + (args.infile or '<stdin>') + (' ' + twitterread.mtime.isoformat() if twitterread.mtime else '') + '\n'
+        comments += '#     infile=' + (args.infile or '<stdin>') + '\n'
         if args.limit:
             comments += '#     limit=' + str(args.limit) + '\n'
         if args.prelude:
