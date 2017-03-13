@@ -105,9 +105,12 @@ for infilename in args.infile:
     execute = args.force
     while cmd:
         if not execute:
-            outfilestamp = datetime.datetime.utcfromtimestamp(os.path.getctime(outfilename))
+            print (outfilename, infilelist)
+            outfilestamp = datetime.datetime.utcfromtimestamp(os.path.getmtime(outfilename))
+            print (outfilename, str(outfilestamp))
             for infilename in infilelist:
-                infilestamp = datetime.datetime.utcfromtimestamp(os.path.getctime(infilename))
+                infilestamp = datetime.datetime.utcfromtimestamp(os.path.getmtime(infilename))
+                print (infilename, str(infilestamp))
                 if infilestamp > outfilestamp:
                     execute = True
                     break
