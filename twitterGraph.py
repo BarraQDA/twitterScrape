@@ -28,11 +28,14 @@ parser.add_argument('-v', '--verbosity', type=int, default=1)
 
 parser.add_argument('-l', '--limit', type=int, help='Limit number of tweets to process')
 
+parser.add_argument('--directed',  type=bool, default=False,  help='Directed graph edges')
+parser.add_argument('--loops',     type=bool, default=False, help='Show loops')
+
 parser.add_argument('--margin',    type=int, default=0, help='Graph margin')
 parser.add_argument('--width',     type=int, default=600)
 parser.add_argument('--height',    type=int, default=800)
 
-parser.add_argument('infile', type=str, nargs='?', help='Input cooccurrence matrix CSV file.')
+parser.add_argument('infile', type=str, nargs='?', help='Input edge CSV file.')
 
 args = parser.parse_args()
 
@@ -51,9 +54,12 @@ while True:
 inreader=unicodecsv.reader(infile)
 
 nodes = set()
-graph = Graph(directed=True)
+graph = Graph(directed=args.directed)
 rowcount = 0
 for row in inreader:
+    if row[0] == row[1] and not args.loops:
+        continue
+
     if row[0] not in nodes:
         graph.add_vertex(row[0], label=row[0])
         nodes.add(row[0])
