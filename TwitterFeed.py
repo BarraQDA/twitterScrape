@@ -128,10 +128,8 @@ class TwitterRead(object):
     def __init__(self, filename, since=None, until=None, limit=None, blanks=False):
         if filename is None:
             self.file = sys.stdin
-            self.mtime = None
         else:
             self.file = file(filename, 'r')
-            self.mtime = datetime.datetime.utcfromtimestamp(os.path.getctime(filename))
 
         self.since  = since
         self.until  = until
