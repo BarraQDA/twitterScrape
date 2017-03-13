@@ -20,6 +20,8 @@ from __future__ import print_function
 import argparse
 import sys
 from TwitterFeed import TwitterRead
+import os
+import shutil
 import unicodecsv
 import string
 import unicodedata
