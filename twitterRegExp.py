@@ -200,7 +200,7 @@ def twitterRegExp(arglist):
                     del rows[0]
                     firstrow = rows[0] if len(rows) else None
 
-            matches = regexp.finditer(row[args.column])
+            matches = regexp.finditer(str(row[args.column]))
             rowscore = None
             indexes = []
             for match in matches:
@@ -255,7 +255,7 @@ def twitterRegExp(arglist):
                     if args.filter and not evalfilter(**row):
                         continue
 
-                    matches = regexp.finditer(row[args.column])
+                    matches = regexp.finditer(str(row[args.column]))
                     rowscore = None
                     for match in matches:
                         rowscore = rowscore or evalscore(**row)
