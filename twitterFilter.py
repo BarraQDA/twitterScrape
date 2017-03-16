@@ -142,7 +142,7 @@ def twitterFilter(arglist):
             if args.filter:
                 keep = (evalfilter(**row) or False) and keep
             if args.regexp:
-                keep = (regexp.search(row[args.column]) or False) and keep
+                keep = (regexp.search(str(row[args.column])) or False) and keep
 
             if keep != args.invert:
                 twitterwrite.write(row)
@@ -187,7 +187,7 @@ def twitterFilter(arglist):
                     if args.filter:
                         keep = (evalfilter(**row) or False) and keep
                     if args.regexp:
-                        keep = (regexp.search(row[args.column]) or False) and keep
+                        keep = (regexp.search(str(row[args.column])) or False) and keep
 
                     row['keep'] = keep
                     if keep != args.invert:
