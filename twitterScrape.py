@@ -133,7 +133,7 @@ if headidx is not None and args.verbosity >= 2:
 if len(args.infile) > 0:
     fieldnames = inreader[0].fieldnames
 else:
-    fieldnames = ['user', 'date', 'retweets', 'favorites', 'text', 'lang', 'geo', 'mentions', 'hashtags', 'id', 'permalink']
+    fieldnames = ['user', 'date', 'text', 'reply-to', 'replies', 'retweets', 'favorites', 'lang', 'geo', 'mentions', 'hashtags', 'user-id', 'id']
 
 # Prepare twitter feed
 twitterfeed = None
