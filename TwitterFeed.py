@@ -98,7 +98,7 @@ class TwitterFeed(object):
                 self.tweets = None
                 continue
 
-            # Skip retweets
+            # Skip retweets - this doesn't seem to ever happen???
             retweet = tweetPQ("span.js-retweet-text").text()
             if retweet != '':
                 continue
@@ -110,15 +110,18 @@ class TwitterFeed(object):
             ret['datetime']  = datetime.datetime.utcfromtimestamp(
                                     int(tweetPQ("small.time span.js-short-timestamp").attr("data-time")))
             ret['user']      = tweetPQ("span.username.js-action-profile-name b").text()
+            ret['user-id']   = tweetPQ("a.account-group").attr("data-user-id")
             ret['lang']      = tweetPQ("p.js-tweet-text").attr("lang")
-            #ret['text']      = re.sub(r"\s+", " ", tweetPQ("p.js-tweet-text").text().replace('# ', '#').replace('@ ', '@'))
             ret['text']      = text(tweetPQ("p.js-tweet-text"))
+            ret['replies']   = int(tweetPQ("span.ProfileTweet-action--reply span.ProfileTweet-actionCount").attr("data-tweet-stat-count").replace(",", ""))
             ret['retweets']  = int(tweetPQ("span.ProfileTweet-action--retweet span.ProfileTweet-actionCount").attr("data-tweet-stat-count").replace(",", ""))
             ret['favorites'] = int(tweetPQ("span.ProfileTweet-action--favorite span.ProfileTweet-actionCount").attr("data-tweet-stat-count").replace(",", ""))
-            ret['permalink'] = 'https://twitter.com' + tweetPQ.attr("data-permalink-path")
+            ret['reply-to']  = int(tweetPQ.attr("data-conversation-id"))
+
+            #ret['permalink'] = 'https://twitter.com' + tweetPQ.attr("data-permalink-path")
 
             geoSpan = tweetPQ('span.Tweet-geo')
-            ret['geo'] = geoSpan.attr('title') if len(geoSpan) > 0 else ''
+            ret['geo'] = geoSpan.attr('title') if geoSpan else ''
 
             ret['mentions']  = " ".join(TwitterFeed.MENTIONREGEXP.findall(ret['text']))
             ret['hashtags']  = " ".join(TwitterFeed.HASHTAGREGEXP.findall(ret['text']))
