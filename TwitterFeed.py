@@ -117,6 +117,10 @@ class TwitterFeed(object):
             ret['retweets']  = int(tweetPQ("span.ProfileTweet-action--retweet span.ProfileTweet-actionCount").attr("data-tweet-stat-count").replace(",", ""))
             ret['favorites'] = int(tweetPQ("span.ProfileTweet-action--favorite span.ProfileTweet-actionCount").attr("data-tweet-stat-count").replace(",", ""))
             ret['reply-to']  = int(tweetPQ.attr("data-conversation-id"))
+            replytousers = tweetPQ("a.twitter-atreply")
+            ret['reply-to-user']    = replytousers("b").text()
+            ret['reply-to-user-id'] = replytousers.attr("data-mentioned-user-id")
+            print(ret['reply-to-user'], ret['reply-to-user-id'])
 
             #ret['permalink'] = 'https://twitter.com' + tweetPQ.attr("data-permalink-path")
 

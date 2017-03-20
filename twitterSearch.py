@@ -152,7 +152,7 @@ if args.outfile is None:
 else:
     outfile = file(args.outfile, 'w')
 
-fieldnames = ['user', 'date', 'text', 'reply-to', 'retweets', 'favorites', 'lang', 'geo', 'mentions', 'hashtags', 'user-id', 'id']
+fieldnames = ['user', 'date', 'text', 'retweets', 'favorites', 'reply-to', 'reply-to-user', 'reply-to-user-id', 'lang', 'geo', 'mentions', 'hashtags', 'user-id', 'id']
 outunicodecsv=unicodecsv.DictWriter(outfile, fieldnames, extrasaction='ignore')
 outunicodecsv.writeheader()
 
@@ -178,6 +178,8 @@ while True:
                 'date': datetime.datetime.utcfromtimestamp(tweet.created_at_in_seconds).isoformat(),
                 'text': tweet.text,
                 'reply-to': tweet.in_reply_to_status_id,
+                'reply-to-user': tweet.in_reply_to_screen_name,
+                'reply-to-user-id': tweet.in_reply_to_user_id,
                 'retweets': tweet.retweet_count,
                 'favorites': tweet.favorite_count,
                 'lang': tweet.lang,
