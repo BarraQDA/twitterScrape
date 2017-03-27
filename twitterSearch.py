@@ -138,7 +138,8 @@ else:
                 consumer_key=args.consumer_key,
                 consumer_secret=args.consumer_secret,
                 access_token_key=args.access_token_key,
-                access_token_secret=args.access_token_secret
+                access_token_secret=args.access_token_secret,
+                sleep_on_rate_limit=True
         )
 
 tweetcount = 0
@@ -152,7 +153,7 @@ if args.outfile is None:
 else:
     outfile = file(args.outfile, 'w')
 
-fieldnames = ['user', 'date', 'text', 'retweets', 'favorites', 'reply-to', 'reply-to-user', 'reply-to-user-id', 'lang', 'geo', 'mentions', 'hashtags', 'user-id', 'id']
+fieldnames = ['user', 'date', 'text', 'replies', 'retweets', 'favorites', 'reply-to', 'reply-to-user', 'reply-to-user-id', 'quote', 'lang', 'geo', 'mentions', 'hashtags', 'user-id', 'id'])
 outunicodecsv=unicodecsv.DictWriter(outfile, fieldnames, extrasaction='ignore')
 outunicodecsv.writeheader()
 
