@@ -96,6 +96,7 @@ class TwitterFeed(object):
             try:
                 tweet = next(self.tweets)
                 tweetPQ = PyQuery(tweet, parser=TwitterFeed.PARSER)
+                print(tweetPQ)
             except StopIteration:
                 self.tweets = None
                 continue
@@ -110,10 +111,10 @@ class TwitterFeed(object):
 
             #print (tweetPQ)
 
-            ret['id']  = int(tweetPQ.attr("data-tweet-id"))
-            reply_to   = int(tweetPQ.attr("data-conversation-id"))
-            if reply_to != ret['id']:
-                ret['reply-to'] = reply_to
+            ret['id']    = int(tweetPQ.attr("data-tweet-id"))
+            conversation = int(tweetPQ.attr("data-conversation-id"))
+            if conversation != ret['id']:
+                ret['conversation'] = reply_to
 
             ret['datetime']  = datetime.datetime.utcfromtimestamp(
                                     int(tweetPQ("small.time span.js-short-timestamp").attr("data-time")))
