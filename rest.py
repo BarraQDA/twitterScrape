@@ -249,7 +249,7 @@ def fetch_tweet_list(ids, **kwargs):
         result, tweets = fetch_tweets(page)
         returnedids = [tweet['id'] for tweet in tweets]
         for id in page:
-            if id not in returnedids:
+            if id and id not in returnedids:
                 logging.warning("Id {0} not returned".format(id))
         logging.info("Fetched {0} tweets from list - {1} calls remaining".format(len(tweets), rate_limit['calls']))
         yield tweets
