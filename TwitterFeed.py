@@ -106,20 +106,30 @@ class TwitterFeed(object):
             # Build tweet as dictionary
             ret = {}
 
-            ret['id']        = int(tweetPQ.attr("data-tweet-id"))
+            #print (tweetPQ)
+
+            ret['id']  = int(tweetPQ.attr("data-tweet-id"))
+            reply_to   = int(tweetPQ.attr("data-conversation-id"))
+            if reply_to != ret['id']:
+                print(ret['id'], reply_to)
+                ret['reply-to'] = reply_to
+
             ret['datetime']  = datetime.datetime.utcfromtimestamp(
                                     int(tweetPQ("small.time span.js-short-timestamp").attr("data-time")))
-            ret['user']      = tweetPQ("span.username.js-action-profile-name b").text()
+            ret['user']      = tweetPQ("span.username b").text()
             ret['user-id']   = tweetPQ("a.account-group").attr("data-user-id")
             ret['lang']      = tweetPQ("p.js-tweet-text").attr("lang")
             ret['text']      = text(tweetPQ("p.js-tweet-text"))
             ret['replies']   = int(tweetPQ("span.ProfileTweet-action--reply span.ProfileTweet-actionCount").attr("data-tweet-stat-count").replace(",", ""))
             ret['retweets']  = int(tweetPQ("span.ProfileTweet-action--retweet span.ProfileTweet-actionCount").attr("data-tweet-stat-count").replace(",", ""))
             ret['favorites'] = int(tweetPQ("span.ProfileTweet-action--favorite span.ProfileTweet-actionCount").attr("data-tweet-stat-count").replace(",", ""))
-            ret['reply-to']  = int(tweetPQ.attr("data-conversation-id"))
-            replytousers = tweetPQ("a.twitter-atreply")
-            ret['reply-to-user']    = replytousers("b").text()
-            ret['reply-to-user-id'] = replytousers.attr("data-mentioned-user-id")
+            quotetweet = tweetPQ("div.QuoteTweet-innerContainer")
+            if quotetweet:
+                ret['quote']         = quotetweet.attr("data-item-id")
+                if ret['id'] == ret['quote']:
+                    print(ret['id'])
+                ret['quote-user-id'] = quotetweet.attr("data-user-id")
+                ret['quote-user-id'] = quotetweet.attr("data-screen-name")
 
             #ret['permalink'] = 'https://twitter.com' + tweetPQ.attr("data-permalink-path")
 
@@ -174,7 +184,7 @@ class TwitterRead(object):
 
         while True:
             row = next(self.csvreader)
-            if row['id'] == '':
+            if row.get('id', '') == '':
                 if self.blanks:
                     row['id'] = None
                     break
@@ -187,15 +197,15 @@ class TwitterRead(object):
                 raise StopIteration
 
             try:
-                row['id'] = int(row['id'])
+                row['id'] = int(row.get('id'))
             except TypeError:
                 row['id'] = 0
             try:
-                row['retweets'] = int(row['retweets'])
+                row['retweets'] = int(row.get('retweets'))
             except TypeError:
                 row['retweets'] = 0
             try:
-                row['favorites'] = int(row['favorites'])
+                row['favorites'] = int(row.get('favorites'))
             except TypeError:
                 row['favorites'] = 0
 
