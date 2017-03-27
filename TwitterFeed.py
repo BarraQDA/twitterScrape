@@ -54,6 +54,8 @@ class TwitterFeed(object):
                     text.append(u' ')
                 if tag.text and not isinstance(tag, lxml.etree._Comment):
                     text.append(tag.text)
+                if tag.tag == 'img':
+                    text.append(tag.get("alt") or '')
                 for child in tag.getchildren():
                     add_text(child)
                 if not no_tail and tag.tail:
@@ -111,13 +113,12 @@ class TwitterFeed(object):
             ret['id']  = int(tweetPQ.attr("data-tweet-id"))
             reply_to   = int(tweetPQ.attr("data-conversation-id"))
             if reply_to != ret['id']:
-                print(ret['id'], reply_to)
                 ret['reply-to'] = reply_to
 
             ret['datetime']  = datetime.datetime.utcfromtimestamp(
                                     int(tweetPQ("small.time span.js-short-timestamp").attr("data-time")))
-            ret['user']      = tweetPQ("span.username b").text()
-            ret['user-id']   = tweetPQ("a.account-group").attr("data-user-id")
+            ret['user']      = tweetPQ.attr("data-screen-name")
+            ret['user-id']   = tweetPQ.attr("data-user-id")
             ret['lang']      = tweetPQ("p.js-tweet-text").attr("lang")
             ret['text']      = text(tweetPQ("p.js-tweet-text"))
             ret['replies']   = int(tweetPQ("span.ProfileTweet-action--reply span.ProfileTweet-actionCount").attr("data-tweet-stat-count").replace(",", ""))
@@ -126,8 +127,6 @@ class TwitterFeed(object):
             quotetweet = tweetPQ("div.QuoteTweet-innerContainer")
             if quotetweet:
                 ret['quote']         = quotetweet.attr("data-item-id")
-                if ret['id'] == ret['quote']:
-                    print(ret['id'])
                 ret['quote-user-id'] = quotetweet.attr("data-user-id")
                 ret['quote-user-id'] = quotetweet.attr("data-screen-name")
 
