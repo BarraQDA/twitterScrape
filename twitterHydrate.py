@@ -25,6 +25,9 @@ import rest
 import re
 from dateutil import parser as dateparser
 import datetime
+import logging
+
+logging.basicConfig(level=logging.INFO)
 
 MENTIONREGEXP=re.compile(r'(@\w+)', re.UNICODE)
 HASHTAGREGEXP=re.compile(r'(#\w+)', re.UNICODE)
@@ -50,11 +53,9 @@ def twitterHydrate(arglist):
         comments = None
     else:
         if args.outfile:
-            outcomments = (' ' + args.outfile + ' ').center(80, '#') + '\n'
+            comments = (' ' + args.outfile + ' ').center(80, '#') + '\n'
         else:
-            outcomments = '#' * 80 + '\n'
-
-        comments = ''
+            comments = '#' * 80 + '\n'
 
         comments += '# twitterHydrate\n'
         comments += '#     outfile=' + (args.outfile or '<stdout>') + '\n'
@@ -64,18 +65,22 @@ def twitterHydrate(arglist):
 
         comments += twitterread.comments
 
-    twitterwrite = TwitterWrite(args.outfile, comments=twitterread.comments, fieldnames = ['user', 'date', 'text', 'replies', 'retweets', 'favorites', 'reply-to', 'reply-to-user', 'reply-to-user-id', 'quote', 'lang', 'geo', 'mentions', 'hashtags', 'user-id', 'id'])
+    #twitterwrite = TwitterWrite(args.outfile, comments=comments, fieldnames = ['user', 'date', 'text', 'replies', 'retweets', 'favorites', 'reply-to', 'reply-to-user', 'reply-to-user-id', 'quote', 'lang', 'geo', 'mentions', 'hashtags', 'user-id', 'id'])
+    twitterwrite = TwitterWrite(args.outfile, comments=comments, fieldnames = ['user', 'date', 'text', 'replies', 'retweets', 'favorites', 'reply-to', 'dummy-reply-to-user', 'dummy-reply-to-user-id', 'quote', 'lang', 'geo', 'mentions', 'hashtags', 'user-id', 'id'])
 
-    ids_to_fetch = set(row['id'] for row in twitterread)
+    ids_to_fetch = sorted([row['id'] for row in twitterread], reverse=True)
+
     for page in rest.fetch_tweet_list(ids_to_fetch):
+        page = sorted(page, reverse=True, key=lambda item: item['id'])
         for tweet in page:
-            tweet['user-id'] = tweet['user']['id']
-            tweet['user'] = tweet['user']['screen_name']
-            tweet['date'] = dateparser.parse(tweet['created_at']).date().isoformat()
-            tweet['retweets'] = tweet['retweet_count']
-            tweet['favorites'] = tweet['favorite_count']
-            tweet['reply-to']  = tweet['in_reply_to_status_id']
-            tweet['reply-to-user']  = tweet['in_reply_to_screen_name']
+            tweet['user-id']           = tweet['user']['id']
+            tweet['user']              = tweet['user']['screen_name']
+            tweet['date']              = dateparser.parse(tweet['created_at']).replace(tzinfo=None).isoformat()
+            tweet['replies']           = 0
+            tweet['retweets']          = tweet['retweet_count']
+            tweet['favorites']         = tweet['favorite_count']
+            tweet['reply-to']          = tweet['in_reply_to_status_id']
+            tweet['reply-to-user']     = tweet['in_reply_to_screen_name']
             tweet['reply-to-user-id']  = tweet['in_reply_to_user_id']
             tweet['mentions']  = " ".join(MENTIONREGEXP.findall(tweet['text']))
             tweet['hashtags']  = " ".join(HASHTAGREGEXP.findall(tweet['text']))
