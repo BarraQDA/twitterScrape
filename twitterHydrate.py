@@ -44,7 +44,7 @@ def twitterHydrate(arglist):
     parser.add_argument('-o', '--outfile', type=str, help='Output CSV file, otherwise use stdout')
     parser.add_argument('--no-comments',   action='store_true', help='Do not output descriptive comments')
 
-    parser.add_argument('infile', type=str, help='Input CSV file of tweet ids, if missing use stdin.')
+    parser.add_argument('infile', type=str, nargs='?', help='Input CSV file, otherwise use stdin')
 
     args = parser.parse_args()
 
@@ -65,8 +65,7 @@ def twitterHydrate(arglist):
 
         comments += twitterread.comments
 
-    #twitterwrite = TwitterWrite(args.outfile, comments=comments, fieldnames = ['user', 'date', 'text', 'replies', 'retweets', 'favorites', 'reply-to', 'reply-to-user', 'reply-to-user-id', 'quote', 'lang', 'geo', 'mentions', 'hashtags', 'user-id', 'id'])
-    twitterwrite = TwitterWrite(args.outfile, comments=comments, fieldnames = ['user', 'date', 'text', 'replies', 'retweets', 'favorites', 'reply-to', 'dummy-reply-to-user', 'dummy-reply-to-user-id', 'quote', 'lang', 'geo', 'mentions', 'hashtags', 'user-id', 'id'])
+    twitterwrite = TwitterWrite(args.outfile, comments=comments, fieldnames = ['user', 'date', 'text', 'replies', 'retweets', 'favorites', 'reply-to', 'reply-to-user', 'reply-to-user-id', 'lang', 'geo', 'mentions', 'hashtags', 'user-id', 'id'])
 
     ids_to_fetch = sorted([row['id'] for row in twitterread], reverse=True)
 
@@ -76,7 +75,6 @@ def twitterHydrate(arglist):
             tweet['user-id']           = tweet['user']['id']
             tweet['user']              = tweet['user']['screen_name']
             tweet['date']              = dateparser.parse(tweet['created_at']).replace(tzinfo=None).isoformat()
-            tweet['replies']           = 0
             tweet['retweets']          = tweet['retweet_count']
             tweet['favorites']         = tweet['favorite_count']
             tweet['reply-to']          = tweet['in_reply_to_status_id']
