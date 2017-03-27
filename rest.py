@@ -248,9 +248,9 @@ def fetch_tweet_list(ids, **kwargs):
     for page in grouper(ids, 100):
         result, tweets = fetch_tweets(page)
         returnedids = [tweet['id'] for tweet in tweets]
-        #for id in ids:
-            #if id not in returnedids:
-                #logging.error("Id {0} not returned".format(id))
+        for id in page:
+            if id not in returnedids:
+                logging.warning("Id {0} not returned".format(id))
         logging.info("Fetched {0} tweets from list - {1} calls remaining".format(len(tweets), rate_limit['calls']))
         yield tweets
 
