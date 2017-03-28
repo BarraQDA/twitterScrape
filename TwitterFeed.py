@@ -114,7 +114,7 @@ class TwitterFeed(object):
             ret['id']    = int(tweetPQ.attr("data-tweet-id"))
             conversation = int(tweetPQ.attr("data-conversation-id"))
             if conversation != ret['id']:
-                ret['conversation'] = reply_to
+                ret['conversation'] = conversation
 
             ret['datetime']  = datetime.datetime.utcfromtimestamp(
                                     int(tweetPQ("small.time span.js-short-timestamp").attr("data-time")))
