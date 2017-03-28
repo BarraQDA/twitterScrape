@@ -31,7 +31,8 @@ from igraph import *
 import numpy as np
 
 def twitterNetwork(arglist):
-    parser = argparse.ArgumentParser(description='Twitter network matrix computation.')
+    parser = argparse.ArgumentParser(description='Twitter network matrix computation.',
+                                     fromfile_prefix_chars='@')
 
     parser.add_argument('-v', '--verbosity', type=int, default=1)
     parser.add_argument('-j', '--jobs',      type=int, help='Number of parallel tasks, default is number of CPUs')

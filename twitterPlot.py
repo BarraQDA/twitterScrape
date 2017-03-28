@@ -26,81 +26,87 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MaxNLocator
 
-parser = argparse.ArgumentParser(description='Twitter frequency matrix plotter.')
+def twitterPlot(arglist):
 
-parser.add_argument('-v', '--verbosity',  type=int, default=1)
+    parser = argparse.ArgumentParser(description='Twitter frequency matrix plotter.',
+                                     fromfile_prefix_chars='@')
 
-parser.add_argument(      '--since',      type=str, help='Lower bound tweet date.')
-parser.add_argument(      '--until',      type=str, help='Upper bound tweet date.')
+    parser.add_argument('-v', '--verbosity',  type=int, default=1)
 
-parser.add_argument('infile', type=str, nargs='?', help='Input CSV file, otherwise use stdin.')
+    parser.add_argument(      '--since',      type=str, help='Lower bound tweet date.')
+    parser.add_argument(      '--until',      type=str, help='Upper bound tweet date.')
 
-args = parser.parse_args()
+    parser.add_argument('infile', type=str, nargs='?', help='Input CSV file, otherwise use stdin.')
 
-# Parse since and until dates
-if args.until:
-    args.until = dateparser.parse(args.until).date().isoformat()
-if args.since:
-    args.since = dateparser.parse(args.since).date().isoformat()
+    args = parser.parse_args()
 
-if args.infile is None:
-    infile = sys.stdin
-else:
-    infile = file(args.infile, 'r')
+    # Parse since and until dates
+    if args.until:
+        args.until = dateparser.parse(args.until).date().isoformat()
+    if args.since:
+        args.since = dateparser.parse(args.since).date().isoformat()
 
-# Skip comments at start of infile.
-while True:
-    line = infile.readline()
-    if line[:1] != '#':
-        fieldnames = next(unicodecsv.reader([line]))
-        break
+    if args.infile is None:
+        infile = sys.stdin
+    else:
+        infile = file(args.infile, 'r')
 
-inreader=unicodecsv.reader(infile)
+    # Skip comments at start of infile.
+    while True:
+        line = infile.readline()
+        if line[:1] != '#':
+            fieldnames = next(unicodecsv.reader([line]))
+            break
 
-dates = []
-values = []
-for valueidx in range(len(fieldnames) - 1):
-    values.append([])
-while True:
-    try:
-        row = next(inreader)
-    except StopIteration:
-        break
+    inreader=unicodecsv.reader(infile)
 
-    if args.until and row[0] >= args.until:
-        continue
-    if args.since and row[0] < args.since:
-        break
-
-    dates.append(dateparser.parse(row[0]))
+    dates = []
+    values = []
     for valueidx in range(len(fieldnames) - 1):
-        values[valueidx].append(row[valueidx+1])
+        values.append([])
+    while True:
+        try:
+            row = next(inreader)
+        except StopIteration:
+            break
 
-#args = ()
-#for valueidx in range(len(fieldnames) - 1):
-    #args += (dates, values[valueidx], '')
+        if args.until and row[0] >= args.until:
+            continue
+        if args.since and row[0] < args.since:
+            break
 
-#plt.plot(*args)
-#plt.gcf().autofmt_xdate()
-#plt.show()
+        dates.append(dateparser.parse(row[0]))
+        for valueidx in range(len(fieldnames) - 1):
+            values[valueidx].append(row[valueidx+1])
 
-mpl.style.use('classic')
+    #args = ()
+    #for valueidx in range(len(fieldnames) - 1):
+        #args += (dates, values[valueidx], '')
 
-fig, ax1 = plt.subplots()
-ax1.plot(dates, values[0], 'C0')
-ax1.set_xlabel('Date')
-ax1.set_ylabel(fieldnames[1], color='C0')
-ax1.tick_params('n', colors='C0')
-ax1.yaxis.set_major_locator(MaxNLocator(integer=True))
+    #plt.plot(*args)
+    #plt.gcf().autofmt_xdate()
+    #plt.show()
 
-for valueidx in range(1, len(fieldnames) - 1):
-    color = 'C' + str(valueidx)
-    print(color)
-    ax = ax1.twinx()
-    ax.plot(dates, values[valueidx], color)
-    ax.set_ylabel(fieldnames[valueidx+1], color=color)
-    ax.tick_params('n', colors=color)
-    ax.yaxis.set_major_locator(MaxNLocator(integer=True))
+    mpl.style.use('classic')
 
-fig.tight_layout()
-plt.show()
+    fig, ax1 = plt.subplots()
+    ax1.plot(dates, values[0], 'C0')
+    ax1.set_xlabel('Date')
+    ax1.set_ylabel(fieldnames[1], color='C0')
+    ax1.tick_params('n', colors='C0')
+    ax1.yaxis.set_major_locator(MaxNLocator(integer=True))
+
+    for valueidx in range(1, len(fieldnames) - 1):
+        color = 'C' + str(valueidx)
+        print(color)
+        ax = ax1.twinx()
+        ax.plot(dates, values[valueidx], color)
+        ax.set_ylabel(fieldnames[valueidx+1], color=color)
+        ax.tick_params('n', colors=color)
+        ax.yaxis.set_major_locator(MaxNLocator(integer=True))
+
+    fig.tight_layout()
+    plt.show()
+
+if __name__ == '__main__':
+    twitterPlot(None)

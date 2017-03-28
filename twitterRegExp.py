@@ -40,7 +40,8 @@ def twitterRegExp(arglist):
         'links':   { 'column':'text',     'regexp':r'(?P<link>https?://\S+)', 'ignorecase':True }
     }
 
-    parser = argparse.ArgumentParser(description='Twitter CSV file regular expression extraction.')
+    parser = argparse.ArgumentParser(description='Twitter CSV file regular expression extraction.',
+                                     fromfile_prefix_chars='@')
 
     parser.add_argument('-v', '--verbosity',  type=int, default=1)
     parser.add_argument('-j', '--jobs',       type=int, help='Number of parallel tasks, default is number of CPUs. May affect performance but not results.')

@@ -22,44 +22,50 @@ import sys
 import unicodecsv
 from dateutil import parser as dateparser
 
-parser = argparse.ArgumentParser(description='Validate twitter feed CSV.')
+def twitterValidate(arglist):
 
-parser.add_argument('-v', '--verbosity', type=int, default=1)
-parser.add_argument('-t', '--threshold', type=int, default=60, help='Number of seconds out of sequence to report.')
+    parser = argparse.ArgumentParser(description='Validate twitter feed CSV.',
+                                     fromfile_prefix_chars='@')
 
-parser.add_argument('infile', type=str, help='Input CSV file, if missing use stdin.')
+    parser.add_argument('-v', '--verbosity', type=int, default=1)
+    parser.add_argument('-t', '--threshold', type=int, default=60, help='Number of seconds out of sequence to report.')
 
-args = parser.parse_args()
+    parser.add_argument('infile', type=str, help='Input CSV file, if missing use stdin.')
 
-if args.infile is None:
-    infile = sys.stdin
-else:
-    infile = file(args.infile, 'r')
+    args = parser.parse_args()
 
-inreader=unicodecsv.DictReader(infile)
-lastid = None
-lastdate = None
-blankrowcount = 0
-for row in inreader:
-    curid = row['id']
-    if curid == '':
-        blankrowcount += 1
+    if args.infile is None:
+        infile = sys.stdin
     else:
-        curdate = dateparser.parse(row['date'])
-        if blankrowcount > 1:
-            print("Multiple blank rows after id:" + (lastid or '') + " - " + (lastdate or ''), file=sys.stderr)
-        blankrowcount = 0
-        if lastid is not None and curid >= lastid:
-            print("Non-decreasing id at id:" + curid + " - " + curdate.isoformat(), file=sys.stderr)
-        if lastdate is not None:
-            offset = (curdate - lastdate).total_seconds()
-            if offset > (args.threshold or 0):
-                print("Increasing date at id:" + curid + " - " + str(offset), file=sys.stderr)
-            elif offset <= -3600:
-                print("Gap of > 1 hour at id:" + curid + " - " + str(offset), file=sys.stderr)
+        infile = file(args.infile, 'r')
 
-        lastid = curid
-        lastdate = curdate
+    inreader=unicodecsv.DictReader(infile)
+    lastid = None
+    lastdate = None
+    blankrowcount = 0
+    for row in inreader:
+        curid = row['id']
+        if curid == '':
+            blankrowcount += 1
+        else:
+            curdate = dateparser.parse(row['date'])
+            if blankrowcount > 1:
+                print("Multiple blank rows after id:" + (lastid or '') + " - " + (lastdate or ''), file=sys.stderr)
+            blankrowcount = 0
+            if lastid is not None and curid >= lastid:
+                print("Non-decreasing id at id:" + curid + " - " + curdate.isoformat(), file=sys.stderr)
+            if lastdate is not None:
+                offset = (curdate - lastdate).total_seconds()
+                if offset > (args.threshold or 0):
+                    print("Increasing date at id:" + curid + " - " + str(offset), file=sys.stderr)
+                elif offset <= -3600:
+                    print("Gap of > 1 hour at id:" + curid + " - " + str(offset), file=sys.stderr)
 
-if blankrowcount > 1:
-    print("Multiple blank rows after id:" + (lastid or '') + " - " + (lastdate or ''), file=sys.stderr)
+            lastid = curid
+            lastdate = curdate
+
+    if blankrowcount > 1:
+        print("Multiple blank rows after id:" + (lastid or '') + " - " + (lastdate or ''), file=sys.stderr)
+
+if __name__ == '__main__':
+    twitterValidate(None)

@@ -27,7 +27,8 @@ import re
 
 def twitterFilter(arglist):
 
-    parser = argparse.ArgumentParser(description='Filter twitter CSV file using regular or python expression.')
+    parser = argparse.ArgumentParser(description='Filter twitter CSV file using regular or python expression.',
+                                     fromfile_prefix_chars='@')
 
     parser.add_argument('-v', '--verbosity', type=int, default=1)
     parser.add_argument('-j', '--jobs',       type=int, help='Number of parallel tasks, default is number of CPUs. May affect performance but not results.')

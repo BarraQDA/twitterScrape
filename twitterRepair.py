@@ -21,23 +21,29 @@ import argparse
 import sys
 from TwitterFeed import TwitterFeed, TwitterRead, TwitterWrite
 
-parser = argparse.ArgumentParser(description='Validate twitter feed CSV.')
+def twitterRepair(arglist):
 
-parser.add_argument('-v', '--verbosity', type=int, default=1)
-parser.add_argument('-t', '--threshold', type=int, default=60, help='Number of seconds out of sequence to report.')
+    parser = argparse.ArgumentParser(description='Validate twitter feed CSV.',
+                                     fromfile_prefix_chars='@')
 
-parser.add_argument('-l', '--limit',     type=int, help='Limit number of tweets to process')
+    parser.add_argument('-v', '--verbosity', type=int, default=1)
+    parser.add_argument('-t', '--threshold', type=int, default=60, help='Number of seconds out of sequence to report.')
 
-parser.add_argument('-o', '--outfile',   type=str, help='Output CSV file, otherwise use stdout')
+    parser.add_argument('-l', '--limit',     type=int, help='Limit number of tweets to process')
 
-parser.add_argument('infile',  type=str, help='Input CSV file, if missing use stdin.')
+    parser.add_argument('-o', '--outfile',   type=str, help='Output CSV file, otherwise use stdout')
 
-args = parser.parse_args()
+    parser.add_argument('infile',  type=str, help='Input CSV file, if missing use stdin.')
 
-twitterread  = TwitterRead(args.infile, limit=args.limit, blanks=True)
-twitterwrite = TwitterWrite(args.outfile, comments=twitterread.comments, fieldnames=twitterread.fieldnames)
+    args = parser.parse_args()
 
-for row in twitterread:
-    # Do repair here!
+    twitterread  = TwitterRead(args.infile, limit=args.limit, blanks=True)
+    twitterwrite = TwitterWrite(args.outfile, comments=twitterread.comments, fieldnames=twitterread.fieldnames)
 
-    twitterwrite.write(row)
+    for row in twitterread:
+        # Do repair here!
+
+        twitterwrite.write(row)
+
+if __name__ == '__main__':
+    twitterRepair(None)

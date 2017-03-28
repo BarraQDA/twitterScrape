@@ -22,59 +22,65 @@ from igraph import *
 import unicodecsv
 import math
 
-parser = argparse.ArgumentParser(description='Graph twitter cooccurrence matrix.')
+def twitterGraph(arglist):
 
-parser.add_argument('-v', '--verbosity', type=int, default=1)
+    parser = argparse.ArgumentParser(description='Graph twitter cooccurrence matrix.',
+                                     fromfile_prefix_chars='@')
 
-parser.add_argument('-l', '--limit', type=int, help='Limit number of tweets to process')
+    parser.add_argument('-v', '--verbosity', type=int, default=1)
 
-parser.add_argument('--directed',  type=bool, default=False,  help='Directed graph edges')
-parser.add_argument('--loops',     type=bool, default=False, help='Show loops')
+    parser.add_argument('-l', '--limit', type=int, help='Limit number of tweets to process')
 
-parser.add_argument('--margin',    type=int, default=0, help='Graph margin')
-parser.add_argument('--width',     type=int, default=600)
-parser.add_argument('--height',    type=int, default=800)
+    parser.add_argument('--directed',  type=bool, default=False,  help='Directed graph edges')
+    parser.add_argument('--loops',     type=bool, default=False, help='Show loops')
 
-parser.add_argument('infile', type=str, nargs='?', help='Input edge CSV file.')
+    parser.add_argument('--margin',    type=int, default=0, help='Graph margin')
+    parser.add_argument('--width',     type=int, default=600)
+    parser.add_argument('--height',    type=int, default=800)
 
-args = parser.parse_args()
+    parser.add_argument('infile', type=str, nargs='?', help='Input edge CSV file.')
 
-if args.infile is None:
-    infile = sys.stdin
-else:
-    infile = file(args.infile, 'r')
+    args = parser.parse_args()
 
-# Skip comments at start of infile.
-while True:
-    line = infile.readline()
-    if line[:1] != '#':
-        fieldnames = next(unicodecsv.reader([line]))
-        break
+    if args.infile is None:
+        infile = sys.stdin
+    else:
+        infile = file(args.infile, 'r')
 
-inreader=unicodecsv.reader(infile)
+    # Skip comments at start of infile.
+    while True:
+        line = infile.readline()
+        if line[:1] != '#':
+            fieldnames = next(unicodecsv.reader([line]))
+            break
 
-nodes = set()
-graph = Graph(directed=args.directed)
-rowcount = 0
-for row in inreader:
-    if row[0] == row[1] and not args.loops:
-        continue
+    inreader=unicodecsv.reader(infile)
 
-    if row[0] not in nodes:
-        graph.add_vertex(row[0], label=row[0])
-        nodes.add(row[0])
-    if row[1] not in nodes:
-        graph.add_vertex(row[1], label=row[1])
-        nodes.add(row[1])
-    graph.add_edge(row[0], row[1], weight=int(row[2]))
-    rowcount += 1
-    if rowcount == args.limit or 0:
-        break
+    nodes = set()
+    graph = Graph(directed=args.directed)
+    rowcount = 0
+    for row in inreader:
+        if row[0] == row[1] and not args.loops:
+            continue
 
-#print(graph.es["weight"])
+        if row[0] not in nodes:
+            graph.add_vertex(row[0], label=row[0])
+            nodes.add(row[0])
+        if row[1] not in nodes:
+            graph.add_vertex(row[1], label=row[1])
+            nodes.add(row[1])
+        graph.add_edge(row[0], row[1], weight=int(row[2]))
+        rowcount += 1
+        if rowcount == args.limit or 0:
+            break
 
-plot(graph,
-     edge_width = rescale([math.log(float(val)) for val in graph.es["weight"]], out_range=(1, 20)),
-     bbox = (args.width, args.height),
-     margin = 100,
-     layout = graph.layout_fruchterman_reingold())
+    #print(graph.es["weight"])
+
+    plot(graph,
+        edge_width = rescale([math.log(float(val)) for val in graph.es["weight"]], out_range=(1, 20)),
+        bbox = (args.width, args.height),
+        margin = 100,
+        layout = graph.layout_fruchterman_reingold())
+
+if __name__ == '__main__':
+    twitterGraph(None)

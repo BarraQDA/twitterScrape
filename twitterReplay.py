@@ -26,105 +26,111 @@ import importlib
 import os
 import datetime
 
-parser = argparse.ArgumentParser(description='Replay twitter file processing.')
+def twitterReplay(arglist):
 
-parser.add_argument('-v', '--verbosity', type=int, default=1)
-parser.add_argument('-d', '--depth',     type=int, default=1, help='Depth of command history to replay.')
-parser.add_argument('-f', '--force',     action='store_true', help='Replay command even if infile is not more recent.')
-parser.add_argument('--dry-run',         action='store_true', help='Print but do not execute command')
+    parser = argparse.ArgumentParser(description='Replay twitter file processing.',
+                                     fromfile_prefix_chars='@')
 
-parser.add_argument('infile',  type=str, nargs='*', help='Input CSV files with comments to replay.')
+    parser.add_argument('-v', '--verbosity', type=int, default=1)
+    parser.add_argument('-d', '--depth',     type=int, default=1, help='Depth of command history to replay.')
+    parser.add_argument('-f', '--force',     action='store_true', help='Replay command even if infile is not more recent.')
+    parser.add_argument('--dry-run',         action='store_true', help='Print but do not execute command')
 
-args, extraargs = parser.parse_known_args()
+    parser.add_argument('infile',  type=str, nargs='*', help='Input CSV files with comments to replay.')
 
-fileregexp = re.compile(r"#+ (.+) #+", re.UNICODE)
-cmdregexp = re.compile(r"#\s+(\w+)", re.UNICODE)
-argregexp = re.compile(r"#\s+(\w+)(?:=(.+))?", re.UNICODE)
+    args, extraargs = parser.parse_known_args()
 
-depth = 0
-for infilename in args.infile:
-    if args.verbosity >= 1:
-         print("Replaying " + infilename, file=sys.stderr)
+    fileregexp = re.compile(r"#+ (.+) #+", re.UNICODE)
+    cmdregexp = re.compile(r"#\s+(\w+)", re.UNICODE)
+    argregexp = re.compile(r"#\s+(\w+)(?:=(.+))?", re.UNICODE)
 
-    twitterread  = TwitterRead(infilename)
+    depth = 0
+    for infilename in args.infile:
+        if args.verbosity >= 1:
+            print("Replaying " + infilename, file=sys.stderr)
 
-    comments = twitterread.comments.splitlines()
-    del twitterread
+        twitterread  = TwitterRead(infilename)
 
-    replaystack = []
-    commentline = comments.pop(0)
-    filematch = fileregexp.match(commentline)
-    while filematch:
-        file = filematch.group(1)
+        comments = twitterread.comments.splitlines()
+        del twitterread
 
+        replaystack = []
         commentline = comments.pop(0)
-        cmdmatch = cmdregexp.match(commentline)
-        if cmdmatch:
-            cmd = cmdmatch.group(1)
-
-        arglist = []
-        outfile = None
-        lastargname = ''
-        infilelist = []
-        outfile = None
-        commentline = comments.pop(0)
-        argmatch = argregexp.match(commentline)
-        while argmatch:
-            argname  = argmatch.group(1)
-            argvalue = argmatch.group(2)
-
-            if argname == 'infile':
-                infilelist.append(argvalue)
-            else:
-                if argname == 'outfile':
-                    outfile = argvalue
-                if argname != lastargname:
-                    arglist.append('--' + argname)
-                    lastargname = argname
-
-                if argvalue is not None:
-                    arglist.append(argvalue)
+        filematch = fileregexp.match(commentline)
+        while filematch:
+            file = filematch.group(1)
 
             commentline = comments.pop(0)
+            cmdmatch = cmdregexp.match(commentline)
+            if cmdmatch:
+                cmd = cmdmatch.group(1)
+
+            arglist = []
+            outfile = None
+            lastargname = ''
+            infilelist = []
+            outfile = None
+            commentline = comments.pop(0)
             argmatch = argregexp.match(commentline)
+            while argmatch:
+                argname  = argmatch.group(1)
+                argvalue = argmatch.group(2)
 
-        replaystack.append((cmd, infilelist + arglist + extraargs, infilelist, outfile))
+                if argname == 'infile':
+                    infilelist.append(argvalue)
+                else:
+                    if argname == 'outfile':
+                        outfile = argvalue
+                    if argname != lastargname:
+                        arglist.append('--' + argname)
+                        lastargname = argname
 
-        depth += 1
-        if depth == args.depth:
-            break
+                    if argvalue is not None:
+                        arglist.append(argvalue)
 
-        filematch = fileregexp.match(commentline)
+                commentline = comments.pop(0)
+                argmatch = argregexp.match(commentline)
 
+            replaystack.append((cmd, infilelist + arglist + extraargs, infilelist, outfile))
 
-    if replaystack:
-        (cmd, arglist, infilelist, outfilename) = replaystack.pop()
-    else:
-        cmd = None
+            depth += 1
+            if depth == args.depth:
+                break
 
-    execute = args.force
-    while cmd:
-        if not execute:
-            outfilestamp = datetime.datetime.utcfromtimestamp(os.path.getmtime(outfilename))
-            for infilename in infilelist:
-                infilestamp = datetime.datetime.utcfromtimestamp(os.path.getmtime(infilename))
-                if infilestamp > outfilestamp:
-                    execute = True
-                    break
+            filematch = fileregexp.match(commentline)
 
-        if execute and infilelist:
-            if args.verbosity >= 1:
-                print("Executing: " + cmd + ' ' + ' '.join(arglist), file=sys.stderr)
-
-            if not args.dry_run:
-                module = importlib.import_module(cmd)
-                function = getattr(module, cmd)
-                function(arglist)
-        else:
-            if args.verbosity >= 2:
-                print("Command not executed: " + cmd + ' ' + ' '.join(arglist), file=sys.stderr)
 
         if replaystack:
             (cmd, arglist, infilelist, outfilename) = replaystack.pop()
         else:
             cmd = None
+
+        execute = args.force
+        while cmd:
+            if not execute:
+                outfilestamp = datetime.datetime.utcfromtimestamp(os.path.getmtime(outfilename))
+                for infilename in infilelist:
+                    infilestamp = datetime.datetime.utcfromtimestamp(os.path.getmtime(infilename))
+                    if infilestamp > outfilestamp:
+                        execute = True
+                        break
+
+            if execute and infilelist:
+                if args.verbosity >= 1:
+                    print("Executing: " + cmd + ' ' + ' '.join(arglist), file=sys.stderr)
+
+                if not args.dry_run:
+                    module = importlib.import_module(cmd)
+                    function = getattr(module, cmd)
+                    function(arglist)
+            else:
+                if args.verbosity >= 2:
+                    print("Command not executed: " + cmd + ' ' + ' '.join(arglist), file=sys.stderr)
+
+            if replaystack:
+                (cmd, arglist, infilelist, outfilename) = replaystack.pop()
+            else:
+                cmd = None
+
+if __name__ == '__main__':
+    twitterReplay(None)

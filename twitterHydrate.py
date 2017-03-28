@@ -34,7 +34,8 @@ HASHTAGREGEXP=re.compile(r'(#\w+)', re.UNICODE)
 
 def twitterHydrate(arglist):
 
-    parser = argparse.ArgumentParser(description='Hydrate twitter ids.')
+    parser = argparse.ArgumentParser(description='Hydrate twitter ids.',
+                                     fromfile_prefix_chars='@')
 
     parser.add_argument('-v', '--verbosity', type=int, default=1)
     parser.add_argument('-t', '--threshold', type=int, default=60, help='Number of seconds out of sequence to report.')
