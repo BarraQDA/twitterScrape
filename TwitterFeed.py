@@ -196,15 +196,15 @@ class TwitterRead(object):
             try:
                 row['id'] = int(row.get('id'))
             except TypeError:
-                row['id'] = 0
+                row['id'] = None
             try:
                 row['retweets'] = int(row.get('retweets'))
             except TypeError:
-                row['retweets'] = 0
+                row['retweets'] = None
             try:
                 row['favorites'] = int(row.get('favorites'))
             except TypeError:
-                row['favorites'] = 0
+                row['favorites'] = None
 
             break
 
