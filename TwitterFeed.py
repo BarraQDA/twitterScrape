@@ -96,7 +96,6 @@ class TwitterFeed(object):
             try:
                 tweet = next(self.tweets)
                 tweetPQ = PyQuery(tweet, parser=TwitterFeed.PARSER)
-                print(tweetPQ)
             except StopIteration:
                 self.tweets = None
                 continue
@@ -108,8 +107,6 @@ class TwitterFeed(object):
 
             # Build tweet as dictionary
             ret = {}
-
-            #print (tweetPQ)
 
             ret['id']    = int(tweetPQ.attr("data-tweet-id"))
             conversation = int(tweetPQ.attr("data-conversation-id"))
@@ -129,7 +126,7 @@ class TwitterFeed(object):
             if quotetweet:
                 ret['quote']         = quotetweet.attr("data-item-id")
                 ret['quote-user-id'] = quotetweet.attr("data-user-id")
-                ret['quote-user-id'] = quotetweet.attr("data-screen-name")
+                ret['quote-user']    = quotetweet.attr("data-screen-name")
 
             #ret['permalink'] = 'https://twitter.com' + tweetPQ.attr("data-permalink-path")
 
