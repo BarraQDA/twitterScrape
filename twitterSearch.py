@@ -50,9 +50,10 @@ def twitterSearch(arglist):
     parser.add_argument('--access-token-secret', type=str,
                         help='Access token secret for Twitter authentication')
 
-    parser.add_argument('-u', '--user',     type=str, help='Twitter username to match.')
+    parser.add_argument('-u', '--user',     type=str, help='Twitter username to filter.')
     parser.add_argument('-q', '--query',    type=str, help='Search string for twitter feed. Either USER or QUERY must be defined to open a twitter feed.')
-    parser.add_argument('-l', '--language', type=str, help='Language filter for twitter feed.')
+    parser.add_argument('-l', '--language', type=str, help='Language code to filter.')
+    parser.add_argument('-g', '--geo',      type=str, help='Geographic code to filter.')
 
     parser.add_argument(      '--since',    type=str, help='Lower bound search date.')
     parser.add_argument(      '--until',    type=str, help='Upper bound search date.')
@@ -162,11 +163,12 @@ def twitterSearch(arglist):
 
     while True:
         query  = 'q='
-        query += (' ' + args.query)         if args.query    else ''
-        query += (' lang:' + args.language) if args.language else ''
-        query += (' from:' + args.user)     if args.user     else ''
-        query += (' since:' + args.since)   if args.since    else ''
-        query += (' until:' + args.until)   if args.until    else ''
+        query += args.query                 if args.query    else ''
+        query += ('&geocode=' + args.geo)   if args.geo      else ''
+        query += ('&from=' + args.user)     if args.user     else ''
+        query += ('&lang=' + args.language) if args.language else ''
+        query += ('&since=' + args.since)   if args.since    else ''
+        query += ('&until=' + args.until)   if args.until    else ''
         query += ('&count=' + str(args.number - tweetcount)) if args.number else ''
         query += ('&max_id='+str(maxid)) if maxid else ''
         if args.verbosity >= 2:
