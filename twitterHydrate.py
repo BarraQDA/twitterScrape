@@ -37,6 +37,7 @@ def twitterHydrate(arglist):
                                      fromfile_prefix_chars='@')
 
     parser.add_argument('-v', '--verbosity', type=int, default=1)
+    parser.add_argument('-b', '--batch',     type=int, default=10000, help='Number of tweets to process per batch. Use to limit memory usage with very large files. May affect performance but not results.')
 
     # Twitter authentication stuff
     parser.add_argument('--consumer-key', type=str,
@@ -50,15 +51,18 @@ def twitterHydrate(arglist):
     parser.add_argument('--access-token-secret', type=str,
                         help='Access token secret for Twitter authentication')
 
-    parser.add_argument('-i', '--ids',      type=str, help='Comma-separated list of ids to retrieve.')
     parser.add_argument('-l', '--limit',      type=int, help='Limit number of tweets to process')
 
     parser.add_argument('-o', '--outfile', type=str, help='Output CSV file, otherwise use stdout')
+    parser.add_argument('--overwrite',     action='store_true', help='Overwrite input fields with hydrated data')
     parser.add_argument('--no-comments',   action='store_true', help='Do not output descriptive comments')
 
     parser.add_argument('infile', type=str, nargs='?', help='Input CSV file, otherwise use stdin')
 
     args = parser.parse_args()
+
+    if args.batch is None:
+        args.batch = sys.maxint
 
     twitterread = TwitterRead(args.infile, limit=args.limit)
     if args.no_comments:
@@ -129,34 +133,64 @@ def twitterHydrate(arglist):
                     sleep_on_rate_limit=True
             )
 
-    twitterwrite = TwitterWrite(args.outfile, comments=comments, fieldnames = ['user', 'date', 'text', 'replies', 'retweets', 'favorites', 'reply-to', 'reply-to-user', 'reply-to-user-id', 'lang', 'geo', 'mentions', 'hashtags', 'user-id', 'id'])
+    fieldnames = twitterread.fieldnames + list({'user', 'date', 'text', 'replies', 'retweets', 'favorites', 'reply-to', 'reply-to-user', 'reply-to-user-id', 'lang', 'geo', 'mentions', 'hashtags', 'user-id', 'id'} - set(twitterread.fieldnames))
 
-    ids = sorted([row['id'] for row in twitterread], reverse=True)
-    while len(ids):
-        #tweets = [api.GetStatus(ids[0])]
-        #ids = ids[1:]
-        tweets = sorted(api.GetStatuses(ids[0:100]),
-                        key=lambda tweet: tweet.id,
-                        reverse=True)
-        ids = ids[100:]
-        for tweet in tweets:
-            twitterwrite.write({
-                'user': tweet.user.screen_name,
-                'date': datetime.datetime.utcfromtimestamp(tweet.created_at_in_seconds).isoformat(),
-                'text': tweet.text,
-                'reply-to': tweet.in_reply_to_status_id,
-                'reply-to-user': tweet.in_reply_to_screen_name,
-                'reply-to-user-id': tweet.in_reply_to_user_id,
-                'retweets': tweet.retweet_count,
-                'favorites': tweet.favorite_count,
-                'lang': tweet.lang,
-                'geo' : tweet.geo,
-                'mentions': u' '.join([u'@'+user.screen_name for user    in tweet.user_mentions]),
-                'hashtags': u' '.join([u'#'+hashtag.text     for hashtag in tweet.hashtags]),
-                'user-id': tweet.user.id,
-                'id': tweet.id_str,
-            })
+    twitterwrite = TwitterWrite(args.outfile, comments=comments, fieldnames=fieldnames)
 
+    while True:
+        if args.verbosity >= 2:
+            print("Loading twitter batch.", file=sys.stderr)
+
+        rows = []
+        batchcount = 0
+        while batchcount < args.batch:
+            try:
+                row = next(twitterread)
+                batchcount += 1
+                rows.append(row)
+
+            except StopIteration:
+                break
+
+        if batchcount == 0:
+            break
+
+        ids = [row['id'] for row in rows]
+        tweets = api.GetStatuses(ids, respect_order=True)
+        for row,tweet in zip(rows,tweets):
+            if tweet:
+                assert (tweet.id == row['id'])
+
+                if args.overwrite or row.get('user') is None:
+                    row['user'] = tweet.user.screen_name
+                if args.overwrite or row.get('date') is None:
+                    row['date'] = datetime.datetime.utcfromtimestamp(tweet.created_at_in_seconds).isoformat()
+                if args.overwrite or row.get('text') is None:
+                    row['text'] = tweet.text
+                if args.overwrite or row.get('reply-to') is None:
+                    row['reply-to'] = tweet.in_reply_to_status_id
+                if args.overwrite or row.get('reply-to-user') is None:
+                    row['reply-to-user'] = tweet.in_reply_to_screen_name
+                if args.overwrite or row.get('reply-to-user-id') is None:
+                    row['reply-to-user-id'] = tweet.in_reply_to_user_id
+                if args.overwrite or row.get('retweets') is None:
+                    row['retweets'] = tweet.retweet_count
+                if args.overwrite or row.get('favorites') is None:
+                    row['favorites'] = tweet.favorite_count
+                if args.overwrite or row.get('lang') is None:
+                    row['lang'] = tweet.lang
+                if args.overwrite or row.get('geo') is None:
+                    row['geo'] = tweet.geo
+                if args.overwrite or row.get('mentions') is None:
+                    row['mentions'] = u' '.join([u'@'+user.screen_name for user in tweet.user_mentions])
+                if args.overwrite or row.get('hashtags') is None:
+                    row['hashtags'] = u' '.join([u'#'+hashtag.text for hashtag in tweet.hashtags])
+                if args.overwrite or row.get('user-id') is None:
+                    row['user-id'] = tweet.user.id
+            elif args.verbosity >= 3:
+                print("Tweet id: " + str(row['id']) + " not retrieved.", file=sys.stderr)
+
+            twitterwrite.write(row)
 
 if __name__ == '__main__':
     twitterHydrate(None)
