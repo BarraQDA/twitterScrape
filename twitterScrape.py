@@ -95,8 +95,6 @@ def twitterScrape(arglist):
         if args.number:
             comments += '#     number=' + str(args.number) + '\n'
 
-        comments += '#' * 80 + '\n'
-
     # Function to simplify reading tweets from CSV or feed
     def nextornone(reader):
         try:
@@ -129,6 +127,10 @@ def twitterScrape(arglist):
                 print("Read id: " + str(currowitem['id']) + " from " + args.infile[fileidx], file=sys.stderr)
             else:
                 print("End of " + args.infile[fileidx], file=sys.stderr)
+
+    # Finish comment block only if no input files - otherwise expect input file to do so.
+    if len(args.infile) == 0:
+        comments += '#' * 80 + '\n'
 
     if headidx is not None and args.verbosity >= 2:
         print("Head input is " + args.infile[headidx], file=sys.stderr)
