@@ -71,11 +71,6 @@ def twitterFilter(arglist):
         for line in args.prelude:
             exec(line) in globals()
 
-    if args.filter:
-        filter = compile(args.filter, 'filter argument', 'eval')
-        def evalfilter(user, date, retweets, favorites, text, lang, geo, mentions, hashtags, id, permalink):
-            return eval(filter)
-
     if args.regexp:
         if args.ignorecase:
             regexp = re.compile(args.regexp, re.IGNORECASE | re.UNICODE)
@@ -130,6 +125,11 @@ def twitterFilter(arglist):
 
         comments += twitterread.comments
 
+    if args.filter:
+        exec "\n\
+def evalfilter(" + ','.join(twitterread.fieldnames).replace('-','_') + "):\n\
+    return " + args.filter + "\n"
+
     twitterwrite = TwitterWrite(args.outfile, comments=outcomments+comments, fieldnames=twitterread.fieldnames)
     if args.rejfile:
         rejectwrite = TwitterWrite(args.rejfile, comments=rejcomments+comments, fieldnames=twitterread.fieldnames)
@@ -141,7 +141,8 @@ def twitterFilter(arglist):
         for row in twitterread:
             keep = True
             if args.filter:
-                keep = (evalfilter(**row) or False) and keep
+                rowargs = {key.replace('-','_'): value for key, value in row.iteritems()}
+                keep = (evalfilter(**rowargs) or False) and keep
             if args.regexp:
                 keep = (regexp.search(str(row[args.column])) or False) and keep
 
@@ -186,7 +187,8 @@ def twitterFilter(arglist):
                     row = rows[rowindex]
                     keep = True
                     if args.filter:
-                        keep = (evalfilter(**row) or False) and keep
+                        rowargs = {key.replace('-','_'): value for key, value in row.iteritems()}
+                        keep = (evalfilter(**rowargs) or False) and keep
                     if args.regexp:
                         keep = (regexp.search(str(row[args.column])) or False) and keep
 
