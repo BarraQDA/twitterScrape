@@ -87,8 +87,7 @@ class TwitterFeed(object):
                         self.position = dataJson['min_position']
                         self.tweets = PyQuery(dataJson['items_html'], parser=TwitterFeed.PARSER).items('div.js-stream-tweet')
                 except:
-                    sys.stderr.write("Unrecognised response from twitter to URL: " + self.url + self.position + '\n')
-                    raise
+                    sys.stderr.write("Unrecognised response to URL: " + self.url + self.position + '\n')
 
             if self.tweets is None:
                 raise StopIteration
@@ -108,35 +107,40 @@ class TwitterFeed(object):
             # Build tweet as dictionary
             ret = {}
 
-            ret['id']    = int(tweetPQ.attr("data-tweet-id"))
-            conversation = int(tweetPQ.attr("data-conversation-id"))
-            if conversation != ret['id']:
-                ret['conversation'] = conversation
+            try:
+                ret['id']    = int(tweetPQ.attr("data-tweet-id"))
+                conversation = int(tweetPQ.attr("data-conversation-id"))
+                if conversation != ret['id']:
+                    ret['conversation'] = conversation
 
-            ret['datetime']  = datetime.datetime.utcfromtimestamp(
-                                    int(tweetPQ("small.time span.js-short-timestamp").attr("data-time")))
-            ret['user']      = tweetPQ.attr("data-screen-name")
-            ret['user-id']   = tweetPQ.attr("data-user-id")
-            ret['lang']      = tweetPQ("p.js-tweet-text").attr("lang")
-            ret['text']      = text(tweetPQ("p.js-tweet-text"))
-            ret['replies']   = int(tweetPQ("span.ProfileTweet-action--reply span.ProfileTweet-actionCount").attr("data-tweet-stat-count").replace(",", ""))
-            ret['retweets']  = int(tweetPQ("span.ProfileTweet-action--retweet span.ProfileTweet-actionCount").attr("data-tweet-stat-count").replace(",", ""))
-            ret['favorites'] = int(tweetPQ("span.ProfileTweet-action--favorite span.ProfileTweet-actionCount").attr("data-tweet-stat-count").replace(",", ""))
-            quotetweet = tweetPQ("div.QuoteTweet-innerContainer")
-            if quotetweet:
-                ret['quote']         = quotetweet.attr("data-item-id")
-                ret['quote-user-id'] = quotetweet.attr("data-user-id")
-                ret['quote-user']    = quotetweet.attr("data-screen-name")
+                ret['datetime']  = datetime.datetime.utcfromtimestamp(
+                                        int(tweetPQ("small.time span.js-short-timestamp").attr("data-time")))
+                ret['user']      = tweetPQ.attr("data-screen-name")
+                ret['user-id']   = tweetPQ.attr("data-user-id")
+                ret['lang']      = tweetPQ("p.js-tweet-text").attr("lang")
+                ret['text']      = text(tweetPQ("p.js-tweet-text"))
+                ret['replies']   = int(tweetPQ("span.ProfileTweet-action--reply span.ProfileTweet-actionCount").attr("data-tweet-stat-count").replace(",", ""))
+                ret['retweets']  = int(tweetPQ("span.ProfileTweet-action--retweet span.ProfileTweet-actionCount").attr("data-tweet-stat-count").replace(",", ""))
+                ret['favorites'] = int(tweetPQ("span.ProfileTweet-action--favorite span.ProfileTweet-actionCount").attr("data-tweet-stat-count").replace(",", ""))
+                quotetweet = tweetPQ("div.QuoteTweet-innerContainer")
+                if quotetweet:
+                    ret['quote']         = quotetweet.attr("data-item-id")
+                    ret['quote-user-id'] = quotetweet.attr("data-user-id")
+                    ret['quote-user']    = quotetweet.attr("data-screen-name")
 
-            #ret['permalink'] = 'https://twitter.com' + tweetPQ.attr("data-permalink-path")
+                #ret['permalink'] = 'https://twitter.com' + tweetPQ.attr("data-permalink-path")
 
-            geoSpan = tweetPQ('span.Tweet-geo')
-            ret['geo'] = geoSpan.attr('title') if geoSpan else ''
+                geoSpan = tweetPQ('span.Tweet-geo')
+                ret['geo'] = geoSpan.attr('title') if geoSpan else ''
 
-            ret['mentions']  = " ".join(TwitterFeed.MENTIONREGEXP.findall(ret['text']))
-            ret['hashtags']  = " ".join(TwitterFeed.HASHTAGREGEXP.findall(ret['text']))
+                ret['mentions']  = " ".join(TwitterFeed.MENTIONREGEXP.findall(ret['text']))
+                ret['hashtags']  = " ".join(TwitterFeed.HASHTAGREGEXP.findall(ret['text']))
 
-            return ret
+                return ret
+
+            except TypeError:
+                sys.stderr.write("Unrecognised tweet in response to URL: " + self.url + self.position + '\n')
+                raise StopIteration
 
 class TwitterRead(object):
     def __init__(self, filename, since=None, until=None, limit=None, blanks=False):
