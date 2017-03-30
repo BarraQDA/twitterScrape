@@ -124,8 +124,8 @@ class TwitterFeed(object):
                 ret['favorites'] = int(tweetPQ("span.ProfileTweet-action--favorite span.ProfileTweet-actionCount").attr("data-tweet-stat-count").replace(",", ""))
                 quotetweet = tweetPQ("div.QuoteTweet-innerContainer")
                 if quotetweet:
-                    ret['quote']         = quotetweet.attr("data-item-id")
-                    ret['quote-user-id'] = quotetweet.attr("data-user-id")
+                    ret['quote']         = int(quotetweet.attr("data-item-id"))
+                    ret['quote-user-id'] = int(quotetweet.attr("data-user-id"))
                     ret['quote-user']    = quotetweet.attr("data-screen-name")
 
                 #ret['permalink'] = 'https://twitter.com' + tweetPQ.attr("data-permalink-path")
@@ -197,18 +197,24 @@ class TwitterRead(object):
             if self.since and row['date'] < self.since:
                 raise StopIteration
 
-            try:
-                row['id'] = int(row.get('id'))
-            except TypeError:
-                row['id'] = None
-            try:
-                row['retweets'] = int(row.get('retweets'))
-            except TypeError:
-                row['retweets'] = None
-            try:
-                row['favorites'] = int(row.get('favorites'))
-            except TypeError:
-                row['favorites'] = None
+            def convert_to_int(key):
+                val = row.get(key)
+                if val is not None:
+                    try:
+                        row[key] = int(val)
+                    except (TypeError, ValueError):
+                        row[key] = None
+
+            convert_to_int('id')
+            convert_to_int('user-id')
+            convert_to_int('replies')
+            convert_to_int('retweets')
+            convert_to_int('favorites')
+            convert_to_int('conversation')
+            convert_to_int('quote')
+            convert_to_int('quote-user-id')
+            convert_to_int('reply-to')
+            convert_to_int('reply-to-user-id')
 
             break
 
@@ -230,7 +236,7 @@ class TwitterWrite(object):
             self.file.write(comments)
 
         if fieldnames is None:
-            fieldnames = ['user', 'date', 'retweets', 'favorites', 'text', 'lang', 'geo', 'mentions', 'hashtags', 'id', 'permalink']
+            fieldnames = ['user', 'date', 'retweets', 'favorites', 'text', 'lang', 'geo', 'mentions', 'hashtags', 'id']
 
         self.csvwriter = unicodecsv.DictWriter(self.file, fieldnames=fieldnames, extrasaction='ignore')
         self.csvwriter.writeheader()
