@@ -45,7 +45,7 @@ def twitterNetwork(arglist):
     parser.add_argument('-l', '--limit',     type=int, help='Limit number of tweets to process')
 
     parser.add_argument(      '--from',      type=str, required=True, dest='fromcode', help='Python code evaluated to generate "from" code(s), for example "user"')
-    parser.add_argument(      '--to',        type=str, required=True, help='Python code evaluated to generate "to" code(s), for example "mentions.split()')
+    parser.add_argument(      '--to',        type=str, required=True, dest='tocode', help='Python code evaluated to generate "to" code(s), for example "mentions.split()')
     parser.add_argument('-s', '--score',     type=str, default='1', help='Python expression to evaluate tweet score(s), for example "1 + retweets + favorites"')
     parser.add_argument('-tt', '--tothreshold', type=float, help='Threshold score for "from" vector to be included')
     parser.add_argument('-ft', '--fromthreshold', type=float, help='Threshold score for "from" vector to be included')
@@ -74,23 +74,6 @@ def twitterNetwork(arglist):
 
         for line in args.prelude:
             exec(line) in globals()
-
-    if args.filter:
-        filter = compile(args.filter, 'filter argument', 'eval')
-        def evalfilter(user, date, retweets, favorites, text, lang, geo, mentions, hashtags, id, permalink, **extra):
-            return eval(filter)
-
-    score = compile(args.score, 'score argument', 'eval')
-    def evalscore(user, date, retweets, favorites, text, lang, geo, mentions, hashtags, id, permalink, **extra):
-        return eval(score)
-
-    fromcode = compile(args.fromcode, 'from argument', 'eval')
-    def evalfrom(user, date, retweets, favorites, text, lang, geo, mentions, hashtags, id, permalink, **extra):
-        return eval(fromcode)
-
-    to = compile(args.to, 'to argument', 'eval')
-    def evalto(user, date, retweets, favorites, text, lang, geo, mentions, hashtags, id, permalink, **extra):
-        return eval(to)
 
     # Parse since and until dates
     if args.until:
@@ -129,7 +112,7 @@ def twitterNetwork(arglist):
         if args.until:
             comments += '#     until=' + args.until + '\n'
         comments += '#     from=' + args.fromcode + '\n'
-        comments += '#     to=' + args.to + '\n'
+        comments += '#     to=' + args.tocode + '\n'
         comments += '#     score=' + args.score + '\n'
         if args.fromthreshold:
             comments += '#     fromthreshold=' + str(args.fromthreshold) + '\n'
@@ -141,6 +124,23 @@ def twitterNetwork(arglist):
         comments += twitterread.comments
 
         outfile.write(comments)
+
+    if args.filter:
+        exec "\
+def evalfilter(" + ','.join(twitterread.fieldnames).replace('-','_') + "):\n\
+    return [" + ','.join([filteritem for filteritem in args.filter]) + "]"
+
+    exec "\
+def evalscore(" + ','.join(twitterread.fieldnames).replace('-','_') + "):\n\
+    return " + args.score
+
+    exec "\
+def evalfrom(" + ','.join(twitterread.fieldnames).replace('-','_') + "):\n\
+    return " + args.fromcode
+
+    exec "\
+def evalto(" + ','.join(twitterread.fieldnames).replace('-','_') + "):\n\
+    return " + args.tocode
 
     if args.verbosity >= 1:
         print("Loading twitter data.", file=sys.stderr)
@@ -177,12 +177,13 @@ def twitterNetwork(arglist):
             tototal = {}
             for rowindex in p.range(0, rowcount):
                 row = rows[rowindex]
-                if args.filter and not evalfilter(**row):
+                rowargs = {key.replace('-','_'): value for key, value in row.iteritems()}
+                if args.filter and not evalfilter(**rowargs):
                     continue
 
-                rowfrom  = evalfrom(**row)
-                rowto    = evalto(**row)
-                rowscore = evalscore(**row)
+                rowfrom  = evalfrom(**rowargs)
+                rowto    = evalto(**rowargs)
+                rowscore = evalscore(**rowargs)
 
                 if args.verbosity >= 3:
                     print ("From: " + str(rowfrom), file=sys.stderr)

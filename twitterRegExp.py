@@ -102,11 +102,6 @@ def twitterRegExp(arglist):
         for line in args.prelude:
             exec(line) in globals()
 
-    if args.filter:
-        filter = compile(args.filter, 'filter argument', 'eval')
-        def evalfilter(user, date, retweets, favorites, text, lang, geo, mentions, hashtags, id, permalink, **extra):
-            return eval(filter)
-
     if args.until:
         args.until = dateparser.parse(args.until).date().isoformat()
     if args.since:
@@ -114,13 +109,6 @@ def twitterRegExp(arglist):
 
     regexp = re.compile(args.regexp, re.UNICODE | (re.IGNORECASE if args.ignorecase else 0))
     fields = list(regexp.groupindex)
-
-    score = []
-    for scoreitem in args.score:
-        score.append(compile(scoreitem, scoreitem, 'eval'))
-
-    def evalscore(user, date, retweets, favorites, text, lang, geo, mentions, hashtags, id, permalink, **extra):
-        return [eval(scoreitem) for scoreitem in score]
 
     if args.interval:
         interval = timeparse(args.interval)
@@ -172,6 +160,15 @@ def twitterRegExp(arglist):
 
         outfile.write(comments + twitterread.comments)
 
+    if args.filter:
+            exec "\
+def evalfilter(" + ','.join(twitterread.fieldnames).replace('-','_') + "):\n\
+    return " + args.filter
+
+    exec "\
+def evalscore(" + ','.join(twitterread.fieldnames).replace('-','_') + "):\n\
+    return [" + ','.join([scoreitem for scoreitem in args.score]) + "]"
+
     if args.verbosity >= 1:
         print("Loading twitter data.", file=sys.stderr)
 
@@ -185,7 +182,11 @@ def twitterRegExp(arglist):
             try:
                 while True:
                     row = next(twitterread)
-                    if (not args.filter) or evalfilter(**row):
+                    if args.filter:
+                        rowargs = {key.replace('-','_'): value for key, value in row.iteritems()}
+                        if evalfilter(**rowargs):
+                            break
+                    else:
                         break
 
             except StopIteration:
@@ -207,7 +208,12 @@ def twitterRegExp(arglist):
             rowscore = None
             indexes = []
             for match in matches:
-                rowscore = rowscore or evalscore(**row)
+                if not rowscore:
+                    if not args.filter:     # NB Optimisation, rowargs already calculated
+                        rowargs = {key.replace('-','_'): value for key, value in row.iteritems()}
+                    rowscore = evalscore(**rowargs)
+                    print (rowscore)
+
                 if args.ignorecase:
                     index = tuple(value.lower() for value in match.groupdict().values())
                 else:
@@ -215,11 +221,11 @@ def twitterRegExp(arglist):
 
                 if args.interval:
                     indexes.append(index)
-                    runningresult[index] = map(add, runningresult.get(index, [0] * len(score)), rowscore)
-                    curmergedresult = mergedresult.get(index, [0] * len(score))
-                    mergedresult[index] = [max(curmergedresult[idx], runningresult[index][idx]) for idx in range(len(score))]
+                    runningresult[index] = map(add, runningresult.get(index, [0] * len(args.score)), rowscore)
+                    curmergedresult = mergedresult.get(index, [0] * len(args.score))
+                    mergedresult[index] = [max(curmergedresult[idx], runningresult[index][idx]) for idx in range(len(args.score))]
                 else:
-                    mergedresult[index] = map(add, mergedresult.get(index, [0] * len(score)), rowscore)
+                    mergedresult[index] = map(add, mergedresult.get(index, [0] * len(args.score)), rowscore)
 
             if args.interval and rowscore:
                 row['score']   = rowscore
@@ -255,19 +261,25 @@ def twitterRegExp(arglist):
                 result = {}
                 for rowindex in p.range(0, rowcount):
                     row = rows[rowindex]
-                    if args.filter and not evalfilter(**row):
-                        continue
+                    if args.filter:
+                        rowargs = {key.replace('-','_'): value for key, value in row.iteritems()}
+                        if not evalfilter(**rowargs):
+                            continue
 
                     matches = regexp.finditer(str(row[args.column]))
                     rowscore = None
                     for match in matches:
-                        rowscore = rowscore or evalscore(**row)
+                        if not rowscore:
+                            if not args.filter:     # NB Optimisation, rowargs already calculated
+                                rowargs = {key.replace('-','_'): value for key, value in row.iteritems()}
+                            rowscore = evalscore(**rowargs)
+
                         if args.ignorecase:
                             index = tuple(value.lower() for value in match.groupdict().values())
                         else:
                             index = tuple(match.groupdict().values())
 
-                        result[index] = map(add, result.get(index, [0] * len(score)), rowscore)
+                        result[index] = map(add, result.get(index, [0] * len(args.score)), rowscore)
 
                 if args.verbosity >= 2:
                     print("Thread " + str(p.thread_num) + " found " + str(len(result)) + " results.", file=sys.stderr)
@@ -277,7 +289,7 @@ def twitterRegExp(arglist):
 
             for result in results:
                 for index in result:
-                    mergedresult[index] = map(add, mergedresult.get(index, [0] * len(score)), result[index])
+                    mergedresult[index] = map(add, mergedresult.get(index, [0] * len(args.score)), result[index])
 
     if args.verbosity >= 1:
         print("Sorting " + str(len(mergedresult)) + " results.", file=sys.stderr)
@@ -293,7 +305,7 @@ def twitterRegExp(arglist):
     for result in sortedresult:
         for idx in range(len(fields)):
             result[fields[idx]] = result['match'][idx]
-        for idx in range(len(score)):
+        for idx in range(len(args.score)):
             result[args.score[idx]] = result['score'][idx]
 
     outunicodecsv=unicodecsv.DictWriter(outfile, fieldnames=fields + args.score, extrasaction='ignore')

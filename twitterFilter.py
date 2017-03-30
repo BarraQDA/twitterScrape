@@ -126,9 +126,9 @@ def twitterFilter(arglist):
         comments += twitterread.comments
 
     if args.filter:
-        exec "\n\
+        exec "\
 def evalfilter(" + ','.join(twitterread.fieldnames).replace('-','_') + "):\n\
-    return " + args.filter + "\n"
+    return " + args.filter
 
     twitterwrite = TwitterWrite(args.outfile, comments=outcomments+comments, fieldnames=twitterread.fieldnames)
     if args.rejfile:

@@ -73,11 +73,6 @@ def twitterCloud(arglist):
         for line in args.prelude:
             exec(line)
 
-    if args.filter:
-        filter = compile(args.filter, 'filter argument', 'eval')
-        def evalfilter(user, date, retweets, favorites, text, lang, geo, mentions, hashtags, id, permalink, **extra):
-            return eval(filter)
-
     # Parse since and until dates
     if args.until:
         args.until = dateparser.parse(args.until).date().isoformat()
@@ -85,6 +80,11 @@ def twitterCloud(arglist):
         args.since = dateparser.parse(args.since).date().isoformat()
 
     twitterread  = TwitterRead(args.infile, since=args.since, until=args.until, limit=args.limit)
+
+    if args.filter:
+        exec "\
+def evalfilter(" + ','.join(twitterread.fieldnames).replace('-','_') + "):\n\
+    return " + args.filter
 
     from nltk.corpus import stopwords
     exclude = set(stopwords.words('english'))
@@ -130,8 +130,10 @@ def twitterCloud(arglist):
             scoredict = {}
             for rowindex in p.range(0, rowcount):
                 row = rows[rowindex]
-                if args.filter and not evalfilter(**row):
-                    continue
+                if args.filter:
+                    rowargs = {key.replace('-','_'): value for key, value in row.iteritems()}
+                    if not evalfilter(**rowargs):
+                        continue
 
                 text = row[args.column]
                 if args.mode == 'textblob':

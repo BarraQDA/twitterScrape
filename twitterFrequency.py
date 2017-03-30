@@ -61,24 +61,11 @@ def twitterFrequency(arglist):
         for line in args.prelude:
             exec(line) in globals()
 
-    filteridx = 0
-    compiledfilters = []
-    for filteritem in args.filter:
-        compiledfilters.append(compile(filteritem, 'filter ' + str(filteridx), 'eval'))
-
-    def evalfilter(filteridx, user, date, retweets, favorites, text, lang, geo, mentions, hashtags, id, permalink, **extra):
-        ret = eval(compiledfilters[filteridx])
-        return ret
-
     # Parse since and until dates
     if args.until:
         args.until = dateparser.parse(args.until).date().isoformat()
     if args.since:
         args.since = dateparser.parse(args.since).date().isoformat()
-
-    score = compile(args.score, 'score argument', 'eval')
-    def evalscore(user, date, retweets, favorites, text, lang, geo, mentions, hashtags, id, permalink, **extra):
-        return eval(score)
 
     interval = timeparse(args.interval)
     if interval is None:
@@ -125,6 +112,14 @@ def twitterFrequency(arglist):
 
         outfile.write(comments)
 
+    exec "\
+def evalfilter(" + ','.join(twitterread.fieldnames).replace('-','_') + "):\n\
+    return [" + ','.join([filteritem for filteritem in args.filter]) + "]"
+
+    exec "\
+def evalscore(" + ','.join(twitterread.fieldnames).replace('-','_') + "):\n\
+    return " + args.score
+
     outunicodecsv=unicodecsv.writer(outfile)
     outunicodecsv.writerow(['date'] + args.title)
 
@@ -139,8 +134,9 @@ def twitterFrequency(arglist):
         except StopIteration:
             break
 
+        rowargs = {key.replace('-','_'): value for key, value in row.iteritems()}
+        row['score']     = evalscore(**rowargs)
         row['datesecs']  = calendar.timegm(dateparser.parse(row['date']).timetuple())
-        row['score']     = evalscore(**row)
 
         firstrow = rows[0] if len(rows) > 0 else None
         while firstrow and firstrow['datesecs'] - row['datesecs'] > interval:
@@ -155,11 +151,9 @@ def twitterFrequency(arglist):
             del rows[0]
             firstrow = rows[0] if len(rows) else None
 
-        filters = []
+        filters = evalfilter(filteridx, **rowargs)
         for filteridx in range(len(args.filter)):
-            thisfilter = evalfilter(filteridx, **row)
-            filters.append(thisfilter)
-            if thisfilter:
+            if filters[filteridx]:
                 runningscore[filteridx] += row['score']
 
         if args.limit and twitterread.count == args.limit:

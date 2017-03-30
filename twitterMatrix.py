@@ -38,7 +38,7 @@ def twitterMatrix(arglist):
     parser.add_argument('-b', '--batch',     type=int, default=100000, help='Number of tweets to process per batch, or zero for unlimited. May affect performance but not results.')
 
     parser.add_argument('-p', '--prelude',    type=str, nargs="*", help='Python code to execute before processing')
-    parser.add_argument('-f', '--filter',    type=str, help='Python expression evaluated to determine whether tweet is included')
+    parser.add_argument('-f', '--filter',    type=str, help='Python expression lluated to determine whether tweet is included')
     parser.add_argument(      '--since',     type=str, help='Lower bound tweet date.')
     parser.add_argument(      '--until',     type=str, help='Upper bound tweet date.')
     parser.add_argument('-l', '--limit',     type=int, help='Limit number of tweets to process')
@@ -71,11 +71,6 @@ def twitterMatrix(arglist):
 
         for line in args.prelude:
             exec(line)
-
-    if args.filter:
-        filter = compile(args.filter, 'filter argument', 'eval')
-        def evalfilter(user, date, retweets, favorites, text, lang, geo, mentions, hashtags, id, permalink, **extra):
-            return eval(filter)
 
     # Parse since and until dates
     if args.until:
@@ -131,6 +126,11 @@ def twitterMatrix(arglist):
 
         outfile.write(comments)
 
+    if args.filter:
+        exec "\
+def evalfilter(" + ','.join(twitterread.fieldnames).replace('-','_') + "):\n\
+    return [" + ','.join([filteritem for filteritem in args.filter]) + "]"
+
     if args.verbosity >= 1:
         print("Loading twitter data.", file=sys.stderr)
 
@@ -160,8 +160,10 @@ def twitterMatrix(arglist):
             matrix = []
             for rowindex in p.range(0, rowcount):
                 row = rows[rowindex]
-                if args.filter and not evalfilter(**row):
-                    continue
+                if args.filter:
+                    rowargs = {key.replace('-','_'): value for key, value in row.iteritems()}
+                    if not evalfilter(**rowargs):
+                        continue
 
                 text = row[args.column]
                 if args.textblob:
