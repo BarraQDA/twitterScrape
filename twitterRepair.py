@@ -35,7 +35,7 @@ def twitterRepair(arglist):
 
     parser.add_argument('infile',  type=str, help='Input CSV file, if missing use stdin.')
 
-    args = parser.parse_args()
+    args = parser.parse_args(arglist)
 
     twitterread  = TwitterRead(args.infile, limit=args.limit, blanks=True)
     twitterwrite = TwitterWrite(args.outfile, comments=twitterread.comments, fieldnames=twitterread.fieldnames)

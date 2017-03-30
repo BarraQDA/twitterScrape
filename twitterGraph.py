@@ -40,7 +40,7 @@ def twitterGraph(arglist):
 
     parser.add_argument('infile', type=str, nargs='?', help='Input edge CSV file.')
 
-    args = parser.parse_args()
+    args = parser.parse_args(arglist)
 
     if args.infile is None:
         infile = sys.stdin

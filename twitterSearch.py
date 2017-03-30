@@ -67,7 +67,7 @@ def twitterSearch(arglist):
                         help='Maximum status id.')
 
 
-    args = parser.parse_args()
+    args = parser.parse_args(arglist)
 
     if args.outfile is None:
         outfile = sys.stdout

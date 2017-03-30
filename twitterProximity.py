@@ -51,7 +51,7 @@ def twitterProximity(arglist):
     parser.add_argument('infile', type=str, nargs='?',
                         help='Input CSV file, if missing use stdin.')
 
-    args = parser.parse_args()
+    args = parser.parse_args(arglist)
 
     if args.jobs is None:
         import multiprocessing

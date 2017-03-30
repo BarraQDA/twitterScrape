@@ -46,7 +46,7 @@ def twitterScrape(arglist):
 
     parser.add_argument('infile', type=str, nargs='*', help='Input CSV files.')
 
-    args = parser.parse_args()
+    args = parser.parse_args(arglist)
 
     # Import twitter feed modules if we are going to need them
     if args.query or args.user:

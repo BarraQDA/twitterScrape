@@ -38,7 +38,7 @@ def twitterPlot(arglist):
 
     parser.add_argument('infile', type=str, nargs='?', help='Input CSV file, otherwise use stdin.')
 
-    args = parser.parse_args()
+    args = parser.parse_args(arglist)
 
     # Parse since and until dates
     if args.until:
