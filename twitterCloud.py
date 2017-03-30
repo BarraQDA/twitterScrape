@@ -83,7 +83,7 @@ def twitterCloud(arglist):
 
     if args.filter:
         exec "\
-def evalfilter(" + ','.join(twitterread.fieldnames).replace('-','_') + "):\n\
+def evalfilter(" + ','.join(twitterread.fieldnames).replace('-','_') + ", **kwargs):\n\
     return " + args.filter
 
     from nltk.corpus import stopwords

@@ -238,7 +238,8 @@ class TwitterWrite(object):
         if fieldnames is None:
             fieldnames = ['user', 'date', 'retweets', 'favorites', 'text', 'lang', 'geo', 'mentions', 'hashtags', 'id']
 
-        self.csvwriter = unicodecsv.DictWriter(self.file, fieldnames=fieldnames, extrasaction='ignore')
+        self.csvwriter = unicodecsv.DictWriter(self.file, fieldnames=fieldnames,
+                                               extrasaction='ignore', lineterminator=os.linesep)
         self.csvwriter.writeheader()
 
         self.count = 0

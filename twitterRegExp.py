@@ -162,11 +162,11 @@ def twitterRegExp(arglist):
 
     if args.filter:
             exec "\
-def evalfilter(" + ','.join(twitterread.fieldnames).replace('-','_') + "):\n\
+def evalfilter(" + ','.join(twitterread.fieldnames).replace('-','_') + ", **kwargs):\n\
     return " + args.filter
 
     exec "\
-def evalscore(" + ','.join(twitterread.fieldnames).replace('-','_') + "):\n\
+def evalscore(" + ','.join(twitterread.fieldnames).replace('-','_') + ", **kwargs):\n\
     return [" + ','.join([scoreitem for scoreitem in args.score]) + "]"
 
     if args.verbosity >= 1:
@@ -204,7 +204,7 @@ def evalscore(" + ','.join(twitterread.fieldnames).replace('-','_') + "):\n\
                     del rows[0]
                     firstrow = rows[0] if len(rows) else None
 
-            matches = regexp.finditer(str(row[args.column]))
+            matches = regexp.finditer(unicode(row[args.column]))
             rowscore = None
             indexes = []
             for match in matches:
@@ -212,7 +212,6 @@ def evalscore(" + ','.join(twitterread.fieldnames).replace('-','_') + "):\n\
                     if not args.filter:     # NB Optimisation, rowargs already calculated
                         rowargs = {key.replace('-','_'): value for key, value in row.iteritems()}
                     rowscore = evalscore(**rowargs)
-                    print (rowscore)
 
                 if args.ignorecase:
                     index = tuple(value.lower() for value in match.groupdict().values())
@@ -266,7 +265,7 @@ def evalscore(" + ','.join(twitterread.fieldnames).replace('-','_') + "):\n\
                         if not evalfilter(**rowargs):
                             continue
 
-                    matches = regexp.finditer(str(row[args.column]))
+                    matches = regexp.finditer(unicode(row[args.column]))
                     rowscore = None
                     for match in matches:
                         if not rowscore:
@@ -308,7 +307,8 @@ def evalscore(" + ','.join(twitterread.fieldnames).replace('-','_') + "):\n\
         for idx in range(len(args.score)):
             result[args.score[idx]] = result['score'][idx]
 
-    outunicodecsv=unicodecsv.DictWriter(outfile, fieldnames=fields + args.score, extrasaction='ignore')
+    outunicodecsv=unicodecsv.DictWriter(outfile, fieldnames=fields + args.score,
+                                        extrasaction='ignore', lineterminator=os.linesep)
     outunicodecsv.writeheader()
     if len(sortedresult) > 0:
         outunicodecsv.writerows(sortedresult)

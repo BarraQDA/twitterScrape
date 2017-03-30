@@ -127,19 +127,19 @@ def twitterNetwork(arglist):
 
     if args.filter:
         exec "\
-def evalfilter(" + ','.join(twitterread.fieldnames).replace('-','_') + "):\n\
+def evalfilter(" + ','.join(twitterread.fieldnames).replace('-','_') + ", **kwargs):\n\
     return [" + ','.join([filteritem for filteritem in args.filter]) + "]"
 
     exec "\
-def evalscore(" + ','.join(twitterread.fieldnames).replace('-','_') + "):\n\
+def evalscore(" + ','.join(twitterread.fieldnames).replace('-','_') + ", **kwargs):\n\
     return " + args.score
 
     exec "\
-def evalfrom(" + ','.join(twitterread.fieldnames).replace('-','_') + "):\n\
+def evalfrom(" + ','.join(twitterread.fieldnames).replace('-','_') + ", **kwargs):\n\
     return " + args.fromcode
 
     exec "\
-def evalto(" + ','.join(twitterread.fieldnames).replace('-','_') + "):\n\
+def evalto(" + ','.join(twitterread.fieldnames).replace('-','_') + ", **kwargs):\n\
     return " + args.tocode
 
     if args.verbosity >= 1:
@@ -216,7 +216,7 @@ def evalto(" + ','.join(twitterread.fieldnames).replace('-','_') + "):\n\
     if args.verbosity >= 1:
         print("Saving network matrix.", file=sys.stderr)
 
-    outunicodecsv=unicodecsv.writer(outfile)
+    outunicodecsv=unicodecsv.writer(outfile, lineterminator=os.linesep)
     outunicodecsv.writerow(['from', 'to', 'score'])
     for duple, value in sorted(mergededge.iteritems(), key=lambda (k,v): (-v,k)):
         fromitem = duple[0]

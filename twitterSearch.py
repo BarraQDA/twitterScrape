@@ -22,6 +22,7 @@ from requests_oauthlib import OAuth1Session
 import webbrowser
 import twitter
 import sys
+import os
 import unicodecsv
 import string
 import pytz
@@ -158,7 +159,8 @@ def twitterSearch(arglist):
         outfile = file(args.outfile, 'w')
 
     fieldnames = ['user', 'date', 'text', 'replies', 'retweets', 'favorites', 'reply-to', 'reply-to-user', 'reply-to-user-id', 'quote', 'lang', 'geo', 'mentions', 'hashtags', 'user-id', 'id']
-    outunicodecsv=unicodecsv.DictWriter(outfile, fieldnames, extrasaction='ignore')
+    outunicodecsv=unicodecsv.DictWriter(outfile, fieldnames,
+                                        extrasaction='ignore', lineterminator=os.linesep)
     outunicodecsv.writeheader()
 
     while True:

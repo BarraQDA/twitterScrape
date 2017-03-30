@@ -18,6 +18,7 @@
 
 from __future__ import print_function
 import argparse
+import os
 import sys
 import unicodecsv
 import string
@@ -190,7 +191,8 @@ def twitterProximity(arglist):
     if args.number != 0:
         sortedscore = sortedscore[0:args.number]
 
-    outunicodecsv=unicodecsv.DictWriter(outfile, fieldnames=['word', 'score'])
+    outunicodecsv=unicodecsv.DictWriter(outfile, fieldnames=['word', 'score'],
+                                        extrasaction='ignore', lineterminator=os.linesep)
     outunicodecsv.writeheader()
     outunicodecsv.writerows(sortedscore)
     outfile.close()

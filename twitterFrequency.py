@@ -113,14 +113,14 @@ def twitterFrequency(arglist):
         outfile.write(comments)
 
     exec "\
-def evalfilter(" + ','.join(twitterread.fieldnames).replace('-','_') + "):\n\
+def evalfilter(" + ','.join(twitterread.fieldnames).replace('-','_') + ", **kwargs):\n\
     return [" + ','.join([filteritem for filteritem in args.filter]) + "]"
 
     exec "\
-def evalscore(" + ','.join(twitterread.fieldnames).replace('-','_') + "):\n\
+def evalscore(" + ','.join(twitterread.fieldnames).replace('-','_') + ", **kwargs):\n\
     return " + args.score
 
-    outunicodecsv=unicodecsv.writer(outfile)
+    outunicodecsv=unicodecsv.writer(outfile, lineterminator=os.linesep)
     outunicodecsv.writerow(['date'] + args.title)
 
     if args.verbosity >= 1:

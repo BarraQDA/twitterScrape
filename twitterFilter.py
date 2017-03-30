@@ -127,7 +127,7 @@ def twitterFilter(arglist):
 
     if args.filter:
         exec "\
-def evalfilter(" + ','.join(twitterread.fieldnames).replace('-','_') + "):\n\
+def evalfilter(" + ','.join(twitterread.fieldnames).replace('-','_') + ", **kwargs):\n\
     return " + args.filter
 
     twitterwrite = TwitterWrite(args.outfile, comments=outcomments+comments, fieldnames=twitterread.fieldnames)
@@ -144,7 +144,7 @@ def evalfilter(" + ','.join(twitterread.fieldnames).replace('-','_') + "):\n\
                 rowargs = {key.replace('-','_'): value for key, value in row.iteritems()}
                 keep = (evalfilter(**rowargs) or False) and keep
             if args.regexp:
-                keep = (regexp.search(str(row[args.column])) or False) and keep
+                keep = (regexp.search(unicode(row[args.column])) or False) and keep
 
             if keep != args.invert:
                 twitterwrite.write(row)
@@ -190,7 +190,7 @@ def evalfilter(" + ','.join(twitterread.fieldnames).replace('-','_') + "):\n\
                         rowargs = {key.replace('-','_'): value for key, value in row.iteritems()}
                         keep = (evalfilter(**rowargs) or False) and keep
                     if args.regexp:
-                        keep = (regexp.search(str(row[args.column])) or False) and keep
+                        keep = (regexp.search(unicode(row[args.column])) or False) and keep
 
                     row['keep'] = keep
                     if keep != args.invert:

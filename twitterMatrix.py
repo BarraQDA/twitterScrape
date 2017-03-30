@@ -128,7 +128,7 @@ def twitterMatrix(arglist):
 
     if args.filter:
         exec "\
-def evalfilter(" + ','.join(twitterread.fieldnames).replace('-','_') + "):\n\
+def evalfilter(" + ','.join(twitterread.fieldnames).replace('-','_') + ", **kwargs):\n\
     return [" + ','.join([filteritem for filteritem in args.filter]) + "]"
 
     if args.verbosity >= 1:
@@ -193,7 +193,7 @@ def evalfilter(" + ','.join(twitterread.fieldnames).replace('-','_') + "):\n\
     if args.verbosity >= 1:
         print("Saving co-occurrence matrix.", file=sys.stderr)
 
-    outunicodecsv=unicodecsv.writer(outfile)
+    outunicodecsv=unicodecsv.writer(outfile, lineterminator=os.linesep)
     outunicodecsv.writerow([''] + wordlist)
     for row in range(0, len(wordlist)):
         outunicodecsv.writerow([wordlist[row]] + cooccurrencematrix[row])
