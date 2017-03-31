@@ -27,8 +27,6 @@ import string
 import unicodedata
 from dateutil import parser as dateparser
 import pymp
-from igraph import *
-import numpy as np
 
 def twitterNetwork(arglist):
     parser = argparse.ArgumentParser(description='Twitter network matrix computation.',
