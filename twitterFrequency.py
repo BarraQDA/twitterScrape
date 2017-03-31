@@ -20,6 +20,7 @@ from __future__ import print_function
 import argparse
 import sys
 import os
+import shutil
 from TwitterFeed import TwitterRead
 import unicodecsv
 import string
@@ -39,7 +40,7 @@ def twitterFrequency(arglist):
 
     parser.add_argument('-p', '--prelude',    type=str, nargs="*", help='Python code to execute before processing')
     parser.add_argument('-f', '--filter',     type=str, nargs='+', help='Python expression evaluated to determine whether tweet is included')
-    parser.add_argument('-t', '--title',      type=str, nargs='+', help='Title of column corresponding to filter')
+    parser.add_argument('-t', '--title',      type=str, nargs='*', help='Title of column corresponding to filter')
     parser.add_argument(      '--since',      type=str, help='Lower bound tweet date.')
     parser.add_argument(      '--until',      type=str, help='Upper bound tweet date.')
     parser.add_argument('-l', '--limit',      type=int, help='Limit number of tweets to process')
@@ -122,7 +123,7 @@ def evalscore(" + ','.join(twitterread.fieldnames).replace('-','_') + ", **kwarg
     return " + args.score
 
     outunicodecsv=unicodecsv.writer(outfile, lineterminator=os.linesep)
-    outunicodecsv.writerow(['date'] + args.title)
+    outunicodecsv.writerow(['date'] + (args.title or args.filter))
 
     if args.verbosity >= 1:
         print("Loading twitter data.", file=sys.stderr)
@@ -152,7 +153,7 @@ def evalscore(" + ','.join(twitterread.fieldnames).replace('-','_') + ", **kwarg
             del rows[0]
             firstrow = rows[0] if len(rows) else None
 
-        filters = evalfilter(filteridx, **rowargs)
+        filters = evalfilter(**rowargs)
         for filteridx in range(len(args.filter)):
             if filters[filteridx]:
                 runningscore[filteridx] += row['score']
