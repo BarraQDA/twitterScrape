@@ -23,6 +23,7 @@ import webbrowser
 import twitter
 import sys
 import os
+import shutil
 import unicodecsv
 import string
 import pytz
@@ -73,6 +74,9 @@ def twitterSearch(arglist):
     if args.outfile is None:
         outfile = sys.stdout
     else:
+        if os.path.exists(args.outfile):
+            shutil.move(args.outfile, args.outfile + '.bak')
+
         outfile = file(args.outfile, 'w')
 
     if not args.no_comments:
@@ -152,11 +156,6 @@ def twitterSearch(arglist):
         maxid = None
     else:
         maxid = int(args.maxid)
-
-    if args.outfile is None:
-        outfile = sys.stdout
-    else:
-        outfile = file(args.outfile, 'w')
 
     fieldnames = ['user', 'date', 'text', 'replies', 'retweets', 'favorites', 'reply-to', 'reply-to-user', 'reply-to-user-id', 'quote', 'lang', 'geo', 'mentions', 'hashtags', 'user-id', 'id']
     outunicodecsv=unicodecsv.DictWriter(outfile, fieldnames,

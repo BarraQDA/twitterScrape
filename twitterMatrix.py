@@ -20,6 +20,7 @@ from __future__ import print_function
 import argparse
 import sys
 import os
+import shutil
 from TwitterFeed import TwitterRead
 import unicodecsv
 import string
@@ -94,6 +95,9 @@ def twitterMatrix(arglist):
     if args.outfile is None:
         outfile = sys.stdout
     else:
+        if os.path.exists(args.outfile):
+            shutil.move(args.outfile, args.outfile + '.bak')
+
         outfile = file(args.outfile, 'w')
 
     twitterread  = TwitterRead(args.infile, since=args.since, until=args.until, limit=args.limit)
