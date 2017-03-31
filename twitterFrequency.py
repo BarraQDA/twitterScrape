@@ -19,6 +19,7 @@
 from __future__ import print_function
 import argparse
 import sys
+import os
 from TwitterFeed import TwitterRead
 import unicodecsv
 import string

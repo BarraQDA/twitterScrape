@@ -19,7 +19,8 @@
 from __future__ import print_function
 import argparse
 from TwitterFeed import TwitterRead, TwitterWrite
-import sys, os
+import sys
+import os
 from dateutil import parser as dateparser
 import datetime
 import shutil
