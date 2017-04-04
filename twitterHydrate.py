@@ -99,7 +99,8 @@ def twitterHydrate(arglist):
         api = twitter.Api(
                     consumer_key=args.consumer_key,
                     consumer_secret=args.consumer_secret,
-                    application_only_auth=True
+                    application_only_auth=True,
+                    sleep_on_rate_limit=True
             )
     else:
         if not all([args.access_token_key, args.access_token_secret]):
