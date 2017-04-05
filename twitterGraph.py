@@ -29,10 +29,11 @@ def twitterGraph(arglist):
 
     parser.add_argument('-v', '--verbosity', type=int, default=1)
 
-    parser.add_argument('-l', '--limit', type=int, help='Limit number of tweets to process')
+    parser.add_argument('-l', '--limit', type=int, help='Limit number of edges to process')
+    parser.add_argument('-t',  '--threshold', type=float, help='Threshold score for pair to be included')
 
-    parser.add_argument('--directed',  type=bool, default=False,  help='Directed graph edges')
-    parser.add_argument('--loops',     type=bool, default=False, help='Show loops')
+    parser.add_argument('--directed',  action='store_true', help='Directed graph edges')
+    parser.add_argument('--loops',     action='store_true', help='Show loops')
 
     parser.add_argument('--margin',    type=int, default=0, help='Graph margin')
     parser.add_argument('--width',     type=int, default=600)
@@ -56,31 +57,42 @@ def twitterGraph(arglist):
 
     inreader=unicodecsv.reader(infile)
 
+    if args.verbosity >= 1:
+        print("Loading graph edges.", file=sys.stderr)
+
     nodes = set()
     graph = Graph(directed=args.directed)
     rowcount = 0
     for row in inreader:
         if row[0] == row[1] and not args.loops:
             continue
+        if args.threshold and float(row[2]) < args.threshold:
+            continue
 
         if row[0] not in nodes:
-            graph.add_vertex(row[0], label=row[0])
+            graph.add_vertex(row[0], label=row[0].encode('utf-8'))
             nodes.add(row[0])
         if row[1] not in nodes:
-            graph.add_vertex(row[1], label=row[1])
+            graph.add_vertex(row[1], label=row[1].encode('utf-8'))
             nodes.add(row[1])
         graph.add_edge(row[0], row[1], weight=int(row[2]))
         rowcount += 1
-        if rowcount == args.limit or 0:
+        if args.limit and rowcount == args.limit:
             break
 
     #print(graph.es["weight"])
+    if args.verbosity >= 1:
+        print("Plotting graph with " + str(graph.vcount()) + " vertices and " + str(graph.ecount()) + " edges.", file=sys.stderr)
 
     plot(graph,
         edge_width = rescale([math.log(float(val)) for val in graph.es["weight"]], out_range=(1, 20)),
+        vertex_size = rescale([math.log(float(val)) for val in graph.vs.degree()], out_range=(1, 20)),
+        #vertex_label = [v['label'] if v.degree() > 2 else ' ' for v in graph.vs],
         bbox = (args.width, args.height),
         margin = 100,
-        layout = graph.layout_fruchterman_reingold())
+        layout = graph.layout_fruchterman_reingold(),
+        vertex_label_size=10,
+        vertex_label_dist=0.5)
 
 if __name__ == '__main__':
     twitterGraph(None)
