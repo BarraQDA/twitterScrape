@@ -147,7 +147,7 @@ class TwitterRead(object):
         if filename is None:
             self.file = sys.stdin
         else:
-            self.file = file(filename, 'r')
+            self.file = file(filename, 'rU')
 
         self.since  = since
         self.until  = until
