@@ -231,9 +231,6 @@ def evalscore(" + ','.join(twitterread.fieldnames).replace('-','_') + ", **kwarg
                 row['indexes'] = indexes
                 rows.append(row)
 
-            if args.limit and twitterread.count == args.limit:
-                break
-
     else:
         while True:
             if args.verbosity >= 2:
