@@ -162,9 +162,8 @@ def evalfilter(" + ','.join(twitterread.fieldnames).replace('-','_') + ", **kwar
             batchcount = 0
             while batchcount < args.batch:
                 try:
-                    row = next(twitterread)
+                    rows.append(next(twitterread))
                     batchcount += 1
-                    rows.append(row)
 
                 except StopIteration:
                     break
