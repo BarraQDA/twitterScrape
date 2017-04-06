@@ -29,7 +29,6 @@ import multiprocessing
 import pymp
 import re
 from dateutil import parser as dateparser
-from collections import OrderedDict
 
 def twitterProcess(arglist):
 
@@ -42,16 +41,23 @@ def twitterProcess(arglist):
 
     parser.add_argument('-p', '--prelude',    type=str, nargs="*", help='Python code to execute before processing')
     parser.add_argument('-f', '--filter',     type=str, help='Python expression evaluated to determine whether tweet is included')
+    parser.add_argument('-c', '--column',     type=str, default='text', help='Column to apply regular expression')
+    parser.add_argument('-r', '--regexp',     type=str, help='Regular expression applied to tweet text to create output columns.')
+    parser.add_argument('-i', '--ignorecase', action='store_true', help='Ignore case in regular expression')
+    parser.add_argument(      '--invert',     action='store_true', help='Invert filter, that is, output those tweets that do not pass filter and/or regular expression')
+
     parser.add_argument(      '--since',      type=str, help='Lower bound tweet date.')
     parser.add_argument(      '--until',      type=str, help='Upper bound tweet date.')
     parser.add_argument('-l', '--limit',      type=int, help='Limit number of tweets to process')
 
-    parser.add_argument('-c', '--column',     type=str, help='Comma-separated list of column names.')
-    parser.add_argument('-d', '--data',     type=str, required=True, help='Python code to produce list of lists to output as columns.')
+    parser.add_argument('-C', '--copy',       action='store_true', help='If true, copy all columns from input file.')
+    parser.add_argument('-H', '--header',     type=str, help='Comma-separated list of column names to create.')
+    parser.add_argument('-d', '--data',       type=str, help='Python code to produce list of lists to output as columns.')
 
     parser.add_argument('-o', '--outfile',    type=str, help='Output CSV file, otherwise use stdout.')
+    parser.add_argument(      '--rejfile',    type=str, help='Output CSV file for rejected tweets')
     parser.add_argument('-n', '--number',     type=int, default=0, help='Maximum number of results to output')
-    parser.add_argument('--no-comments',    action='store_true', help='Do not output descriptive comments')
+    parser.add_argument('--no-comments',      action='store_true', help='Do not output descriptive comments')
 
     parser.add_argument('infile', type=str, nargs='?', help='Input CSV file, otherwise use stdin.')
 
@@ -71,13 +77,65 @@ def twitterProcess(arglist):
             print("Executing prelude code.", file=sys.stderr)
 
         exec(os.linesep.join(args.prelude)) in globals()
-        #for line in args.prelude:
-            #exec(line) in globals()
+
+    if args.regexp:
+        if args.ignorecase:
+            regexp = re.compile(args.regexp, re.IGNORECASE | re.UNICODE)
+        else:
+            regexp = re.compile(args.regexp, re.UNICODE)
 
     if args.until:
         args.until = dateparser.parse(args.until).date().isoformat()
     if args.since:
         args.since = dateparser.parse(args.since).date().isoformat()
+
+    twitterread  = TwitterRead(args.infile, since=args.since, until=args.until, limit=args.limit)
+    if args.no_comments:
+        outcomments = None
+        rejcomments = None
+    else:
+        comments = ''
+        comments += '# twitterProcess\n'
+        comments += '#     outfile=' + (args.outfile or '<stdout>') + '\n'
+        if args.rejfile:
+            comments += '#     rejfile=' + args.rejfile + '\n'
+        comments += '#     infile=' + (args.infile or '<stdin>') + '\n'
+        if args.limit:
+            comments += '#     limit=' + str(args.limit) + '\n'
+        if args.prelude:
+            for line in args.prelude:
+                comments += '#     prelude=' + line + '\n'
+        if args.filter:
+            comments += '#     filter=' + args.filter + '\n'
+        if args.invert:
+            comments += '#     invert\n'
+        if args.since:
+            comments += '#     since=' + args.since+ '\n'
+        if args.until:
+            comments += '#     until=' + args.until + '\n'
+        if args.regexp:
+            comments += '#     column=' + args.column+ '\n'
+            comments += '#     regexp=' + args.regexp + '\n'
+        if args.ignorecase:
+            comments += '#     ignorecase\n'
+        if args.header:
+            comments += '#     header=' + args.header + '\n'
+        if args.data:
+            comments += '#     data=' + args.data + '\n'
+        if args.number:
+            comments += '#     number=' + str(args.number) + '\n'
+
+        if args.outfile:
+            outcomments = (' ' + args.outfile + ' ').center(80, '#') + '\n'
+        else:
+            outcomments = '#' * 80 + '\n'
+
+        outcomments += comments + twitterread.comments
+
+        if args.rejfile:
+            rejcomments = (' ' + args.rejfile + ' ').center(80, '#') + '\n'
+            rejcomments += comments + twitterread.comments
+
 
     if args.outfile is None:
         outfile = sys.stdout
@@ -87,46 +145,32 @@ def twitterProcess(arglist):
 
         outfile = file(args.outfile, 'w')
 
-    twitterread  = TwitterRead(args.infile, since=args.since, until=args.until, limit=args.limit)
-    if not args.no_comments:
-        comments = ''
-        if args.outfile:
-            comments += (' ' + args.outfile + ' ').center(80, '#') + '\n'
-        else:
-            comments += '#' * 80 + '\n'
+    outfile.write(outcomments)
 
-        comments += '# twitterProcess\n'
-        comments += '#     outfile=' + (args.outfile or '<stdout>') + '\n'
-        comments += '#     infile=' + (args.infile or '<stdin>') + '\n'
-        if args.limit:
-            comments += '#     limit=' + str(args.limit) + '\n'
-        if args.prelude:
-            for line in args.prelude:
-                comments += '#     prelude=' + line + '\n'
-        if args.filter:
-            comments += '#     filter=' + args.filter + '\n'
-        if args.since:
-            comments += '#     since=' + args.since+ '\n'
-        if args.until:
-            comments += '#     until=' + args.until + '\n'
-        if args.column:
-            comments += '#     column=' + args.column + '\n'
-        comments += '#     data=' + args.data + '\n'
-        if args.number:
-            comments += '#     number=' + str(args.number) + '\n'
+    if args.rejfile:
+        if os.path.exists(args.rejfile):
+            shutil.move(args.rejfile, args.rejfile + '.bak')
 
-        outfile.write(comments + twitterread.comments)
+        rejfile = file(args.rejfile, 'w')
+        rejfile.write(rejcomments)
 
-    if args.column:
-        outunicodecsv=unicodecsv.writer(outfile, lineterminator=os.linesep)
-        outunicodecsv.writerow(args.column.split(','))
+    # Check either copy or header/data are specified
+    if args.copy == args.header or args.header != args.data:
+        raise RuntimeError("You must specify either --copy or both --header and --data")
+
+    outcsv=unicodecsv.writer(outfile, lineterminator=os.linesep)
+    outcsv.writerow(args.header.split(',') if args.header else twitterread.fieldnames)
+    if args.rejfile:
+        rejcsv=unicodecsv.writer(rejfile, lineterminator=os.linesep)
+        rejcsv.writerow(args.header.split(',') if args.header else twitterread.fieldnames)
 
     if args.filter:
-            exec "\
+        exec "\
 def evalfilter(" + ','.join(twitterread.fieldnames).replace('-','_') + ", **kwargs):\n\
     return " + args.filter
 
-    exec "\
+    if args.data:
+        exec "\
 def evalcolumn(" + ','.join(twitterread.fieldnames).replace('-','_') + ", **kwargs):\n\
     return " + args.data
 
@@ -134,33 +178,42 @@ def evalcolumn(" + ','.join(twitterread.fieldnames).replace('-','_') + ", **kwar
         print("Loading twitter data.", file=sys.stderr)
 
     outrowcount = 0
+    rejrowcount = 0
     # NB Code for single- and multi-threaded processing is separate
     if args.jobs == 1:
-        while True:
-            try:
-                while True:
-                    row = next(twitterread)
-                    rowargs = {key.replace('-','_'): value for key, value in row.iteritems()}
-                    if args.filter:
-                        if evalfilter(**rowargs):
-                            break
-                    else:
-                        break
+        for row in twitterread:
+            keep = True
+            rowargs = {key.replace('-','_'): value for key, value in row.iteritems()}
+            if args.filter:
+                keep = (evalfilter(**rowargs) or False) and keep
 
-            except StopIteration:
-                break
+            if args.regexp:
+                keep = keep and (regexp.search(unicode(row[args.column])) or False)
 
-            outrows = evalcolumn(**rowargs)
+            if keep == args.invert and not args.rejfile:
+                continue
+
+            if args.copy:
+                outrows = [[row[key] for key in twitterread.fieldnames]]
+            else:
+                outrows = evalcolumn(**rowargs)
+
             for outrow in outrows:
-                outunicodecsv.writerow(outrow)
-                outrowcount += 1
-                if args.number and outrowcount == args.number:
-                    break
+                if keep != args.invert:
+                    outcsv.writerow(outrow)
+                    outrowcount += 1
+                    if args.number and outrowcount == args.number:
+                        break
+                else:
+                    rejcsv.writerow(outrow)
+                    rejrowcount += 1
 
             if args.number and outrowcount == args.number:
                 break
 
         outfile.close()
+        if args.rejfile:
+            rejfile.close()
     else:
         while True:
             if args.verbosity >= 2:
@@ -183,23 +236,41 @@ def evalcolumn(" + ','.join(twitterread.fieldnames).replace('-','_') + ", **kwar
 
             rowcount = len(rows)
             results = pymp.shared.list()
+            if args.rejfile:
+                rejects = pymp.shared.list()
             with pymp.Parallel(args.jobs) as p:
                 result = {}
+                if args.rejfile:
+                    reject = {}
                 for rowindex in p.range(0, rowcount):
                     row = rows[rowindex]
                     rowargs = {key.replace('-','_'): value for key, value in row.iteritems()}
+                    keep = True
                     if args.filter:
-                        if not evalfilter(**rowargs):
-                            continue
+                        keep = (evalfilter(**rowargs) or False) and keep
+                    if args.regexp:
+                        keep = keep and (regexp.search(unicode(row[args.column])) or False)
 
-                    outrows = evalcolumn(**rowargs)
-                    result[row['id']] = outrows
+                    if keep == args.invert and not args.rejfile:
+                        continue
+
+                    if args.copy:
+                        outrows = [[row[key] for key in twitterread.fieldnames]]
+                    else:
+                        outrows = evalcolumn(**rowargs)
+
+                    if keep != args.invert:
+                        result[row['id']] = outrows
+                    else:
+                        reject[row['id']] = outrows
 
                 if args.verbosity >= 2:
                     print("Thread " + str(p.thread_num) + " returned " + str(len(result)) + " results.", file=sys.stderr)
 
                 with p.lock:
                     results.append(result)
+                    if args.rejfile:
+                        rejects.append(reject)
 
             if args.verbosity >= 2:
                 print("Merging batch.", file=sys.stderr)
@@ -207,23 +278,34 @@ def evalcolumn(" + ','.join(twitterread.fieldnames).replace('-','_') + ", **kwar
             mergedresult = {}
             for result in results:
                 mergedresult.update(result)
-                #for index in result:
-                    #mergedresult[index] = result[index]
+
+            if args.rejfile:
+                mergedreject = {}
+                for reject in rejects:
+                    mergedreject.update(reject)
 
             if args.verbosity >= 2:
                 print("Outputting batch.", file=sys.stderr)
 
+            endindex = None
             for index in sorted(mergedresult.keys(), reverse=True):
-                outrows = mergedresult[index]
-
-                for outrow in outrows:
-                    outunicodecsv.writerow(outrow)
+                for outrow in mergedresult[index]:
+                    outcsv.writerow(outrow)
                     outrowcount += 1
                     if args.number and outrowcount == args.number:
                         break
 
                 if args.number and outrowcount == args.number:
+                    endindex = index
                     break
+
+            if args.rejfile:
+                for index in sorted(mergedreject.keys(), reverse=True):
+                    if index < endindex:
+                        break
+
+                    for outrow in mergedreject[index]:
+                        rejcsv.writerow(outrow)
 
             if args.number and outrowcount == args.number:
                 break
