@@ -191,8 +191,8 @@ def twitterSearch(arglist):
                     'favorites': tweet.favorite_count,
                     'lang': tweet.lang,
                     'geo': tweet.geo,
-                    'mentions': u' '.join([u'@'+user.screen_name for user    in tweet.user_mentions]),
-                    'hashtags': u' '.join([u'#'+hashtag.text     for hashtag in tweet.hashtags]),
+                    'mentions': u' '.join([user.screen_name for user    in tweet.user_mentions]),
+                    'hashtags': u' '.join([hashtag.text     for hashtag in tweet.hashtags]),
                     'user-id': tweet.user.id,
                     'id': tweet.id_str,
                 })
