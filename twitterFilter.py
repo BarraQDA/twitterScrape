@@ -18,19 +18,24 @@
 
 from __future__ import print_function
 import argparse
-from TwitterFeed import TwitterRead, TwitterWrite
 import sys
+from TwitterFeed import TwitterRead
+import os
+import shutil
+import unicodecsv
 import string
+import unicodedata
+import multiprocessing
 import pymp
-from dateutil import parser as dateparser
 import re
+from dateutil import parser as dateparser
 
 def twitterFilter(arglist):
 
-    parser = argparse.ArgumentParser(description='Filter twitter CSV file using regular or python expression.',
+    parser = argparse.ArgumentParser(description='Twitter CSV file processor.',
                                      fromfile_prefix_chars='@')
 
-    parser.add_argument('-v', '--verbosity', type=int, default=1)
+    parser.add_argument('-v', '--verbosity',  type=int, default=1)
     parser.add_argument('-j', '--jobs',       type=int, help='Number of parallel tasks, default is number of CPUs. May affect performance but not results.')
     parser.add_argument('-b', '--batch',      type=int, default=100000, help='Number of tweets to process per batch. Use to limit memory usage with very large files. May affect performance but not results.')
 
@@ -45,17 +50,20 @@ def twitterFilter(arglist):
     parser.add_argument(      '--until',      type=str, help='Upper bound tweet date.')
     parser.add_argument('-l', '--limit',      type=int, help='Limit number of tweets to process')
 
-    parser.add_argument('-o', '--outfile', type=str, help='Output CSV file, otherwise use stdout')
-    parser.add_argument(      '--rejfile',  type=str, help='Output CSV file for rejected tweets')
-    parser.add_argument('-n', '--number',  type=int, default=0, help='Maximum number of results to output')
-    parser.add_argument('--no-comments',   action='store_true', help='Do not output descriptive comments')
+    parser.add_argument('-C', '--copy',       action='store_true', help='If true, copy all columns from input file.')
+    parser.add_argument('-H', '--header',     type=str, help='Comma-separated list of column names to create.')
+    parser.add_argument('-d', '--data',       type=str, help='Python code to produce list of lists to output as columns.')
 
-    parser.add_argument('infile', type=str, nargs='?', help='Input CSV file, otherwise use stdin')
+    parser.add_argument('-o', '--outfile',    type=str, help='Output CSV file, otherwise use stdout.')
+    parser.add_argument(      '--rejfile',    type=str, help='Output CSV file for rejected tweets')
+    parser.add_argument('-n', '--number',     type=int, default=0, help='Maximum number of results to output')
+    parser.add_argument('--no-comments',      action='store_true', help='Do not output descriptive comments')
+
+    parser.add_argument('infile', type=str, nargs='?', help='Input CSV file, otherwise use stdin.')
 
     args = parser.parse_args(arglist)
 
     if args.jobs is None:
-        import multiprocessing
         args.jobs = multiprocessing.cpu_count()
 
     if args.verbosity >= 1:
@@ -68,8 +76,7 @@ def twitterFilter(arglist):
         if args.verbosity >= 1:
             print("Executing prelude code.", file=sys.stderr)
 
-        for line in args.prelude:
-            exec(line) in globals()
+        exec(os.linesep.join(args.prelude)) in globals()
 
     if args.regexp:
         if args.ignorecase:
@@ -77,31 +84,39 @@ def twitterFilter(arglist):
         else:
             regexp = re.compile(args.regexp, re.UNICODE)
 
-    # Parse since and until dates
     if args.until:
         args.until = dateparser.parse(args.until).date().isoformat()
     if args.since:
         args.since = dateparser.parse(args.since).date().isoformat()
 
     twitterread  = TwitterRead(args.infile, since=args.since, until=args.until, limit=args.limit)
-    if args.no_comments:
-        comments = None
+
+    if args.outfile is None:
+        outfile = sys.stdout
     else:
-        if args.outfile:
-            outcomments = (' ' + args.outfile + ' ').center(80, '#') + '\n'
-        else:
-            outcomments = '#' * 80 + '\n'
+        if os.path.exists(args.outfile):
+            shutil.move(args.outfile, args.outfile + '.bak')
 
-        if args.rejfile:
-            rejcomments = (' ' + args.rejfile + ' ').center(80, '#') + '\n'
+        outfile = file(args.outfile, 'w')
 
+    if args.rejfile:
+        if os.path.exists(args.rejfile):
+            shutil.move(args.rejfile, args.rejfile + '.bak')
+
+        rejfile = file(args.rejfile, 'w')
+
+    if args.no_comments:
+        outcomments = None
+        rejcomments = None
+    else:
         comments = ''
-
         comments += '# twitterFilter\n'
         comments += '#     outfile=' + (args.outfile or '<stdout>') + '\n'
         if args.rejfile:
             comments += '#     rejfile=' + args.rejfile + '\n'
         comments += '#     infile=' + (args.infile or '<stdin>') + '\n'
+        if args.limit:
+            comments += '#     limit=' + str(args.limit) + '\n'
         if args.prelude:
             for line in args.prelude:
                 comments += '#     prelude=' + line + '\n'
@@ -118,45 +133,90 @@ def twitterFilter(arglist):
             comments += '#     regexp=' + args.regexp + '\n'
         if args.ignorecase:
             comments += '#     ignorecase\n'
-        if args.limit:
-            comments += '#     limit=' + str(args.limit) + '\n'
+        if args.header:
+            comments += '#     header=' + args.header + '\n'
+        if args.data:
+            comments += '#     data=' + args.data + '\n'
         if args.number:
             comments += '#     number=' + str(args.number) + '\n'
 
-        comments += twitterread.comments
+        if args.outfile:
+            outcomments = (' ' + args.outfile + ' ').center(80, '#') + '\n'
+        else:
+            outcomments = '#' * 80 + '\n'
+
+        outcomments += comments + twitterread.comments
+        outfile.write(outcomments)
+
+        if args.rejfile:
+            rejcomments = (' ' + args.rejfile + ' ').center(80, '#') + '\n'
+            rejcomments += comments + twitterread.comments
+            rejfile.write(rejcomments)
+
+    # Check either copy or header/data are specified
+    if args.copy == bool(args.header) or bool(args.header) != bool(args.data):
+        raise RuntimeError("You must specify either --copy or both --header and --data")
+
+    outcsv=unicodecsv.writer(outfile, lineterminator=os.linesep)
+    outcsv.writerow(args.header.split(',') if args.header else twitterread.fieldnames)
+    if args.rejfile:
+        rejcsv=unicodecsv.writer(rejfile, lineterminator=os.linesep)
+        rejcsv.writerow(args.header.split(',') if args.header else twitterread.fieldnames)
 
     if args.filter:
         exec "\
 def evalfilter(" + ','.join(twitterread.fieldnames).replace('-','_') + ", **kwargs):\n\
     return " + args.filter
 
-    twitterwrite = TwitterWrite(args.outfile, comments=outcomments+comments, fieldnames=twitterread.fieldnames)
-    if args.rejfile:
-        rejectwrite = TwitterWrite(args.rejfile, comments=rejcomments+comments, fieldnames=twitterread.fieldnames)
+    if args.data:
+        exec "\
+def evalcolumn(" + ','.join(twitterread.fieldnames).replace('-','_') + ", **kwargs):\n\
+    return " + args.data
 
     if args.verbosity >= 1:
         print("Loading twitter data.", file=sys.stderr)
 
+    outrowcount = 0
+    rejrowcount = 0
+    # NB Code for single- and multi-threaded processing is separate
     if args.jobs == 1:
         for row in twitterread:
             keep = True
+            rowargs = {key.replace('-','_'): value for key, value in row.iteritems()}
             if args.filter:
-                rowargs = {key.replace('-','_'): value for key, value in row.iteritems()}
                 keep = (evalfilter(**rowargs) or False) and keep
+
             if args.regexp:
-                keep = (regexp.search(unicode(row[args.column])) or False) and keep
+                keep = keep and (regexp.search(unicode(row[args.column])) or False)
 
-            if keep != args.invert:
-                twitterwrite.write(row)
-            elif args.rejfile:
-                rejectwrite.write(row)
+            if keep == args.invert and not args.rejfile:
+                continue
 
-            if args.number and twitterwrite.count == args.number:
+            if args.copy:
+                outrows = [[row[key] for key in twitterread.fieldnames]]
+            else:
+                outrows = evalcolumn(**rowargs)
+
+            for outrow in outrows:
+                if keep != args.invert:
+                    outcsv.writerow(outrow)
+                    outrowcount += 1
+                    if args.number and outrowcount == args.number:
+                        break
+                else:
+                    rejcsv.writerow(outrow)
+                    rejrowcount += 1
+
+            if args.number and outrowcount == args.number:
                 break
+
+        outfile.close()
+        if args.rejfile:
+            rejfile.close()
     else:
         while True:
             if args.verbosity >= 2:
-                print("Loading twitter batch.", file=sys.stderr)
+                print("Loading batch.", file=sys.stderr)
 
             rows = []
             batchcount = 0
@@ -164,7 +224,6 @@ def evalfilter(" + ','.join(twitterread.fieldnames).replace('-','_') + ", **kwar
                 try:
                     rows.append(next(twitterread))
                     batchcount += 1
-
                 except StopIteration:
                     break
 
@@ -172,30 +231,40 @@ def evalfilter(" + ','.join(twitterread.fieldnames).replace('-','_') + ", **kwar
                 break
 
             if args.verbosity >= 2:
-                print("Processing twitter batch.", file=sys.stderr)
+                print("Processing batch.", file=sys.stderr)
 
             rowcount = len(rows)
             results = pymp.shared.list()
             if args.rejfile:
                 rejects = pymp.shared.list()
             with pymp.Parallel(args.jobs) as p:
-                result = []
+                result = {}
                 if args.rejfile:
-                    reject = []
+                    reject = {}
                 for rowindex in p.range(0, rowcount):
                     row = rows[rowindex]
+                    rowargs = {key.replace('-','_'): value for key, value in row.iteritems()}
                     keep = True
                     if args.filter:
-                        rowargs = {key.replace('-','_'): value for key, value in row.iteritems()}
                         keep = (evalfilter(**rowargs) or False) and keep
                     if args.regexp:
-                        keep = (regexp.search(unicode(row[args.column])) or False) and keep
+                        keep = keep and (regexp.search(unicode(row[args.column])) or False)
 
-                    row['keep'] = keep
+                    if keep == args.invert and not args.rejfile:
+                        continue
+
+                    if args.copy:
+                        outrows = [[row[key] for key in twitterread.fieldnames]]
+                    else:
+                        outrows = evalcolumn(**rowargs)
+
                     if keep != args.invert:
-                        result.append(row)
-                    elif args.rejfile:
-                        reject.append(row)
+                        result[row['id']] = outrows
+                    else:
+                        reject[row['id']] = outrows
+
+                if args.verbosity >= 2:
+                    print("Thread " + str(p.thread_num) + " returned " + str(len(result)) + " results.", file=sys.stderr)
 
                 with p.lock:
                     results.append(result)
@@ -203,38 +272,44 @@ def evalfilter(" + ','.join(twitterread.fieldnames).replace('-','_') + ", **kwar
                         rejects.append(reject)
 
             if args.verbosity >= 2:
-                print("Merging twitter batch.", file=sys.stderr)
+                print("Merging batch.", file=sys.stderr)
 
-            mergedresult = []
+            mergedresult = {}
             for result in results:
-                mergedresult += result
+                mergedresult.update(result)
 
-            sortedresult = sorted(mergedresult,
-                                key=lambda item: item['id'],
-                                reverse=True)
-            for row in sortedresult:
-                twitterwrite.write(row)
-                if args.number and twitterwrite.count == args.number:
+            if args.rejfile:
+                mergedreject = {}
+                for reject in rejects:
+                    mergedreject.update(reject)
+
+            if args.verbosity >= 2:
+                print("Outputting batch.", file=sys.stderr)
+
+            endindex = None
+            for index in sorted(mergedresult.keys(), reverse=True):
+                for outrow in mergedresult[index]:
+                    outcsv.writerow(outrow)
+                    outrowcount += 1
+                    if args.number and outrowcount == args.number:
+                        break
+
+                if args.number and outrowcount == args.number:
+                    endindex = index
                     break
 
             if args.rejfile:
-                mergedreject = []
-                for reject in rejects:
-                    mergedreject += reject
+                for index in sorted(mergedreject.keys(), reverse=True):
+                    if index < endindex:
+                        break
 
-                sortedreject = sorted(mergedreject,
-                                    key=lambda item: item['id'],
-                                    reverse=True)
-                for row in sortedreject:
-                    rejectwrite.write(row)
+                    for outrow in mergedreject[index]:
+                        rejcsv.writerow(outrow)
 
-            if args.number and twitterwrite.count == args.number:
+            if args.number and outrowcount == args.number:
                 break
 
-    if args.verbosity >= 1:
-        print(str(twitterwrite.count) + " rows kept, " + str(twitterread.count - twitterwrite.count) + " rows dropped.", file=sys.stderr)
-
-    del twitterwrite
+        outfile.close()
 
 if __name__ == '__main__':
     twitterFilter(None)
