@@ -310,6 +310,8 @@ def evalcolumn(" + ','.join(twitterread.fieldnames).replace('-','_') + ", **kwar
                 break
 
         outfile.close()
+        if args.rejfile:
+            rejfile.close()
 
 if __name__ == '__main__':
     twitterFilter(None)
