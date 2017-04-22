@@ -24,18 +24,16 @@ parser <- ArgumentParser(description='Visualise a dynamic network from a CSV fil
 
 parser$add_argument('-v', '--verbosity',  type="integer", default=1)
 
-parser$add_argument('-p', '--prelude',    type="character", nargs="*", help='Python code to execute before processing')
-parser$add_argument('-w', '--weight',      type="character", default='1', help='Python expression(s) to evaluate tweet weight, for example "1 + retweets + favorites"')
-
 parser$add_argument(      '--since',      type="character", help='Lower bound tweet date.')
 parser$add_argument(      '--until',      type="character", help='Upper bound tweet date.')
 parser$add_argument('-l', '--limit',      type="integer", help='Limit number of tweets to process')
 
+parser$add_argument('-d', '--duration', type="character", required=TRUE,
+                    help='Network aggregation duration. Format is "<w>w <d>d <h>h <m>m <s>s"')
 parser$add_argument('-i', '--interval',   type="character", required=TRUE,
-                    help='Interval for node/edge persistence. Format is "<w>w <d>d <h>h <m>m <s>s"')
+                    help='Interval for node/edge interval. Format is "<w>w <d>d <h>h <m>m <s>s"')
 
-parser$add_argument('-on', '--outnodefile',    type="character", help='Output CSV file for nodes.')
-parser$add_argument('-oe', '--outedgefile',    type="character", help='Output CSV file for edges.')
+parser$add_argument('-o', '--outfile',    type="character", required=TRUE, help='Output HTML file.')
 
 parser$add_argument('infile', type="character", nargs='?', help='Input CSV file, otherwise use stdin.')
 
@@ -51,16 +49,23 @@ if (! is.null(args$since)) {
 } else {
     since <- 0
 }
-match <- regexpr('(?:(?<weeks>[\\d]+)\\s*w)?\\s*(?:(?<days>[\\d]+)\\s*d)?\\s*(?:(?<hours>[\\d]+)\\s*h)?\\s*(?:(?<mins>[\\d]+)\\s*m)?\\s*(?:(?<secs>[\\d]+)\\s*s)?', args$interval, ignore.case=TRUE, perl=TRUE)
-interval=as.difftime(0, unit="secs")
-for (.name in attr(match, 'capture.name')) {
-    thisinterval <- as.difftime(as.numeric(substr(args$interval,
-                                   attr(match, 'capture.start')[,.name],
-                                   attr(match, 'capture.start')[,.name] + attr(match, 'capture.length')[,.name] - 1)),
-                            unit=.name)
-    if (! is.na(thisinterval) )
-        interval <- interval + thisinterval
+
+parsetimediff <- function(td) {
+    match <- regexpr('(?:(?<weeks>[\\d]+)\\s*w)?\\s*(?:(?<days>[\\d]+)\\s*d)?\\s*(?:(?<hours>[\\d]+)\\s*h)?\\s*(?:(?<mins>[\\d]+)\\s*m)?\\s*(?:(?<secs>[\\d]+)\\s*s)?', td, ignore.case=TRUE, perl=TRUE)
+    result <- as.difftime(0, unit="secs")
+    for (.name in attr(match, 'capture.name')) {
+        thisresult <- as.difftime(as.numeric(substr(td,
+                                    attr(match, 'capture.start')[,.name],
+                                    attr(match, 'capture.start')[,.name] + attr(match, 'capture.length')[,.name] - 1)),
+                                unit=.name)
+        if (! is.na(thisresult) )
+            result <- result + thisresult
+    }
+    return (as.numeric(result, units="secs"))
 }
+
+duration <- parsetimediff(args$duration)
+interval <- parsetimediff(args$interval)
 
 if (is.null(args$infile))
     args$infile = 'stdin'
@@ -81,31 +86,52 @@ twitterread <- read.csv(infile, header=T, colClasses="character")
 twitterread$ts <- as.integer(as.POSIXct(strptime(twitterread$date, "%Y-%m-%dT%H:%M:%S", tz="UTC")))
 
 twitterread <- twitterread[twitterread$ts >= since & twitterread$ts < until,]
+twitterread$user <- tolower(twitterread$user)
+twitterread$mentions <- tolower(twitterread$mentions)
+twitterread$reply.to.user <- tolower(twitterread$reply.to.user)
 
-twitterread$mentionlist <- strsplit(twitterread$mentions, " ", fixed=TRUE)
-twitterread$userlist <- ifelse(twitterread$mentions == "", "", strsplit(paste(twitterread$user, twitterread$mentions), " ", fixed=TRUE))
+twitterread$linklist <- strsplit(paste(twitterread$mentions, twitterread$reply.to.user), " ", fixed=TRUE)
+
+twitterread <- twitterread[twitterread$linklist != "",]
+twitterread$userlist <- strsplit(paste(twitterread$user, twitterread$mentions, twitterread$reply.to.user), " ", fixed=TRUE)
 
 uniqueusers <- unique(unlist(twitterread$userlist))
 uniqueusers <- uniqueusers[uniqueusers != ""]
 
-edges <- rbindlist(apply(twitterread, MARGIN=1, function(x) expand.grid(source=which(uniqueusers == x$user), target=which(uniqueusers == x$mentionlist), onset=x$ts, terminus=x$ts + as.integer(interval))))
+edges <- data.frame(rbindlist(apply(twitterread, MARGIN=1, function(x) expand.grid(from=x$user, to=unique(x$linklist), text=x$text, weight=1))))
+
+# Code below generates numeric node ids
+# edges <- rbindlist(apply(twitterread, MARGIN=1, function(x) expand.grid(source=which(uniqueusers == x$user), target=as.integer(lapply(x$linklist, function(y) which(uniqueusers == y))), onset=x$ts, terminus=x$ts)))
 
 times<-rbindlist(apply(twitterread,MARGIN=1,function(x) expand.grid(user=x$userlist, ts=x$ts)))
 times <- times[times$user != ""]
-vertices <- data.frame(onset=sapply(uniqueusers, function(x) min(times[times$user == x,]$ts)), terminus=sapply(uniqueusers, function(x) max(times[times$user == x,]$ts) + as.integer(interval)), id=1:length(uniqueusers))
 
-net <- network(edges, loops=F, multiple=F, ignore.eval = F)
+vertices <- data.frame(id=uniqueusers, stringsAsFactors = FALSE)
 
-edgesdyn <- data.frame(onset=edges$onset, terminus=edges$terminus, source=edges$source, target=edges$target)
-verticesdyn <- data.frame(onset=vertices$onset, terminus=vertices$terminus, id=vertices$id)
+net <- network(edges, vertex.attr=vertices, matrix.type="edgelist", loops=F, multiple=F, ignore.eval = F)
 
-print(vertices)
-print(edgesdyn)
+netusers <- get.vertex.attribute(net,"vertex.names")
 
-net.dyn<-networkDynamic(base.net=net, edge.spells=edgesdyn, vertex.spells=verticesdyn, interval=86400)
+edgesdyn <- rbindlist(apply(twitterread, MARGIN=1, function(x) expand.grid(onset=x$ts, terminus=x$ts, source=which(netusers == x$user), target=as.integer(lapply(x$linklist, function(y) which(netusers == y))))))
+
+verticesdyn <- data.frame(onset=sapply(netusers, function(x) min(times[times$user == x,]$ts)), terminus=sapply(netusers, function(x) max(times[times$user == x,]$ts)), id=1:length(netusers), stringsAsFactors = FALSE)
+
+net.dyn<-networkDynamic(base.net=net, edge.spells=edgesdyn, vertex.spells=verticesdyn, interval=interval)
 
 start <- min(twitterread$ts)
 end   <- max(twitterread$ts)
 
-compute.animation(net.dyn, animation.mode = "MDSJ", slice.par=list(start=start,end=end,interval=86400, aggregate.dur=1, rule='any'))
-render.d3movie(net.dyn, filename="twitterDynamicNetwork.html")
+compute.animation(net.dyn, animation.mode = "MDSJ",
+#                   weight.attr="activity.count",
+                  slice.par=list(start=start,end=end,interval=interval,
+                  aggregate.dur=duration, rule='latest'))
+render.d3movie(net.dyn,
+               filename=args$outfile,
+               animationDuration=100,
+               vertex.cex=degree(net.dyn),
+               vertex.tooltip = paste0("<a href=\"https://twitter.com/", (net.dyn %v% "id"), "\" target=\"_blank\">", (net %v% "id"), "</a>"),
+               edge.lwd = (net.dyn %e% "weight"),
+               edge.tooltip = paste0((net.dyn %e% "text"))
+              )
+
+#warnings()
