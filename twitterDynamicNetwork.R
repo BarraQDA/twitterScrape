@@ -19,6 +19,7 @@ library('argparse')
 library('data.table')
 library('network')
 library('ndtv')
+library('plotrix')
 
 parser <- ArgumentParser(description='Visualise a dynamic network from a CSV file')
 
@@ -90,7 +91,8 @@ twitterread$user <- tolower(twitterread$user)
 twitterread$mentions <- tolower(twitterread$mentions)
 twitterread$reply.to.user <- tolower(twitterread$reply.to.user)
 
-twitterread$linklist <- strsplit(paste(twitterread$mentions, twitterread$reply.to.user), " ", fixed=TRUE)
+linklist <- strsplit(paste(twitterread$mentions, twitterread$reply.to.user), " ", fixed=TRUE)
+twitterread$linklist <- linklist
 
 twitterread <- twitterread[twitterread$linklist != "",]
 twitterread$userlist <- strsplit(paste(twitterread$user, twitterread$mentions, twitterread$reply.to.user), " ", fixed=TRUE)
@@ -122,16 +124,27 @@ start <- min(twitterread$ts)
 end   <- max(twitterread$ts)
 
 compute.animation(net.dyn, animation.mode = "MDSJ",
-#                   weight.attr="activity.count",
+                  weight.attr="activity.count",
                   slice.par=list(start=start,end=end,interval=interval,
-                  aggregate.dur=duration, rule='latest'))
-render.d3movie(net.dyn,
-               filename=args$outfile,
-               animationDuration=100,
-               vertex.cex=degree(net.dyn),
-               vertex.tooltip = paste0("<a href=\"https://twitter.com/", (net.dyn %v% "id"), "\" target=\"_blank\">", (net %v% "id"), "</a>"),
-               edge.lwd = (net.dyn %e% "weight"),
-               edge.tooltip = paste0((net.dyn %e% "text"))
-              )
+                  aggregate.dur=duration, rule='any'))
 
+if (endsWith(args$outfile, "html")) {
+    render.d3movie(net.dyn,
+                   filename=args$outfile,
+                   displaylabels=FALSE,
+                   animationDuration=100,
+                   vertex.cex=rescale(degree(net.dyn), c(1,10)),
+                   vertex.tooltip = paste0("<a href=\"https://twitter.com/", (net.dyn %v% "id"), "\" target=\"_blank\">", (net %v% "id"), "</a>"),
+                   edge.lwd = (net.dyn %e% "weight"),
+                   edge.tooltip = paste0((net.dyn %e% "text")))
+} else {
+    saveVideo(render.animation(net.dyn,
+                               displaylabels=FALSE,
+                               animationDuration=100,
+#                                vertex.cex=degree(net.dyn),
+                               vertex.tooltip = paste0("<a href=\"https://twitter.com/", (net.dyn %v% "id"), "\" target=\"_blank\">", (net %v% "id"), "</a>"),
+                               edge.lwd = (net.dyn %e% "weight"),
+                               edge.tooltip = paste0((net.dyn %e% "text"))),
+              video.name=args$outfile)
+}
 #warnings()
