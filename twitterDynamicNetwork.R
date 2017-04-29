@@ -125,8 +125,9 @@ twitterDynamicNetwork <- function(arglist) {
                     terminus=x$ts, 
                     source=which(netusers == x$user), 
                     target=as.integer(lapply(x$linklist, function(y) which(netusers == y))),
-                    tail=which(netusers == x$user),
-                    head=which(netusers == x$linklist))))
+                    tail=which(netusers == x$user)
+#                    head=which(netusers == x$linklist)
+                )))
     
     verticesdyn <- rbindlist(apply(twitterread, MARGIN=1, function(x) expand.grid(onset=x$ts, terminus=x$ts, id=as.integer(lapply(x$userlist, function(y) which(netusers == y))))))
     
@@ -157,7 +158,7 @@ twitterDynamicNetwork <- function(arglist) {
     
     edgelabel = function(slice) {
         d<-get.dyads.active(slice, onset=-Inf, terminus=Inf)
-        net.dyn 
+        #net.dyn 
 
     }
 
@@ -169,7 +170,7 @@ twitterDynamicNetwork <- function(arglist) {
     #                    vertex.cex=rescale(degree(net.dyn), c(1,10)),
                        vertex.tooltip = paste0("<a href=\"https://twitter.com/", (net.dyn %v% "id"), "\" target=\"_blank\">", (net.dyn %v% "id"), "</a>"),
     #                   edge.lwd = (net.dyn %e% "weight"),
-                       edge.label=edgelabel,
+    #                   edge.label=edgelabel,
                        edge.tooltip = paste0((net.dyn %e% "text")))
     } else {
         saveVideo(render.animation(net.dyn,
@@ -181,8 +182,8 @@ twitterDynamicNetwork <- function(arglist) {
                                    edge.tooltip = paste0((net.dyn %e% "text"))),
                   video.name=args$outfile)
     }
-    #warnings()
 }
 
 if (! interactive())
     twitterDynamicNetwork(commandArgs(trailingOnly = T))
+    warnings()
