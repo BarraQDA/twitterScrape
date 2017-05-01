@@ -226,7 +226,7 @@ class TwitterRead(object):
         return row
 
 class TwitterWrite(object):
-    def __init__(self, filename, comments=None, fieldnames=None):
+    def __init__(self, filename, comments=None, fieldnames=None, header=True):
         if filename is None:
             self.file = sys.stdout
         else:
@@ -243,7 +243,8 @@ class TwitterWrite(object):
 
         self.csvwriter = unicodecsv.DictWriter(self.file, fieldnames=fieldnames,
                                                extrasaction='ignore', lineterminator=os.linesep)
-        self.csvwriter.writeheader()
+        if header:
+            self.csvwriter.writeheader()
 
         self.count = 0
         self.filename = filename
