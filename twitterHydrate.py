@@ -56,6 +56,7 @@ def twitterHydrate(arglist):
     parser.add_argument('-o', '--outfile', type=str, help='Output CSV file, otherwise use stdout')
     parser.add_argument('--overwrite',     action='store_true', help='Overwrite input fields with hydrated data')
     parser.add_argument('--no-comments',   action='store_true', help='Do not output descriptive comments')
+    parser.add_argument('--no-header',     action='store_true', help='Do not output CSV header with column names')
 
     parser.add_argument('infile', type=str, nargs='?', help='Input CSV file, otherwise use stdin')
 
@@ -136,7 +137,7 @@ def twitterHydrate(arglist):
 
     fieldnames = twitterread.fieldnames + list({'user', 'date', 'text', 'replies', 'retweets', 'favorites', 'reply-to', 'reply-to-user', 'reply-to-user-id', 'lang', 'geo', 'mentions', 'hashtags', 'user-id', 'id'} - set(twitterread.fieldnames))
 
-    twitterwrite = TwitterWrite(args.outfile, comments=comments, fieldnames=fieldnames)
+    twitterwrite = TwitterWrite(args.outfile, comments=comments, fieldnames=fieldnames, header=not args.no_header)
 
     while True:
         if args.verbosity >= 2:
@@ -157,8 +158,9 @@ def twitterHydrate(arglist):
             break
 
         ids = [row['id'] for row in rows]
-        tweets = api.GetStatuses(ids, respect_order=True)
-        for row,tweet in zip(rows,tweets):
+        tweets = api.GetStatuses(ids, map=True)
+        for row in rows:
+            tweet = tweets[row['id']]
             if tweet:
                 assert (tweet.id == row['id'])
 
