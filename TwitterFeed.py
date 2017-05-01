@@ -86,7 +86,10 @@ class TwitterFeed(object):
                     if dataJson is not None and len(dataJson['items_html'].strip()) > 0:
                         self.position = dataJson['min_position']
                         self.tweets = PyQuery(dataJson['items_html'], parser=TwitterFeed.PARSER).items('div.js-stream-tweet')
+                except KeyboardInterrupt:
+                    raise
                 except:
+                    print "Unexpected error:", sys.exc_info()[0]
                     sys.stderr.write("Unrecognised response to URL: " + self.url + self.position + '\n')
 
             if self.tweets is None:
