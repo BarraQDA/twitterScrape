@@ -51,7 +51,8 @@ def twitterMatrix(arglist):
     parser.add_argument('--textblob', action='store_true', help='Use textblob to tokenise text and lemmatise words')
 
     parser.add_argument('-o', '--outfile',    type=str, help='Output CSV file, otherwise use stdout.')
-    parser.add_argument('--no-comments',    action='store_true', help='Do not output descriptive comments')
+    parser.add_argument('--no-comments',      action='store_true', help='Do not output descriptive comments')
+    parser.add_argument('--no-header',        action='store_true', help='Do not output CSV header with column names')
 
     parser.add_argument('infile', type=str, nargs='?', help='Input CSV file, otherwise use stdin.')
 
@@ -199,7 +200,8 @@ def evalfilter(" + ','.join(twitterread.fieldnames).replace('-','_') + ", **kwar
         print("Saving co-occurrence matrix.", file=sys.stderr)
 
     outunicodecsv=unicodecsv.writer(outfile, lineterminator=os.linesep)
-    outunicodecsv.writerow([''] + wordlist)
+    if not args.no_header:
+        outunicodecsv.writerow([''] + wordlist)
     for row in range(0, len(wordlist)):
         outunicodecsv.writerow([wordlist[row]] + cooccurrencematrix[row])
     outfile.close()

@@ -64,6 +64,7 @@ def twitterSearch(arglist):
                         help='Output file name, otherwise use stdout.')
     parser.add_argument('-n', '--number',   type=int, default=0, help='Maximum number of results to output')
     parser.add_argument('--no-comments',    action='store_true', help='Do not output descriptive comments')
+    parser.add_argument('--no-header',      action='store_true', help='Do not output CSV header with column names')
 
     parser.add_argument('-m', '--maxid',  type=str, nargs='?',
                         help='Maximum status id.')
@@ -81,6 +82,10 @@ def twitterSearch(arglist):
 
     if not args.no_comments:
         comments = ''
+        if args.outfile:
+            comments += (' ' + args.outfile + ' ').center(80, '#') + '\n'
+        else:
+            comments += '#' * 80 + '\n'
 
         comments += '# twitterSearch\n'
         comments += '#     outfile=' + (args.outfile or '<stdout>') + '\n'
@@ -96,6 +101,10 @@ def twitterSearch(arglist):
             comments += '#     until=' + args.until + '\n'
         if args.number:
             comments += '#     number=' + str(args.number) + '\n'
+        if args.no_header:
+            comments += '#     no-header\n'
+
+        comments += '#' * 80 + '\n'
 
         outfile.write(comments)
 
@@ -160,7 +169,8 @@ def twitterSearch(arglist):
     fieldnames = ['user', 'date', 'text', 'replies', 'retweets', 'favorites', 'reply-to', 'reply-to-user', 'reply-to-user-id', 'quote', 'lang', 'geo', 'mentions', 'hashtags', 'user-id', 'id']
     outunicodecsv=unicodecsv.DictWriter(outfile, fieldnames,
                                         extrasaction='ignore', lineterminator=os.linesep)
-    outunicodecsv.writeheader()
+    if not args.no_header:
+        outunicodecsv.writeheader()
 
     while True:
         query  = 'q='

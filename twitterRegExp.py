@@ -65,7 +65,8 @@ def twitterRegExp(arglist):
 
     parser.add_argument('-o', '--outfile',    type=str, help='Output CSV file, otherwise use stdout.')
     parser.add_argument('-n', '--number',     type=int, default=0, help='Maximum number of results to output')
-    parser.add_argument('--no-comments',    action='store_true', help='Do not output descriptive comments')
+    parser.add_argument('--no-comments',      action='store_true', help='Do not output descriptive comments')
+    parser.add_argument('--no-header',        action='store_true', help='Do not output CSV header with column names')
 
     parser.add_argument('infile', type=str, nargs='?', help='Input CSV file, otherwise use stdin.')
 
@@ -306,7 +307,8 @@ def evalscore(" + ','.join(twitterread.fieldnames).replace('-','_') + ", **kwarg
 
     outunicodecsv=unicodecsv.DictWriter(outfile, fieldnames=fields + args.score,
                                         extrasaction='ignore', lineterminator=os.linesep)
-    outunicodecsv.writeheader()
+    if not args.no_header:
+        outunicodecsv.writeheader()
     if len(sortedresult) > 0:
         outunicodecsv.writerows(sortedresult)
     outfile.close()

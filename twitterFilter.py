@@ -58,6 +58,7 @@ def twitterFilter(arglist):
     parser.add_argument(      '--rejfile',    type=str, help='Output CSV file for rejected tweets')
     parser.add_argument('-n', '--number',     type=int, default=0, help='Maximum number of results to output')
     parser.add_argument('--no-comments',      action='store_true', help='Do not output descriptive comments')
+    parser.add_argument('--no-header',        action='store_true', help='Do not output CSV header with column names')
 
     parser.add_argument('infile', type=str, nargs='?', help='Input CSV file, otherwise use stdin.')
 
@@ -158,10 +159,13 @@ def twitterFilter(arglist):
         raise RuntimeError("You must specify either --copy or both --header and --data")
 
     outcsv=unicodecsv.writer(outfile, lineterminator=os.linesep)
-    outcsv.writerow(args.header.split(',') if args.header else twitterread.fieldnames)
+
+    if not args.no_header:
+        outcsv.writerow(args.header.split(',') if args.header else twitterread.fieldnames)
     if args.rejfile:
         rejcsv=unicodecsv.writer(rejfile, lineterminator=os.linesep)
-        rejcsv.writerow(args.header.split(',') if args.header else twitterread.fieldnames)
+        if not args.no_header:
+            rejcsv.writerow(args.header.split(',') if args.header else twitterread.fieldnames)
 
     if args.filter:
         exec "\

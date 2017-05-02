@@ -41,8 +41,8 @@ def twitterReplay(arglist):
     args, extraargs = parser.parse_known_args()
 
     fileregexp = re.compile(r"#+ (.+) #+", re.UNICODE)
-    cmdregexp = re.compile(r"#\s+(\w+)", re.UNICODE)
-    argregexp = re.compile(r"#\s+(\w+)(?:=(.+))?", re.UNICODE)
+    cmdregexp = re.compile(r"#\s+([\w-]+)", re.UNICODE)
+    argregexp = re.compile(r"#\s+([\w-]+)(?:=(.+))?", re.UNICODE)
 
     depth = 0
     for infilename in args.infile:
@@ -115,7 +115,7 @@ def twitterReplay(arglist):
                         execute = True
                         break
 
-            if execute and infilelist:
+            if execute:
                 if args.verbosity >= 1:
                     print("Executing: " + cmd + ' ' + ' '.join(arglist), file=sys.stderr)
 

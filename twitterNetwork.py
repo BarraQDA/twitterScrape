@@ -50,7 +50,8 @@ def twitterNetwork(arglist):
     parser.add_argument('-t',  '--threshold', type=float, help='Threshold score for pair to be included')
 
     parser.add_argument('-o', '--outfile',    type=str, help='Output CSV file, otherwise use stdout.')
-    parser.add_argument('--no-comments',    action='store_true', help='Do not output descriptive comments')
+    parser.add_argument('--no-comments',      action='store_true', help='Do not output descriptive comments')
+    parser.add_argument('--no-header',        action='store_true', help='Do not output CSV header with column names')
 
     parser.add_argument('infile', type=str, nargs='?', help='Input CSV file, otherwise use stdin.')
 
@@ -215,7 +216,8 @@ def evalto(" + ','.join(twitterread.fieldnames).replace('-','_') + ", **kwargs):
         print("Saving network matrix.", file=sys.stderr)
 
     outunicodecsv=unicodecsv.writer(outfile, lineterminator=os.linesep)
-    outunicodecsv.writerow(['from', 'to', 'score'])
+    if not args.no_header:
+        outunicodecsv.writerow(['from', 'to', 'score'])
     for duple, value in sorted(mergededge.iteritems(), key=lambda (k,v): (-v,k)):
         fromitem = duple[0]
         if mergedfromtotal[fromitem] < (args.fromthreshold or 0):

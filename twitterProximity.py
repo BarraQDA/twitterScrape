@@ -46,6 +46,7 @@ def twitterProximity(arglist):
     parser.add_argument('-n', '--number', type=int, default=100,
                         help='Limit number of words to output')
     parser.add_argument('--no-comments',    action='store_true', help='Do not output descriptive comments')
+    parser.add_argument('--no-header',      action='store_true', help='Do not output CSV header with column names')
 
     parser.add_argument('--textblob', action='store_true', help='Use textblob for analysis')
 
@@ -193,7 +194,8 @@ def twitterProximity(arglist):
 
     outunicodecsv=unicodecsv.DictWriter(outfile, fieldnames=['word', 'score'],
                                         extrasaction='ignore', lineterminator=os.linesep)
-    outunicodecsv.writeheader()
+    if not args.no_header:
+        outunicodecsv.writeheader()
     outunicodecsv.writerows(sortedscore)
     outfile.close()
 

@@ -44,6 +44,7 @@ def twitterScrape(arglist):
     parser.add_argument('-o', '--outfile',  type=str, help='Output file, otherwise use stdout.')
     parser.add_argument('-n', '--number',   type=int, default=0, help='Maximum number of results to output')
     parser.add_argument('--no-comments',    action='store_true', help='Do not output descriptive comments')
+    parser.add_argument('--no-header',      action='store_true', help='Do not output CSV header with column names')
 
     parser.add_argument('infile', type=str, nargs='*', help='Input CSV files.')
 
@@ -203,7 +204,7 @@ def twitterScrape(arglist):
             print("Nothing to do.", file=sys.stderr)
         sys.exit()
 
-    twitterwrite = TwitterWrite(tempoutfile if tempoutfile else args.outfile, comments=comments, fieldnames=fieldnames)
+    twitterwrite = TwitterWrite(tempoutfile if tempoutfile else args.outfile, comments=comments, fieldnames=fieldnames, header=not args.no_header)
 
     # Main loop
     while True:

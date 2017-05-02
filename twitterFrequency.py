@@ -50,7 +50,8 @@ def twitterFrequency(arglist):
     parser.add_argument(      '--interval',   type=str, default='1 day', help='Interval for measuring frequency, for example "1 day".')
 
     parser.add_argument('-o', '--outfile',    type=str, help='Output CSV file, otherwise use stdout.')
-    parser.add_argument('--no-comments',    action='store_true', help='Do not output descriptive comments')
+    parser.add_argument('--no-comments',      action='store_true', help='Do not output descriptive comments')
+    parser.add_argument('--no-header',        action='store_true', help='Do not output CSV header with column names')
 
     parser.add_argument('infile', type=str, nargs='?', help='Input CSV file, otherwise use stdin.')
 
@@ -123,7 +124,8 @@ def evalscore(" + ','.join(twitterread.fieldnames).replace('-','_') + ", **kwarg
     return " + args.score
 
     outunicodecsv=unicodecsv.writer(outfile, lineterminator=os.linesep)
-    outunicodecsv.writerow(['date'] + (args.title or args.filter))
+    if not args.no_header:
+        outunicodecsv.writerow(['date'] + (args.title or args.filter))
 
     if args.verbosity >= 1:
         print("Loading twitter data.", file=sys.stderr)
