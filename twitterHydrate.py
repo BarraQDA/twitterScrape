@@ -53,6 +53,8 @@ def twitterHydrate(arglist):
 
     parser.add_argument('-l', '--limit',      type=int, help='Limit number of tweets to process')
 
+    parser.add_argument(      '--html',    action='store_true', help='Retrieve embeddable tweet HTML')
+
     parser.add_argument('-o', '--outfile', type=str, help='Output CSV file, otherwise use stdout')
     parser.add_argument('--overwrite',     action='store_true', help='Overwrite input fields with hydrated data')
     parser.add_argument('--no-comments',   action='store_true', help='Do not output descriptive comments')
@@ -135,7 +137,7 @@ def twitterHydrate(arglist):
                     sleep_on_rate_limit=True
             )
 
-    fieldnames = twitterread.fieldnames + list({'user', 'date', 'text', 'replies', 'retweets', 'favorites', 'reply-to', 'reply-to-user', 'reply-to-user-id', 'lang', 'geo', 'mentions', 'hashtags', 'user-id', 'id'} - set(twitterread.fieldnames))
+    fieldnames = twitterread.fieldnames + list(({'user', 'date', 'text', 'replies', 'retweets', 'favorites', 'reply-to', 'reply-to-user', 'reply-to-user-id', 'lang', 'geo', 'mentions', 'hashtags', 'user-id', 'id'} | ({'html'} if args.html else set())) - set(twitterread.fieldnames))
 
     twitterwrite = TwitterWrite(args.outfile, comments=comments, fieldnames=fieldnames, header=not args.no_header)
 
@@ -190,6 +192,9 @@ def twitterHydrate(arglist):
                     row['hashtags'] = u' '.join([u'#'+hashtag.text for hashtag in tweet.hashtags])
                 if args.overwrite or row.get('user-id') is None:
                     row['user-id'] = tweet.user.id
+
+                if args.html:
+                    row['html'] = api.GetStatusOembed(tweet.id)
             elif args.verbosity >= 3:
                 print("Tweet id: " + str(row['id']) + " not retrieved.", file=sys.stderr)
 
