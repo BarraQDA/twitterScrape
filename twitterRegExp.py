@@ -51,8 +51,8 @@ def twitterRegExp(arglist):
 
     parser.add_argument('-p', '--prelude',    type=str, nargs="*", help='Python code to execute before processing')
     parser.add_argument('-f', '--filter',     type=str, help='Python expression evaluated to determine whether tweet is included')
-    parser.add_argument(      '--since',      type=str, help='Lower bound tweet date.')
-    parser.add_argument(      '--until',      type=str, help='Upper bound tweet date.')
+    parser.add_argument(      '--since',      type=str, help='Lower bound tweet date/time in any sensible format.')
+    parser.add_argument(      '--until',      type=str, help='Upper bound tweet date/time in any sensible format.')
     parser.add_argument('-l', '--limit',      type=int, help='Limit number of tweets to process')
 
     parser.add_argument('-c', '--column',     type=str, help='Column to apply regular expression, default is "text"')
@@ -103,10 +103,8 @@ def twitterRegExp(arglist):
         for line in args.prelude:
             exec(line) in globals()
 
-    if args.until:
-        args.until = dateparser.parse(args.until).date().isoformat()
-    if args.since:
-        args.since = dateparser.parse(args.since).date().isoformat()
+    until = dateparser.parse(args.until) if args.until else None
+    since = dateparser.parse(args.since) if args.since else None
 
     regexp = re.compile(args.regexp, re.UNICODE | (re.IGNORECASE if args.ignorecase else 0))
     fields = list(regexp.groupindex)
@@ -124,7 +122,7 @@ def twitterRegExp(arglist):
 
         outfile = file(args.outfile, 'w')
 
-    twitterread  = TwitterRead(args.infile, since=args.since, until=args.until, limit=args.limit)
+    twitterread  = TwitterRead(args.infile, since=since, until=until, limit=args.limit)
     if not args.no_comments:
         comments = ''
         if args.outfile:

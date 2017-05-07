@@ -33,18 +33,15 @@ def twitterPlot(arglist):
 
     parser.add_argument('-v', '--verbosity',  type=int, default=1)
 
-    parser.add_argument(      '--since',      type=str, help='Lower bound tweet date.')
-    parser.add_argument(      '--until',      type=str, help='Upper bound tweet date.')
+    parser.add_argument(      '--since',      type=str, help='Lower bound tweet date/time in any sensible format.')
+    parser.add_argument(      '--until',      type=str, help='Upper bound tweet date/time in any sensible format.')
 
     parser.add_argument('infile', type=str, nargs='?', help='Input CSV file, otherwise use stdin.')
 
     args = parser.parse_args(arglist)
 
-    # Parse since and until dates
-    if args.until:
-        args.until = dateparser.parse(args.until).date().isoformat()
-    if args.since:
-        args.since = dateparser.parse(args.since).date().isoformat()
+    until = dateparser.parse(args.until) if args.until else None
+    since = dateparser.parse(args.since) if args.since else None
 
     if args.infile is None:
         infile = sys.stdin
@@ -70,9 +67,9 @@ def twitterPlot(arglist):
         except StopIteration:
             break
 
-        if args.until and row[0] >= args.until:
+        if args.until and dateparser.parse(row[0]) >= args.until:
             continue
-        if args.since and row[0] < args.since:
+        if args.since and dateparser.parse(row[0]) < args.since:
             break
 
         dates.append(dateparser.parse(row[0]))

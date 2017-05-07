@@ -38,8 +38,8 @@ def twitterNetwork(arglist):
 
     parser.add_argument('-p', '--prelude',   type=str, nargs="*", help='Python code to execute before processing')
     parser.add_argument('-f', '--filter',    type=str, help='Python expression evaluated to determine whether tweet is included')
-    parser.add_argument(      '--since',     type=str, help='Lower bound tweet date.')
-    parser.add_argument(      '--until',     type=str, help='Upper bound tweet date.')
+    parser.add_argument(      '--since',     type=str, help='Lower bound tweet date/time in any sensible format.')
+    parser.add_argument(      '--until',     type=str, help='Upper bound tweet date/time in any sensible format.')
     parser.add_argument('-l', '--limit',     type=int, help='Limit number of tweets to process')
 
     parser.add_argument(      '--from',      type=str, required=True, dest='fromcode', help='Python code evaluated to generate "from" code(s), for example "user"')
@@ -74,11 +74,8 @@ def twitterNetwork(arglist):
         for line in args.prelude:
             exec(line) in globals()
 
-    # Parse since and until dates
-    if args.until:
-        args.until = dateparser.parse(args.until).date().isoformat()
-    if args.since:
-        args.since = dateparser.parse(args.since).date().isoformat()
+    until = dateparser.parse(args.until) if args.until else None
+    since = dateparser.parse(args.since) if args.since else None
 
     if args.outfile is None:
         outfile = sys.stdout
@@ -88,7 +85,7 @@ def twitterNetwork(arglist):
 
         outfile = file(args.outfile, 'w')
 
-    twitterread  = TwitterRead(args.infile, since=args.since, until=args.until, limit=args.limit)
+    twitterread  = TwitterRead(args.infile, since=since, until=until, limit=args.limit)
     if not args.no_comments:
         comments = ''
         if args.outfile:

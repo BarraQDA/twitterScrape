@@ -44,16 +44,8 @@ twitterDynamicNetwork <- function(arglist) {
     if (args$verbosity >= 2)
         options(warn=1)
 
-    if (! is.null(args$until)) {
-        until <- as.integer(as.POSIXct(args$until, tz="UTC"))
-    } else {
-        until <- .Machine$integer.max
-    }
-    if (! is.null(args$since)) {
-        since <- as.integer(as.POSIXct(args$since, tz="UTC"))
-    } else {
-        since <- 0
-    }
+    until <- ifelse(is.null(args$until), .Machine$integer.max, as.integer(as.POSIXct(args$until, tz="UTC")))
+    since <- ifelse(is.null(args$since), 0,                    as.integer(as.POSIXct(args$since, tz="UTC")))
 
     parsetimediff <- function(td) {
         match <- regexpr('(?:(?<weeks>[\\d]+)\\s*w)?\\s*(?:(?<days>[\\d]+)\\s*d)?\\s*(?:(?<hours>[\\d]+)\\s*h)?\\s*(?:(?<mins>[\\d]+)\\s*m)?\\s*(?:(?<secs>[\\d]+)\\s*s)?', td, ignore.case=TRUE, perl=TRUE)
@@ -91,36 +83,38 @@ twitterDynamicNetwork <- function(arglist) {
     library('network')
     library('ndtv')
     library('plotrix')
+    library('rjson')
 
     twitterread <- read.csv(infile, header=T, colClasses="character")
     twitterread$ts <- as.integer(as.POSIXct(strptime(twitterread$date, "%Y-%m-%dT%H:%M:%S", tz="UTC")))
 
     twitterread <- twitterread[twitterread$ts >= since & twitterread$ts < until,]
+    if (! is.null(args$limit)){
+      twitterread <- twitterread[1:args$limit,]
+    }
     twitterread$user <- tolower(twitterread$user)
     twitterread$mentions <- tolower(twitterread$mentions)
     twitterread$reply.to.user <- tolower(twitterread$reply.to.user)
 
-    linklist <- strsplit(paste(twitterread$mentions, twitterread$reply.to.user), " ", fixed=TRUE)
-    linklist <- lapply(linklist, function(x) unique(x))
-    twitterread$linklist <- linklist
-
+    twitterread$linklist <- lapply(strsplit(paste(twitterread$mentions, twitterread$reply.to.user), " ", fixed=TRUE), 
+                                   function(x) unique(x))
     twitterread <- twitterread[twitterread$linklist != "",]
-    userlist <- strsplit(paste(twitterread$user, twitterread$mentions, twitterread$reply.to.user), " ", fixed=TRUE)
-    userlist <- lapply(userlist, function(x) unique(x))
-    twitterread$userlist <- userlist
+
+    twitterread$userlist <- lapply(strsplit(paste(twitterread$user, twitterread$mentions, twitterread$reply.to.user), " ", fixed=TRUE),
+                                   function(x) unique(x))
 
     uniqueusers <- unique(unlist(twitterread$userlist))
     uniqueusers <- uniqueusers[uniqueusers != ""]
 
-    edges <- data.frame(rbindlist(apply(twitterread, MARGIN=1, function(x) expand.grid(
-                from=x$user, to=unique(x$linklist), text=x$text, weight=1))))
+    edges <- data.frame(rbindlist(apply(twitterread, MARGIN=1, function(tweet) expand.grid(
+                from=tweet$user, to=unique(tweet$linklist), html=ifelse(is.null(tweet$html), "", tweet$html)))))
 
     vertices <- data.frame(id=uniqueusers[order(uniqueusers)], stringsAsFactors = FALSE)
 
-    net <- network(edges, 
-                   vertex.attr=vertices, 
-                   matrix.type="edgelist", 
-                   loops=F, 
+    net <- network(edges,
+                   vertex.attr=vertices,
+                   matrix.type="edgelist",
+                   loops=T,
                    ignore.eval = F)
 
     netusers <- get.vertex.attribute(net,"vertex.names")
@@ -133,10 +127,8 @@ twitterDynamicNetwork <- function(arglist) {
                     onset=x$ts,
                     terminus=x$ts,
                     source=which(netusers == x$user),
-                    target=as.integer(lapply(x$linklist, function(y) which(netusers == y))),
-                    tail=which(netusers == x$user)
-#                    head=which(netusers == x$linklist)
-                )))
+                    target=as.integer(lapply(x$linklist, function(y) which(netusers == y))))
+                ))
 
     verticesdyn <- rbindlist(apply(twitterread, MARGIN=1, function(x) expand.grid(onset=x$ts, terminus=x$ts, id=as.integer(lapply(x$userlist, function(y) which(netusers == y))))))
 
@@ -163,29 +155,41 @@ twitterDynamicNetwork <- function(arglist) {
 
     vertexlabel = function(slice) {
         if (! is.null(args$degree))
-            ifelse(slice %v% "degree" >= args$degree, paste(slice %v% "id", slice %v% "degree"), "")
+            ifelse(slice %v% "degree" >= args$degree, paste(slice %v% "vertex.names", slice %v% "degree"), "")
     }
 
     edgelabel = function(slice) {
 #         d<-get.dyads.active(slice, onset=-Inf, terminus=Inf)
         if (! is.null(args$degree))
             ifelse(slice %v% "degree" >= args$degree, paste(slice %v% "id", slice %v% "degree"), "")
+    }
+
+    edgetooltip = function(slice) {
+      dyads<-get.dyads.active(slice, onset=-Inf, terminus=Inf)
+
+      # Code to retrieve tweet HTML via API
+#       ids<-unlist(lapply(slice$mel, function(x)  x$atl$twitterid))
+#       urls<-lapply(slice$mel, function(x) sprintf("https://publish.twitter.com/oembed?url=https://twitter.com/any/status/%s",
+#                   ids[dyads[,1] == x$outl & dyads[,2] == x$inl],
+#                   collapse=""))
+#       lapply(urls, function(x) lapply(x, function(y) fromJSON(readLines(y))$html))
+        lapply(slice$mel, function(x)  x$atl$html)
 
     }
 
     if (endsWith(args$outfile, "html")) {
         render.d3movie(net.dyn,
                        filename=args$outfile,
-                       displaylabels=TRUE, 
-    #                   label=vertexlabel,
-                       label=netusers,
+                       displaylabels=TRUE,
+                       label=vertexlabel,
+    #                   label=netusers,
     #                   label=(net.dyn %v% "id"),
                        animationDuration=100,
     #                    vertex.cex=rescale(degree(net.dyn), c(1,10)),
                        vertex.tooltip = paste0("<a href=\"https://twitter.com/", (net.dyn %v% "id"), "\" target=\"_blank\">", (net.dyn %v% "id"), "</a>"),
     #                   edge.lwd = (net.dyn %e% "weight"),
                        edge.label=edgelabel,
-                       edge.tooltip = paste0((net.dyn %e% "text")))
+                       edge.tooltip = edgetooltip)
     } else {
         saveVideo(render.animation(net.dyn,
                                    displaylabels=FALSE,

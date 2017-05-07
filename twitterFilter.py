@@ -46,8 +46,8 @@ def twitterFilter(arglist):
     parser.add_argument('-i', '--ignorecase', action='store_true', help='Ignore case in regular expression')
     parser.add_argument(      '--invert',     action='store_true', help='Invert filter, that is, output those tweets that do not pass filter and/or regular expression')
 
-    parser.add_argument(      '--since',      type=str, help='Lower bound tweet date.')
-    parser.add_argument(      '--until',      type=str, help='Upper bound tweet date.')
+    parser.add_argument(      '--since',      type=str, help='Lower bound tweet date/time in any sensible format')
+    parser.add_argument(      '--until',      type=str, help='Upper bound tweet date/time in any sensible format')
     parser.add_argument('-l', '--limit',      type=int, help='Limit number of tweets to process')
 
     parser.add_argument('-C', '--copy',       action='store_true', help='If true, copy all columns from input file.')
@@ -85,12 +85,10 @@ def twitterFilter(arglist):
         else:
             regexp = re.compile(args.regexp, re.UNICODE)
 
-    if args.until:
-        args.until = dateparser.parse(args.until).date().isoformat()
-    if args.since:
-        args.since = dateparser.parse(args.since).date().isoformat()
+    until = dateparser.parse(args.until) if args.until else None
+    since = dateparser.parse(args.since) if args.since else None
 
-    twitterread  = TwitterRead(args.infile, since=args.since, until=args.until, limit=args.limit)
+    twitterread  = TwitterRead(args.infile, since=since, until=until, limit=args.limit)
 
     if args.outfile is None:
         outfile = sys.stdout

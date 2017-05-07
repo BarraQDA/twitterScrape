@@ -41,8 +41,8 @@ def twitterFrequency(arglist):
     parser.add_argument('-p', '--prelude',    type=str, nargs="*", help='Python code to execute before processing')
     parser.add_argument('-f', '--filter',     type=str, nargs='+', help='Python expression evaluated to determine whether tweet is included')
     parser.add_argument('-t', '--title',      type=str, nargs='*', help='Title of column corresponding to filter')
-    parser.add_argument(      '--since',      type=str, help='Lower bound tweet date.')
-    parser.add_argument(      '--until',      type=str, help='Upper bound tweet date.')
+    parser.add_argument(      '--since',      type=str, help='Lower bound tweet date/time in any sensible format.')
+    parser.add_argument(      '--until',      type=str, help='Upper bound tweet date/time in any sensible format.')
     parser.add_argument('-l', '--limit',      type=int, help='Limit number of tweets to process')
 
     parser.add_argument('-s', '--score',      type=str, default='1', help='Python expression to evaluate tweet score, for example "1 + retweets + favorites"')
@@ -64,11 +64,8 @@ def twitterFrequency(arglist):
         for line in args.prelude:
             exec(line) in globals()
 
-    # Parse since and until dates
-    if args.until:
-        args.until = dateparser.parse(args.until).date().isoformat()
-    if args.since:
-        args.since = dateparser.parse(args.since).date().isoformat()
+    until = dateparser.parse(args.until) if args.until else None
+    since = dateparser.parse(args.since) if args.since else None
 
     interval = timeparse(args.interval)
     if interval is None:
@@ -82,7 +79,7 @@ def twitterFrequency(arglist):
 
         outfile = file(args.outfile, 'w')
 
-    twitterread  = TwitterRead(args.infile, since=args.since, until=args.until, limit=args.limit)
+    twitterread  = TwitterRead(args.infile, since=since, until=until, limit=args.limit)
     if not args.no_comments:
         comments = ''
         if args.outfile:

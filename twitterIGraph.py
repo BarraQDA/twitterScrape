@@ -41,8 +41,8 @@ def twitterIGraph(arglist):
     parser.add_argument('-p', '--prelude',    type=str, nargs="*", help='Python code to execute before processing')
     parser.add_argument('-w', '--weight',      type=str, default='1', help='Python expression(s) to evaluate tweet weight, for example "1 + retweets + favorites"')
 
-    parser.add_argument(      '--since',      type=str, help='Lower bound tweet date.')
-    parser.add_argument(      '--until',      type=str, help='Upper bound tweet date.')
+    parser.add_argument(      '--since',      type=str, help='Lower bound tweet date/time in any sensible format.')
+    parser.add_argument(      '--until',      type=str, help='Upper bound tweet date/time in any sensible format.')
     parser.add_argument('-l', '--limit',      type=int, help='Limit number of tweets to process')
 
     parser.add_argument('-i', '--interval',   type=str, required=True,
@@ -62,14 +62,12 @@ def twitterIGraph(arglist):
         #for line in args.prelude:
             #exec(os.linesep.join(args.prelude)) in globals()
 
-    if args.until:
-        args.until = dateparser.parse(args.until).date().isoformat()
-    if args.since:
-        args.since = dateparser.parse(args.since).date().isoformat()
+    until = dateparser.parse(args.until) if args.until else None
+    since = dateparser.parse(args.since) if args.since else None
 
     interval = int(datetime.timedelta(seconds=timeparse(args.interval)).total_seconds())
 
-    twitterread  = TwitterRead(args.infile, since=args.since, until=args.until, limit=args.limit)
+    twitterread  = TwitterRead(args.infile, since=since, until=until, limit=args.limit)
 
     exec "\
 def evalweight(" + ','.join(twitterread.fieldnames).replace('-','_') + ", **kwargs):\n\
