@@ -13,22 +13,23 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-import urllib,urllib2,json,re,datetime,sys,cookielib
+import urllib,urllib2,json,re,sys,cookielib
 from pyquery import PyQuery
 import lxml
 import unicodecsv
 import os
 import shutil
-import datetime
+from datetime import datetime
+from dateutil import parser as dateparser
 
 class TwitterFeed(object):
     def __init__(self, language=None, user=None, since=None, until=None, query=None, timeout=None):
         urlGetData = ''
-        urlGetData += (' lang:' + language) if language is not None else ''
-        urlGetData += (' from:' + user)     if user     is not None else ''
-        urlGetData += (' since:' + since)   if since    is not None else ''
-        urlGetData += (' until:' + until)   if until    is not None else ''
-        urlGetData += (' ' + query)         if query    is not None else ''
+        urlGetData += (' lang:' + language) if language else ''
+        urlGetData += (' from:' + user)     if user     else ''
+        urlGetData += (' since:' + since.isoformat()) if since else ''
+        urlGetData += (' until:' + until.isoformat()) if until else ''
+        urlGetData += (' ' + query)         if query    else ''
 
         self.timeout = timeout
         self.url = 'https://twitter.com/i/search/timeline?f=tweets&q=' + urllib.quote(urlGetData) + '&src=typd&max_position='
@@ -89,7 +90,7 @@ class TwitterFeed(object):
                 except KeyboardInterrupt:
                     raise
                 except:
-                    print "Unexpected error:", sys.exc_info()[0]
+                    print ("Unexpected error:", sys.exc_info()[0])
                     sys.stderr.write("Unrecognised response to URL: " + self.url + self.position + '\n')
 
             if self.tweets is None:
@@ -116,7 +117,7 @@ class TwitterFeed(object):
                 if conversation != ret['id']:
                     ret['conversation'] = conversation
 
-                ret['datetime']  = datetime.datetime.utcfromtimestamp(
+                ret['date']      = datetime.utcfromtimestamp(
                                         int(tweetPQ("small.time span.js-short-timestamp").attr("data-time")))
                 ret['user']      = tweetPQ.attr("data-screen-name")
                 ret['user-id']   = tweetPQ.attr("data-user-id")
@@ -150,7 +151,11 @@ class TwitterRead(object):
         if filename is None:
             self.file = sys.stdin
         else:
-            self.file = file(filename, 'rU')
+            try:
+                self.file = file(filename, 'rU')
+            except:
+                self.file = None
+                raise
 
         self.since  = since
         self.until  = until
@@ -174,7 +179,8 @@ class TwitterRead(object):
         return self
 
     def __del__(self):
-        self.file.close()
+        if self.file:
+            self.file.close()
 
     def comments(self):
         return self.comments
@@ -194,6 +200,11 @@ class TwitterRead(object):
                     break
                 else:
                     continue
+
+            try:
+                row['date'] = dateparser.parse(row['date'])
+            except (TypeError, ValueError):
+                row['date'] = None
 
             if self.until and row['date'] >= self.until:
                 continue
