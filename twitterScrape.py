@@ -22,7 +22,7 @@ from TwitterFeed import TwitterRead, TwitterWrite
 import sys
 import os
 from dateutil import parser as dateparser
-import datetime
+from datetime import datetime, date, timedelta
 import shutil
 
 def twitterScrape(arglist):
@@ -55,11 +55,8 @@ def twitterScrape(arglist):
         from TwitterFeed import TwitterFeed
         import urllib2
 
-    # Parse since and until dates
-    if args.until:
-        args.until = dateparser.parse(args.until).date().isoformat()
-    if args.since:
-        args.since = dateparser.parse(args.since).date().isoformat()
+    until = dateparser.parse(args.until) if args.until else None
+    since = dateparser.parse(args.since) if args.since else None
 
     # Handle in situ replacement of output file
     tempoutfile = None
@@ -110,7 +107,7 @@ def twitterScrape(arglist):
     rowcnt = []
     headidx = None
     for fileidx in range(len(args.infile)):
-        thisinreader = TwitterRead(args.infile[fileidx], since=args.since, until=args.until, blanks=True)
+        thisinreader = TwitterRead(args.infile[fileidx], since=since, until=until, blanks=True)
         comments += thisinreader.comments
 
         inreader += [thisinreader]
@@ -153,21 +150,30 @@ def twitterScrape(arglist):
     args.infile += ['twitter feed']
 
     # Start twitter feed if already needed
-    if (args.query or args.user) and (args.force or args.until is None or headidx is None or args.until > currow[headidx]['date']):
-        since = args.since
+    if (args.query or args.user) and (args.force or until is None or headidx is None or until > currow[headidx]['date']):
+        twittersince = since.date() if since else None
         if (not args.force) and (headidx is not None):
-            since = max(since, dateparser.parse(currow[headidx]['date']).date().isoformat())
+            twittersince = max(twittersince, currow[headidx]['date'].date())
 
-        twittersince = since
-        twitteruntil = args.until
+        if until:
+            twitteruntil = until.date()
+            if until.time() > datetime.min.time():
+                twitteruntil += timedelta(days=1)
+        else:
+            twitteruntil = None
 
         while True:
             if args.verbosity >= 1:
-                print("Opening twitter feed with until:" + (twitteruntil or '') + ", since:" + (twittersince or ''), file=sys.stderr)
+                print("Opening twitter feed with until:" + (twitteruntil.isoformat() if twitteruntil else '') + ", since:" + (twittersince.isoformat() if twittersince else ''), file=sys.stderr)
             try:
                 twitterfeed = TwitterFeed(language=args.language, user=args.user, query=args.query,
                                             until=twitteruntil, since=twittersince, timeout=args.timeout)
                 currowitem = nextornone(twitterfeed)
+                while currowitem:
+                    if not until or currowitem['date'] < until:
+                        break
+                    currowitem = nextornone(twitterfeed)
+
                 break
             except (urllib2.HTTPError, urllib2.URLError) as err:
                 if args.verbosity >= 2:
@@ -181,7 +187,6 @@ def twitterScrape(arglist):
         currow[twitteridx] = currowitem
         if currowitem:
             inreader[twitteridx] = twitterfeed
-            currowitem['date'] = currowitem['datetime'].isoformat()
             if headidx is None or currowitem['id'] > currow[headidx]['id']:
                 headidx = twitteridx
                 if args.verbosity >= 2:
@@ -208,13 +213,17 @@ def twitterScrape(arglist):
 
     # Main loop
     while True:
+        # Catch twitter feed that has run past lower bound
+        if since and currow[headidx]['date'] < since:
+            break
+
         twitterwrite.write(currow[headidx])
         if args.number and twitterwrite.count == args.number:
             break
 
         rowcnt[headidx] += 1
         lastid = currow[headidx]['id']
-        lastdate = currow[headidx]['date']
+        lastdatetime = currow[headidx]['date']
 
         for fileidx in range(len(inreader)):
             if currow[fileidx] and currow[fileidx]['id'] == lastid:
@@ -238,7 +247,6 @@ def twitterScrape(arglist):
                     rowcnt[fileidx] = 0
                     pacing[fileidx] = False
                     inreader[fileidx] = None
-                    # Forget exhausted twitter feed since it cannot be re-used
                     if fileidx == twitteridx:
                         twitterfeed = None
                 # Test for blank record in CSV
@@ -273,9 +281,6 @@ def twitterScrape(arglist):
                         nextheadidx = fileidx
 
                 if currow[fileidx]:
-                    if 'date' not in currow[fileidx].keys():
-                        currow[fileidx]['date'] = currow[fileidx]['datetime'].isoformat()
-
                     if pacing[fileidx]:
                         if currow[fileidx]['id'] != currow[headidx]['id']:
                             print("WARNING: Missing tweet, id: " + str(currow[headidx]['id']) + " in file: " + args.infile[fileidx], file=sys.stderr)
@@ -293,10 +298,10 @@ def twitterScrape(arglist):
         # Stop reading twitter feed if it is now paced by an input file
         if (not args.force) and inreader[twitteridx] and any(pacing[0:-1]):
             if args.verbosity >= 1:
-                print("Closing " + args.infile[twitteridx] + " after " + str(rowcnt[twitteridx]) + " rows.", file=sys.stderr)
+                print("Closing twitter feed after " + str(rowcnt[twitteridx]) + " rows.", file=sys.stderr)
 
             # Remember last date from twitter feed so we can re-use the feed later.
-            twitterdate = currow[twitteridx]['date']
+            twitterdate = currow[twitteridx]['date'].date()
             currow[twitteridx] = None
             rowcnt[twitteridx] = 0
             pacing[twitteridx] = False
@@ -304,31 +309,36 @@ def twitterScrape(arglist):
 
         # If no file is now pacing, try opening a new twitter feed
         while (args.query or args.user) and not any(pacing):
-            since = args.since
+            newsince = since.date()
             if (not args.force) and (headidx is not None):
-                since = max(since, dateparser.parse(currow[headidx]['date']).date().isoformat())
+                newsince = max(newsince, currow[headidx]['date'].date())
 
-            # Restart twitter feed if last tweet was a day ahead or if since argument was too late
-            if twitterfeed and (args.force or (twittersince <= since and dateparser.parse(twitterdate).date() == dateparser.parse(lastdate).date())):
+            # Continue with current twitter feed if since dates match and last retrieved is same day
+            # as we are looking for
+            print(twitterfeed)
+            print(twittersince)
+            print(newsince)
+            if twitterfeed and (args.force or (twittersince <= newsince and twitterdate == lastdatetime.date())):
                 if args.verbosity >= 1:
-                    print("Continuing twitter feed with until:" + (twitteruntil or '') + ", since:" + (twittersince or ''), file=sys.stderr)
+                    print("Continuing twitter feed with until:" + (twitteruntil.isoformat() if twitteruntil else '') + ", since:" + (twittersince.isoformat() if twittersince else ''), file=sys.stderr)
+            # Otherwise start a new twitter feed.
             else:
-                # Set until date one day past lastdate because twitter returns tweets strictly before until date
-                until = (dateparser.parse(lastdate) + datetime.timedelta(days=1)).date().isoformat()
+                # Set until date one second past lastdatetime because twitter returns tweets strictly before until date
+                newuntil = lastdatetime.date() + timedelta(days=1)
                 # This condition catches non-exhausted or different twitter feed
-                if twitterfeed or (twittersince and twittersince > since):
+                if twitterfeed or (twittersince and twittersince > newsince):
                     twitterfeed = None
-                    twittersince = since
-                    twitteruntil = until
+                    twittersince = newsince
+                    twitteruntil = newuntil
                 # This condition allows retrying exhausted twitter feed with until date moved back by 1 day
-                elif twitterfeed is None and twittersince == since:
+                elif twitterfeed is None and twittersince == newsince:
                     if not httperror:
-                        if twitteruntil and twitteruntil <= until:
-                            twitteruntil = (dateparser.parse(twitteruntil) - datetime.timedelta(days=1)).date().isoformat()
+                        if twitteruntil and twitteruntil <= newuntil:
+                            twitteruntil -= timedelta(days=1)
                         else:
-                            twitteruntil = until
+                            twitteruntil = newuntil
 
-                        if twitteruntil <= twittersince or twitteruntil <= '2006-03-21':     # Twitter start date
+                        if twitteruntil <= twittersince or twitteruntil <= date(2006, 3, 21): # Twitter start date
                             break
                     else:
                         # After error, just retry with same since and until as last time. Should catch too many retries
@@ -337,7 +347,7 @@ def twitterScrape(arglist):
                     break
 
                 if args.verbosity >= 1:
-                    print("Opening twitter feed with until:" + twitteruntil + ", since:" + (twittersince or ''), file=sys.stderr)
+                    print("Opening twitter feed with until:" + twitteruntil.isoformat() + ", since:" + (twittersince.isoformat() if twittersince else ''), file=sys.stderr)
 
                 twitterfeed = TwitterFeed(language=args.language, user=args.user, query=args.query,
                                         until=twitteruntil, since=twittersince)
@@ -369,8 +379,6 @@ def twitterScrape(arglist):
 
                 if currowitem:
                     inreader[twitteridx] = twitterfeed
-                    if 'date' not in currowitem.keys():
-                        currowitem['date'] = currowitem['datetime'].isoformat()
                     currow[twitteridx] = currowitem
                     if headidx is None or currowitem['id'] > currow[headidx]['id']:
                         headidx = twitteridx
@@ -386,9 +394,9 @@ def twitterScrape(arglist):
         if not any(pacing):
             twitterwrite.write({})
             if headidx is not None:
-                print("Possible missing tweets between id: " + str(lastid) + " - " + dateparser.parse(lastdate).isoformat() + " and " + str(currow[headidx]['id']) + " - " + dateparser.parse(currow[headidx]['date']).isoformat(), file=sys.stderr)
+                print("Possible missing tweets between id: " + str(lastid) + " - " + lastdatetime.isoformat() + " and " + str(currow[headidx]['id']) + " - " + currow[headidx]['date'].isoformat(), file=sys.stderr)
             else:
-                print("Possible missing tweets after id: " + str(lastid) + " - " + dateparser.parse(lastdate).isoformat(), file=sys.stderr)
+                print("Possible missing tweets after id: " + str(lastid) + " - " + lastdatetime.isoformat(), file=sys.stderr)
                 break
 
     # Finish up
