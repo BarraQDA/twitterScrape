@@ -26,6 +26,8 @@ twitterDynamicNetwork <- function(arglist) {
     parser$add_argument(      '--until',      type="character", help='Upper bound tweet date.')
     parser$add_argument('-l', '--limit',      type="integer",   help='Limit number of tweets to process')
 
+    parser$add_argument(      '--oembed', action="store_true",  help='Retrieve twitter HTML from server if not in CSV file')
+    
     parser$add_argument('-m',  '--mode',      type="character", choices=c("kamadakawai", "MDSJ", "Graphviz"), default="kamadakawai", help='Animation layout mode.')
 
     parser$add_argument('-d', '--duration',   type="character", required=TRUE,
@@ -37,6 +39,7 @@ twitterDynamicNetwork <- function(arglist) {
 
     parser$add_argument('-o', '--outfile',    type="character", required=TRUE, help='Output HTML file.')
 
+    parser$add_argument('--userfile', type="character", help="CSV file containing Twitter user info")
     parser$add_argument('infile', type="character", nargs='?', help='Input CSV file, otherwise use stdin.')
 
     args <- parser$parse_args(arglist)
@@ -66,19 +69,23 @@ twitterDynamicNetwork <- function(arglist) {
 
     if (is.null(args$infile))
         args$infile = 'stdin'
-
-    infile <- file(args$infile, open="rU")
-    pos = seek(infile)
-    while (TRUE) {
-        line <- readLines(infile, 1)
-        if (substr(line, 1, 1) != '#') {
-            seek(infile, where=pos)
-            break
+    
+    skipheader <- function(file){
+        pos = seek(file)
+        while (TRUE) {
+            line <- readLines(file, 1)
+            if (substr(line, 1, 1) != '#') {
+                seek(file, where=pos)
+                break
+            }
+            else
+                pos = seek(file)
         }
-        else
-            pos = seek(infile)
     }
 
+    infile <- file(args$infile, open="rU")
+    skipheader(infile)
+    
     library('data.table')
     library('network')
     library('ndtv')
@@ -100,14 +107,50 @@ twitterDynamicNetwork <- function(arglist) {
                                    function(x) unique(x))
     twitterread <- twitterread[twitterread$linklist != "",]
 
+    if (! is.null(args$userfile)){
+        userfile <- file(args$userfile, open="rU")
+        skipheader(userfile)
+        
+        twitteruser <- read.csv(userfile, header=T, colClasses="character")
+    }
+
     twitterread$userlist <- lapply(strsplit(paste(twitterread$user, twitterread$mentions, twitterread$reply.to.user), " ", fixed=TRUE),
                                    function(x) unique(x))
 
     uniqueusers <- unique(unlist(twitterread$userlist))
     uniqueusers <- uniqueusers[uniqueusers != ""]
+    hydratedusers <- lapply(uniqueusers,
+                          function(user) {
+                              if (! is.na(user)) {
+                                  useridx <- which(tolower(twitteruser$screen_name) == user )
+                                  if (! is.null(useridx)) {
+                                      hydrateduser = list()
+                                      hydrateduser$id               <- user
+                                      hydrateduser$name             <- twitteruser$name[useridx]
+                                      hydrateduser$location         <- twitteruser$location[useridx]
+                                      hydrateduser$created_at       <- twitteruser$created_at[useridx]
+                                      hydrateduser$favourites_count <- twitteruser$favourites_count[useridx]
+                                      hydrateduser$followers_count  <- twitteruser$followers_count[useridx]
+                                      hydrateduser$following        <- twitteruser$following[useridx]
+                                      hydrateduser$friends_count    <- twitteruser$friends_count[useridx]
+                                      hydrateduser$lang             <- twitteruser$land[useridx]
+                                      return(hydrateduser)
+                                  }
+                              }
+                          })
 
-    edges <- data.frame(rbindlist(apply(twitterread, MARGIN=1, function(tweet) expand.grid(
-                from=tweet$user, to=unique(tweet$linklist), html=ifelse(is.null(tweet$html), "", tweet$html)))))
+    edges <- data.frame(rbindlist(apply(
+                 twitterread, 
+                 MARGIN=1, 
+                 function(tweet) expand.grid(
+                    from=tweet$user, 
+                    to=unique(tweet$linklist), 
+                    twitterid=tweet$id, 
+                    html=ifelse(is.null(tweet$html),
+                                ifelse(args$oembed,
+                                       fromJSON(readLines(sprintf("https://publish.twitter.com/oembed?url=https://twitter.com/any/status/%s", tweet$id)))$html,
+                                       ""),
+                                tweet$html)))))
 
     vertices <- data.frame(id=uniqueusers[order(uniqueusers)], stringsAsFactors = FALSE)
 
@@ -130,7 +173,8 @@ twitterDynamicNetwork <- function(arglist) {
                     target=as.integer(lapply(x$linklist, function(y) which(netusers == y))))
                 ))
 
-    verticesdyn <- rbindlist(apply(twitterread, MARGIN=1, function(x) expand.grid(onset=x$ts, terminus=x$ts, id=as.integer(lapply(x$userlist, function(y) which(netusers == y))))))
+    verticesdyn <- rbindlist(apply(twitterread, MARGIN=1, function(x) expand.grid(
+        onset=x$ts, terminus=x$ts, id=as.integer(lapply(x$userlist, function(y) which(netusers == y))))))
 
     net.dyn<-networkDynamic(base.net=net, edge.spells=edgesdyn, vertex.spells=verticesdyn, interval=interval, create.TEAs=TRUE)
 
@@ -168,15 +212,19 @@ twitterDynamicNetwork <- function(arglist) {
       dyads<-get.dyads.active(slice, onset=-Inf, terminus=Inf)
 
       # Code to retrieve tweet HTML via API
-#       ids<-unlist(lapply(slice$mel, function(x)  x$atl$twitterid))
-#       urls<-lapply(slice$mel, function(x) sprintf("https://publish.twitter.com/oembed?url=https://twitter.com/any/status/%s",
-#                   ids[dyads[,1] == x$outl & dyads[,2] == x$inl],
-#                   collapse=""))
-#       lapply(urls, function(x) lapply(x, function(y) fromJSON(readLines(y))$html))
-        lapply(slice$mel, function(x)  x$atl$html)
+#     ids<-unlist(lapply(slice$mel, function(x)  x$atl$twitterid))
+#     urls<-lapply(slice$mel, function(x) sprintf("https://publish.twitter.com/oembed?url=https://twitter.com/any/status/%s?omit_script=true",
+#                 ids[dyads[,1] == x$outl & dyads[,2] == x$inl],
+#                 collapse=""))
+#     lapply(urls, function(x) lapply(x, function(y) fromJSON(readLines(y))$html))
+      lapply(slice$mel, function(x)  x$atl$html)
 
     }
 
+    vertextooptip = function(slice) {
+        paste0("<a href=\"https://twitter.com/", (net.dyn %v% "id"), "\" target=\"_blank\">", (net.dyn %v% "id"), "</a>")    
+    }
+    
     if (endsWith(args$outfile, "html")) {
         render.d3movie(net.dyn,
                        filename=args$outfile,
@@ -186,7 +234,7 @@ twitterDynamicNetwork <- function(arglist) {
     #                   label=(net.dyn %v% "id"),
                        animationDuration=100,
     #                    vertex.cex=rescale(degree(net.dyn), c(1,10)),
-                       vertex.tooltip = paste0("<a href=\"https://twitter.com/", (net.dyn %v% "id"), "\" target=\"_blank\">", (net.dyn %v% "id"), "</a>"),
+                       vertex.tooltip = vertextooltip,
     #                   edge.lwd = (net.dyn %e% "weight"),
                        edge.label=edgelabel,
                        edge.tooltip = edgetooltip)
