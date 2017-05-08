@@ -196,7 +196,9 @@ def twitterHydrate(arglist):
                 if args.html:
                     try:
                         row['html'] = api.GetStatusOembed(row['id'])['html']
-                    except twitterError:
+                    except twitter.TwitterError:
+                        if args.verbosity >= 1:
+                            print("Failed to retrieve HTML for tweet id: " + str(row['id']))
                         continue
             elif args.verbosity >= 3:
                 print("Tweet id: " + str(row['id']) + " not retrieved.", file=sys.stderr)
