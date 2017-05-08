@@ -25,7 +25,6 @@ import sys
 from TwitterFeed import TwitterRead, TwitterWrite
 import unicodecsv
 import re
-from dateutil import parser as dateparser
 import datetime
 
 MENTIONREGEXP=re.compile(r'(@\w+)', re.UNICODE)
@@ -51,6 +50,8 @@ def twitterHydrate(arglist):
     parser.add_argument('--access-token-secret', type=str,
                         help='Access token secret for Twitter authentication')
 
+    parser.add_argument(      '--since',      type=str, help='Lower bound tweet date/time in any sensible format.')
+    parser.add_argument(      '--until',      type=str, help='Upper bound tweet date/time in any sensible format.')
     parser.add_argument('-l', '--limit',      type=int, help='Limit number of tweets to process')
 
     parser.add_argument(      '--html',    action='store_true', help='Retrieve embeddable tweet HTML')
@@ -67,7 +68,10 @@ def twitterHydrate(arglist):
     if args.batch is None:
         args.batch = sys.maxint
 
-    twitterread = TwitterRead(args.infile, limit=args.limit)
+    until = dateparser.parse(args.until) if args.until else None
+    since = dateparser.parse(args.since) if args.since else None
+
+    twitterread = TwitterRead(args.infile, since=since, until=until, limit=args.limit)
     if args.no_comments:
         comments = None
     else:
