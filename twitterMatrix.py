@@ -124,6 +124,8 @@ def twitterMatrix(arglist):
         comments += '#     words=' + str(args.words) + '\n'
         if args.textblob:
             comments += '#     textblob\n'
+        if args.no_header:
+            comments += '#     no-header\n'
 
         comments += twitterread.comments
 

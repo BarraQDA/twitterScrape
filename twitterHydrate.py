@@ -81,6 +81,8 @@ def twitterHydrate(arglist):
         comments += '#     infile=' + (args.infile or '<stdin>') + '\n'
         if args.limit:
             comments += '#     limit=' + str(args.limit) + '\n'
+        if args.no_header:
+            comments += '#     no-header\n'
 
         comments += twitterread.comments
 

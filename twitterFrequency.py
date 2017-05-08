@@ -107,6 +107,8 @@ def twitterFrequency(arglist):
         comments += '#     score=' + args.score + '\n'
         if args.interval:
             comments += '#     interval=' + str(args.interval) + '\n'
+        if args.no_header:
+            comments += '#     no-header\n'
 
         comments += twitterread.comments
 

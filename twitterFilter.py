@@ -138,6 +138,8 @@ def twitterFilter(arglist):
             comments += '#     data=' + args.data + '\n'
         if args.number:
             comments += '#     number=' + str(args.number) + '\n'
+        if args.no_header:
+            comments += '#     no-header\n'
 
         if args.outfile:
             outcomments = (' ' + args.outfile + ' ').center(80, '#') + '\n'

@@ -93,6 +93,8 @@ def twitterScrape(arglist):
             comments += '#     force\n'
         if args.number:
             comments += '#     number=' + str(args.number) + '\n'
+        if args.no_header:
+            comments += '#     no-header\n'
 
     # Function to simplify reading tweets from CSV or feed
     def nextornone(reader):

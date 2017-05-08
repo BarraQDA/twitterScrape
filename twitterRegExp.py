@@ -156,6 +156,8 @@ def twitterRegExp(arglist):
             comments += '#     threshold=' + str(args.threshold) + '\n'
         if args.number:
             comments += '#     number=' + str(args.number) + '\n'
+        if args.no_header:
+            comments += '#     no-header\n'
 
         outfile.write(comments + twitterread.comments)
 

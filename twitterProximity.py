@@ -101,7 +101,8 @@ def twitterProximity(arglist):
             outfile.write('#     number=' + str(args.number) + '\n')
         if args.textblob:
             outfile.write('#     textblob\n')
-
+        if args.no_header:
+            comments += '#     no-header\n'
 
     inreader=unicodecsv.DictReader(infile, fieldnames=fieldnames)
 

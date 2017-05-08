@@ -116,6 +116,8 @@ def twitterNetwork(arglist):
             comments += '#     tothreshold=' + str(args.tothreshold) + '\n'
         if args.threshold:
             comments += '#     threshold=' + str(args.threshold) + '\n'
+        if args.no_header:
+            comments += '#     no-header\n'
 
         comments += twitterread.comments
 
