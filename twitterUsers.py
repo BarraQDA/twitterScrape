@@ -157,15 +157,17 @@ def twitterUsers(arglist):
 
     users = sorted(users, key=lambda user: user.lower())
     useridx = 0
-    fieldnames = None
+    fieldnames = []
+    #fieldnames = ['default_profile', 'default_profile_image', 'follow_request_sent', 'geo_enabled', 'is_translator', 'profile_background_tile', 'profile_user_background_image', 'protected', 'verified', 'withheld_in_countries', 'withheld_scope']
     while useridx < len(users):
         userslice = users[useridx:useridx+100]
         useridx += 100
-        userdata  = api.UsersLookup(screen_name=userslice,include_entities=False)
+        userdata  = api.UsersLookup(screen_name=userslice,include_entities=True)
         for userdatum in userdata:
             userdict = userdatum.AsDict()
             if not fieldnames:
                 fieldnames = userdict.keys()
+                fieldnames = fieldnames + list({'default_profile', 'default_profile_image', 'follow_request_sent', 'geo_enabled', 'is_translator', 'profile_background_tile', 'profile_user_background_image', 'protected', 'verified', 'withheld_in_countries', 'withheld_scope'} - set(fieldnames))
                 twitterwrite = TwitterWrite(args.outfile, comments=comments, fieldnames=fieldnames, header=not args.no_header)
 
             twitterwrite.write(userdict)
