@@ -137,11 +137,6 @@ def twitterUsers(arglist):
                     sleep_on_rate_limit=True
             )
 
-
-    fieldnames = ['screen_name', 'id', 'name', 'location', 'description', 'created_at', 'email', 'favourites_count', 'followers_count', 'following', 'friends_count', 'lang']
-
-    twitterwrite = TwitterWrite(args.outfile, comments=comments, fieldnames=fieldnames, header=not args.no_header)
-
     if args.verbosity >= 2:
         print("Loading tweets.", file=sys.stderr)
 
@@ -162,26 +157,18 @@ def twitterUsers(arglist):
 
     users = sorted(users, key=lambda user: user.lower())
     useridx = 0
+    fieldnames = None
     while useridx < len(users):
         userslice = users[useridx:useridx+100]
         useridx += 100
-        print (userslice)
         userdata  = api.UsersLookup(screen_name=userslice,include_entities=False)
         for userdatum in userdata:
-            twitterwrite.write({
-                'screen_name':      userdatum.screen_name,
-                'id':               userdatum.id,
-                'name':             userdatum.name,
-                'location':         userdatum.location,
-                'description':      userdatum.description,
-                'created_at':       dateparser.parse(userdatum.created_at).isoformat(),
-                'email':            userdatum.email,
-                'favourites_count': userdatum.favourites_count,
-                'followers_count':  userdatum.followers_count,
-                'following':        userdatum.following,
-                'friends_count':    userdatum.friends_count,
-                'lang':             userdatum.lang
-            })
+            userdict = userdatum.AsDict()
+            if not fieldnames:
+                fieldnames = userdict.keys()
+                twitterwrite = TwitterWrite(args.outfile, comments=comments, fieldnames=fieldnames, header=not args.no_header)
+
+            twitterwrite.write(userdict)
 
 if __name__ == '__main__':
     twitterUsers(None)
