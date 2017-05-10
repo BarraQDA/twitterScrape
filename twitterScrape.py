@@ -255,7 +255,7 @@ def twitterScrape(arglist):
                 elif currow[fileidx]['id'] == None:
                     currow[fileidx] = None
                     if args.verbosity >= 1:
-                        print(args.infile[fileidx] + " has gap after id:" + str(currowid) + " - " + currowdate, file=sys.stderr)
+                        print(args.infile[fileidx] + " has gap after id:" + str(currowid) + " - " + currowdate.isoformat(), file=sys.stderr)
 
         headidx = None
         for fileidx in range(len(inreader)):
@@ -313,19 +313,16 @@ def twitterScrape(arglist):
         while (args.query or args.user) and not any(pacing):
             newsince = since.date() if since else None
             if (not args.force) and (headidx is not None):
-                newsince = max(newsince, currow[headidx]['date'].date())
+                newsince = max(newsince or date.min, currow[headidx]['date'].date())
 
             # Continue with current twitter feed if since dates match and last retrieved is same day
             # as we are looking for
-            print(twitterfeed)
-            print(twittersince)
-            print(newsince)
-            if twitterfeed and (args.force or (twittersince <= newsince and twitterdate == lastdatetime.date())):
+            if twitterfeed and (args.force or ((twittersince or date.min) <= (newsince or date.min) and twitterdate == lastdatetime.date())):
                 if args.verbosity >= 1:
                     print("Continuing twitter feed with until:" + (twitteruntil.isoformat() if twitteruntil else '') + ", since:" + (twittersince.isoformat() if twittersince else ''), file=sys.stderr)
             # Otherwise start a new twitter feed.
             else:
-                # Set until date one second past lastdatetime because twitter returns tweets strictly before until date
+                # Set until date one day past lastdatetime because twitter returns tweets strictly before until date
                 newuntil = lastdatetime.date() + timedelta(days=1)
                 # This condition catches non-exhausted or different twitter feed
                 if twitterfeed or (twittersince and twittersince > newsince):
