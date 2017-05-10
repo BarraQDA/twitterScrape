@@ -155,7 +155,7 @@ def twitterScrape(arglist):
     if (args.query or args.user) and (args.force or until is None or headidx is None or until > currow[headidx]['date']):
         twittersince = since.date() if since else None
         if (not args.force) and (headidx is not None):
-            twittersince = max(twittersince, currow[headidx]['date'].date())
+            twittersince = max(twittersince, currow[headidx]['date'].date()) if twittersince else currow[headidx]['date'].date()
 
         if until:
             twitteruntil = until.date()
