@@ -311,7 +311,7 @@ def twitterScrape(arglist):
 
         # If no file is now pacing, try opening a new twitter feed
         while (args.query or args.user) and not any(pacing):
-            newsince = since.date()
+            newsince = since.date() if since else None
             if (not args.force) and (headidx is not None):
                 newsince = max(newsince, currow[headidx]['date'].date())
 
