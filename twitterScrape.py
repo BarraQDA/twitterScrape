@@ -337,7 +337,7 @@ def twitterScrape(arglist):
                         else:
                             twitteruntil = newuntil
 
-                        if twitteruntil <= twittersince or twitteruntil <= date(2006, 3, 21): # Twitter start date
+                        if (twittersince and twitteruntil <= twittersince) or twitteruntil <= date(2006, 3, 21): # Twitter start date
                             break
                     else:
                         # After error, just retry with same since and until as last time. Should catch too many retries
