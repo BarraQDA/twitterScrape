@@ -92,7 +92,7 @@ twitterDynamicNetwork <- function(arglist) {
     infile <- file(args$infile, open="rU")
     skipheader(infile)
     twitterread <- read.csv(infile, header=T, colClasses="character")
-    twitterread$ts <- as.integer(as.POSIXct(strptime(twitterread$date, "%Y-%m-%d %H:%M:%S", tz="UTC")))
+    twitterread$ts <- as.integer(as.POSIXct(strptime(twitterread$date, "%Y-%m-%dT%H:%M:%S", tz="UTC")))
 
     twitterread <- twitterread[twitterread$ts >= since & twitterread$ts < until,]
     if (! is.null(args$limit) & args$limit < nrow(twitterread)){
@@ -114,7 +114,7 @@ twitterDynamicNetwork <- function(arglist) {
     uniqueusers <- uniqueusers[uniqueusers != ""]
 #    uniqueusers <- uniqueusers[uniqueusers != "NA"]
     
-    if (! is.null(args$userfile)){
+    if (! is.null(args$userfile)) {
         userfile <- file(args$userfile, open="rU")
         skipheader(userfile)
         twitteruser <- read.csv(userfile, header=T, colClasses="character")
@@ -143,6 +143,20 @@ twitterDynamicNetwork <- function(arglist) {
                                 }
                             }))
     }
+    else {
+        hydratedusers <- rbindlist(lapply(
+                            uniqueusers,
+                            function(user) {
+                                if (! is.na(user) & user != "NA") {
+                                    hydrateduser = list()
+                                    hydrateduser$id  <- user
+                                    
+                                    return(hydrateduser)
+                                }
+                            }))
+    }
+    hydratedusers <- hydratedusers[order(hydratedusers$id)]
+
     edges <- rbindlist(apply(
                  twitterread, 
                  MARGIN=1, 
@@ -151,6 +165,7 @@ twitterDynamicNetwork <- function(arglist) {
                     to=unique(tweet$linklist), 
                     twitterid=tweet$id,
                     text=tweet$text,
+                    retweets=as.integer(tweet$retweets),
                     html=ifelse(is.null(tweet$html),
                                 ifelse(args$oembed,
                                        fromJSON(readLines(sprintf("https://publish.twitter.com/oembed?url=https://twitter.com/any/status/%s", tweet$id)))$html,
@@ -160,7 +175,7 @@ twitterDynamicNetwork <- function(arglist) {
     # vertices <- data.frame(id=uniqueusers[order(uniqueusers)], stringsAsFactors = FALSE)
 
     net <- network(edges,
-                   vertex.attr=hydratedusers[order(hydratedusers$id)],
+                   vertex.attr=hydratedusers,
                    matrix.type="edgelist",
                    loops=T,
                    ignore.eval = F)
@@ -188,29 +203,17 @@ twitterDynamicNetwork <- function(arglist) {
 
     initialize.pids(net.dyn)
 
-    vertexdegree = function(x) {
-        netx<-network.extract(net.dyn,at=x)
-        vertices<-get.vertex.id(net.dyn, get.vertex.pid(netx))
-        values<-sapply(vertices, function(x) degree(netx)[get.vertex.id(netx, get.vertex.pid(net.dyn, x))])
-        activate.vertex.attribute(net.dyn, "degree", values, at=x, v=vertices, dynamic.only = TRUE)
-        net.dyn <<- net.dyn #  Export to calling environment
-    }
-    lapply(unique(verticesdyn$onset), vertexdegree)
-
     compute.animation(net.dyn, animation.mode = args$mode,
-                      weight.attr="activity.count",
                       slice.par=list(start=start,end=end,interval=interval,
                       aggregate.dur=duration, rule='any'))
 
     vertexlabel = function(slice) {
-        if (! is.null(args$degree))
-            ifelse(slice %v% "degree" >= args$degree, paste(slice %v% "screen_name", slice %v% "degree"), "")
+        # ifelse(degree(slice) >= args$degree, paste(slice %v% "screen_name", ""))
+        ifelse(degree(slice) >= args$degree & ! is.na(slice %v% "screen_name"),
+               paste(slice %v% "screen_name"), "")
     }
 
     edgelabel = function(slice) {
-#         d<-get.dyads.active(slice, onset=-Inf, terminus=Inf)
-        if (! is.null(args$degree))
-            ifelse(slice %v% "degree" >= args$degree, paste(slice %v% "id", slice %v% "degree"), "")
     }
 
     edgetooltip = function(slice) {
@@ -219,9 +222,13 @@ twitterDynamicNetwork <- function(arglist) {
       
         edgeids<-lapply(slice$mel, function(x) 
                      ids[dyads[,1] == x$outl & dyads[,2] == x$inl])
-        lapply(edgeids, function(edgeid) edges[edges$twitterid == edgeid]$html)
-      
-      # lapply(slice$mel, function(x)  ifelse(x$atl$html == '', as.character(x$atl$text), as.character(x$atl$html)))
+        lapply(edgeids, 
+               function(edgeid) 
+                   edges[edges$twitterid == edgeid]$text
+                   # ifelse(is.na(edges[edges$twitterid == edgeid]$html), 
+                   #        edges[edges$twitterid == edgeid]$text,
+                   #        edges[edges$twitterid == edgeid]$html)
+        )
     }
 
     vertextooltip = function(slice) {
@@ -234,23 +241,21 @@ twitterDynamicNetwork <- function(arglist) {
                 <p>
                 <span class=\"TweetAuthor-name Identity-name customisable-highlight\" title=\"", (slice %v% "name"), "\" data-scribe=\"element:name\">", (slice %v% "name"), "</span>
                 ", ifelse(! is.na(slice %v% "verified"), "<span class=\"TweetAuthor-verifiedBadge\" data-scribe=\"element:verified_badge\"><div class=\"Icon Icon--verified \" aria-label=\"Verified Account\" title=\"Verified Account\" role=\"img\"></div><b class=\"u-hiddenVisually\">✔</b></span>", ""),"
-                </p><p>
-                <span class=\"TweetAuthor-screenName Identity-screenName\" title=\"@", (slice %v% "screen_name"), "\" data-scribe=\"element:screen_name\" dir=\"ltr\">@", (slice %v% "screen_name"), "</span>
                 </p>
+                <p><span class=\"TweetAuthor-screenName Identity-screenName\" title=\"@", (slice %v% "screen_name"), "\" data-scribe=\"element:screen_name\" dir=\"ltr\">@", (slice %v% "screen_name"), "</span></p>
+                <p>", (slice %v% "followers_count"), " followers</p>
                 </a>
                 </div>")
-
-            # "<p><img src=\"https://twitter.com/", (slice %v% "id"), "/profile_image?size=original\" align=\"left\" width=\"112\" height=\"101\"/>
-            # ",(slice %v% "screen_name"),"
-            # ",(slice %v% "name"),"
-            # ",(slice %v% "followers_count"),
-            # "</p>"
-#            (slice %v% "tweet_count")
-        # paste0("<a href=\"https://twitter.com/", (slice %v% "screen_name"), "\" target=\"_blank\">", (slice %v% "name"), "</a>")    
     }
     
     vertexcex = function(slice) {
-        rescale(log(as.integer(slice %v% "followers_count")), c(1,5))
+        ifelse(is.na(slice %v% "followers_count"),
+               1,
+               rescale(log(as.integer(slice %v% "followers_count")), c(0.1,2)))
+    }
+    
+    edgelwd = function(slice) {
+        rescale(log(as.integer(slice %e% "retweets")), c(1,5))
     }
     
     if (endsWith(args$outfile, "html")) {
@@ -263,7 +268,7 @@ twitterDynamicNetwork <- function(arglist) {
                        animationDuration=100,
                        vertex.cex=vertexcex,
                        vertex.tooltip = vertextooltip,
-    #                   edge.lwd = (net.dyn %e% "weight"),
+                       edge.lwd = edgelwd,
                        edge.label=edgelabel,
                        edge.tooltip = edgetooltip)
     } else {
