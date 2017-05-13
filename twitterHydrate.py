@@ -36,7 +36,6 @@ def twitterHydrate(arglist):
                                      fromfile_prefix_chars='@')
 
     parser.add_argument('-v', '--verbosity', type=int, default=1)
-    parser.add_argument('-b', '--batch',     type=int, default=10000, help='Number of tweets to process per batch. Use to limit memory usage with very large files. May affect performance but not results.')
 
     # Twitter authentication stuff
     parser.add_argument('--consumer-key', type=str,
@@ -54,8 +53,6 @@ def twitterHydrate(arglist):
     parser.add_argument(      '--until',      type=str, help='Upper bound tweet date/time in any sensible format.')
     parser.add_argument('-l', '--limit',      type=int, help='Limit number of tweets to process')
 
-    parser.add_argument(      '--html',    action='store_true', help='Retrieve embeddable tweet HTML')
-
     parser.add_argument('-o', '--outfile', type=str, help='Output CSV file, otherwise use stdout')
     parser.add_argument('--overwrite',     action='store_true', help='Overwrite input fields with hydrated data')
     parser.add_argument('--no-comments',   action='store_true', help='Do not output descriptive comments')
@@ -64,9 +61,6 @@ def twitterHydrate(arglist):
     parser.add_argument('infile', type=str, nargs='?', help='Input CSV file, otherwise use stdin')
 
     args = parser.parse_args(arglist)
-
-    if args.batch is None:
-        args.batch = sys.maxint
 
     until = dateparser.parse(args.until) if args.until else None
     since = dateparser.parse(args.since) if args.since else None
@@ -143,7 +137,9 @@ def twitterHydrate(arglist):
                     sleep_on_rate_limit=True
             )
 
-    fieldnames = twitterread.fieldnames + list(({'user', 'date', 'text', 'replies', 'retweets', 'favorites', 'reply-to', 'reply-to-user', 'reply-to-user-id', 'lang', 'geo', 'mentions', 'hashtags', 'user-id', 'id'} | ({'html'} if args.html else set())) - set(twitterread.fieldnames))
+    GETSTATUS_FIELDS = {'user', 'date', 'text', 'replies', 'retweets', 'favorites', 'reply-to', 'reply-to-user', 'reply-to-user-id', 'lang', 'geo', 'mentions', 'hashtags', 'user-id'}
+
+    fieldnames = twitterread.fieldnames + list(GETSTATUS_FIELDS - set(twitterread.fieldnames))
 
     twitterwrite = TwitterWrite(args.outfile, comments=comments, fieldnames=fieldnames, header=not args.no_header)
 
@@ -152,26 +148,22 @@ def twitterHydrate(arglist):
             print("Loading twitter batch.", file=sys.stderr)
 
         rows = []
-        batchcount = 0
-        while batchcount < args.batch:
+        while len(rows) < 100:     # Hard code Twitter 100 batch size
             try:
                 row = next(twitterread)
-                batchcount += 1
                 rows.append(row)
 
             except StopIteration:
                 break
 
-        if batchcount == 0:
+        if len(rows) == 0:
             break
 
         ids = [row['id'] for row in rows]
         tweets = api.GetStatuses(ids, map=True)
         for row in rows:
-            tweet = tweets[row['id']]
+            tweet = tweets.get(row['id'])
             if tweet:
-                assert (tweet.id == row['id'])
-
                 if args.overwrite or row.get('user') is None:
                     row['user'] = tweet.user.screen_name
                 if args.overwrite or row.get('date') is None:
@@ -198,14 +190,6 @@ def twitterHydrate(arglist):
                     row['hashtags'] = u' '.join([u'#'+hashtag.text for hashtag in tweet.hashtags])
                 if args.overwrite or row.get('user-id') is None:
                     row['user-id'] = tweet.user.id
-
-                if args.html:
-                    try:
-                        row['html'] = api.GetStatusOembed(row['id'])['html']
-                    except twitter.TwitterError:
-                        if args.verbosity >= 1:
-                            print("Failed to retrieve HTML for tweet id: " + str(row['id']))
-                        continue
             elif args.verbosity >= 3:
                 print("Tweet id: " + str(row['id']) + " not retrieved.", file=sys.stderr)
 
