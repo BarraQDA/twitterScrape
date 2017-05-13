@@ -201,15 +201,17 @@ class TwitterRead(object):
                 else:
                     continue
 
-            try:
-                row['date'] = dateparser.parse(row['date'])
-            except (TypeError, ValueError):
-                row['date'] = None
+            date = row.get('date')
+            if date:
+                try:
+                    row['date'] = dateparser.parse(date)
+                except (TypeError, ValueError):
+                    row['date'] = None
 
-            if self.until and row['date'] >= self.until:
-                continue
-            if self.since and row['date'] < self.since:
-                raise StopIteration
+                if self.until and row['date'] >= self.until:
+                    continue
+                if self.since and row['date'] < self.since:
+                    raise StopIteration
 
             def convert_to_int(key):
                 val = row.get(key)
