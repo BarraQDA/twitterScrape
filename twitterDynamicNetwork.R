@@ -27,7 +27,7 @@ twitterDynamicNetwork <- function(arglist) {
     parser$add_argument('-l', '--limit',      type="integer",   help='Limit number of tweets to process')
 
     parser$add_argument(      '--oembed', action="store_true",  help='Retrieve twitter HTML from server if not in CSV file')
-    
+
     parser$add_argument('-m',  '--mode',      type="character", choices=c("kamadakawai", "MDSJ", "Graphviz"), default="kamadakawai", help='Animation layout mode.')
 
     parser$add_argument('-d', '--duration',   type="character", required=TRUE,
@@ -37,7 +37,7 @@ twitterDynamicNetwork <- function(arglist) {
 
     parser$add_argument(      '--degree',     type="integer", help="Display name of vertices with at least this degree.")
 
-    parser$add_argument('-o', '--outfile',    type="character", required=TRUE, help='Output HTML file.')
+    parser$add_argument('-o', '--outfile',    type="character", help='Output HTML or mp4 file.')
 
     parser$add_argument('--userfile', type="character", help="CSV file containing Twitter user info")
     parser$add_argument('infile', type="character", nargs='?', help='Input CSV file, otherwise use stdin.')
@@ -69,7 +69,7 @@ twitterDynamicNetwork <- function(arglist) {
 
     if (is.null(args$infile))
         args$infile = 'stdin'
-    
+
     skipheader <- function(file){
         pos = seek(file)
         while (TRUE) {
@@ -92,7 +92,7 @@ twitterDynamicNetwork <- function(arglist) {
     infile <- file(args$infile, open="rU")
     skipheader(infile)
     twitterread <- read.csv(infile, header=T, colClasses="character")
-    twitterread$ts <- as.integer(as.POSIXct(strptime(twitterread$date, "%Y-%m-%dT%H:%M:%S", tz="UTC")))
+    twitterread$ts <- as.integer(as.POSIXct(strptime(twitterread$date, "%Y-%m-%d %H:%M:%S", tz="UTC")))
 
     twitterread <- twitterread[twitterread$ts >= since & twitterread$ts < until,]
     if (! is.null(args$limit) & args$limit < nrow(twitterread)){
@@ -102,23 +102,23 @@ twitterDynamicNetwork <- function(arglist) {
     twitterread$mentions <- tolower(twitterread$mentions)
     twitterread$reply.to.user <- tolower(twitterread$reply.to.user)
 
-    twitterread$linklist <- lapply(strsplit(paste(twitterread$mentions, twitterread$reply.to.user), " ", fixed=TRUE), 
+    twitterread$linklist <- lapply(strsplit(paste(twitterread$mentions, twitterread$reply.to.user), " ", fixed=TRUE),
                                    function(x) unique(x))
     twitterread <- twitterread[twitterread$linklist != "",]
 
-    
+
     twitterread$userlist <- lapply(strsplit(paste(twitterread$user, twitterread$mentions, twitterread$reply.to.user), " ", fixed=TRUE),
                                    function(x) unique(x))
-    
+
     uniqueusers <- unique(unlist(twitterread$userlist))
     uniqueusers <- uniqueusers[uniqueusers != ""]
 #    uniqueusers <- uniqueusers[uniqueusers != "NA"]
-    
+
     if (! is.null(args$userfile)) {
         userfile <- file(args$userfile, open="rU")
         skipheader(userfile)
         twitteruser <- read.csv(userfile, header=T, colClasses="character")
-        
+
         hydratedusers <- rbindlist(lapply(
                             uniqueusers,
                             function(user) {
@@ -127,6 +127,7 @@ twitterDynamicNetwork <- function(arglist) {
                                     if (! is.null(useridx)) {
                                         hydrateduser = list()
                                         hydrateduser$id                <- user
+                                        hydrateduser$statuses_count    <- twitteruser$statuses_count[useridx]
                                         hydrateduser$screen_name       <- twitteruser$screen_name[useridx]
                                         hydrateduser$name              <- twitteruser$name[useridx]
                                         hydrateduser$location          <- twitteruser$location[useridx]
@@ -137,7 +138,8 @@ twitterDynamicNetwork <- function(arglist) {
                                         hydrateduser$friends_count     <- twitteruser$friends_count[useridx]
                                         hydrateduser$lang              <- twitteruser$lang[useridx]
                                         hydrateduser$profile_image_url <- twitteruser$profile_image_url[useridx]
-                                                                                
+                                        hydrateduser$description       <- twitteruser$description[useridx]
+
                                         return(hydrateduser)
                                     }
                                 }
@@ -150,7 +152,7 @@ twitterDynamicNetwork <- function(arglist) {
                                 if (! is.na(user) & user != "NA") {
                                     hydrateduser = list()
                                     hydrateduser$id  <- user
-                                    
+
                                     return(hydrateduser)
                                 }
                             }))
@@ -158,11 +160,11 @@ twitterDynamicNetwork <- function(arglist) {
     hydratedusers <- hydratedusers[order(hydratedusers$id)]
 
     edges <- rbindlist(apply(
-                 twitterread, 
-                 MARGIN=1, 
+                 twitterread,
+                 MARGIN=1,
                  function(tweet) expand.grid(
-                    from=tweet$user, 
-                    to=unique(tweet$linklist), 
+                    from=tweet$user,
+                    to=unique(tweet$linklist),
                     twitterid=tweet$id,
                     text=tweet$text,
                     retweets=as.integer(tweet$retweets),
@@ -219,48 +221,92 @@ twitterDynamicNetwork <- function(arglist) {
     edgetooltip = function(slice) {
         ids<-unlist(lapply(slice$mel, function(x)  x$atl$twitterid))
         dyads<-get.dyads.active(slice, onset=-Inf, terminus=Inf)
-      
-        edgeids<-lapply(slice$mel, function(x) 
+
+        edgeids<-lapply(slice$mel, function(x)
                      ids[dyads[,1] == x$outl & dyads[,2] == x$inl])
-        lapply(edgeids, 
-               function(edgeid) 
+        lapply(edgeids,
+               function(edgeid)
                    edges[edges$twitterid == edgeid]$text
-                   # ifelse(is.na(edges[edges$twitterid == edgeid]$html), 
+                   # ifelse(is.na(edges[edges$twitterid == edgeid]$html),
                    #        edges[edges$twitterid == edgeid]$text,
                    #        edges[edges$twitterid == edgeid]$html)
         )
     }
 
     vertextooltip = function(slice) {
-        paste0(
-            "<div class=\"TweetAuthor \" data-scribe=\"component:author\">
-                <a class=\"TweetAuthor-link Identity u-linkBlend\" data-scribe=\"element:user_link\" href=\"https://twitter.com/", (slice %v% "id"), "\" aria-label=\"", (slice %v% "name"), " (screen name: ", (slice %v% "screen_name"), ")\">
-                <span class=\"TweetAuthor-avatar Identity-avatar\">
-                <img class=\"Avatar\" data-scribe=\"element:avatar\" data-src-2x=\"", (slice %v% "profile_image_url"), "\" alt=\"\" data-src-1x=\"", (slice %v% "profile_image_url"), "\" src=\"", (slice %v% "profile_image_url"), "\">
-                </span>
-                <p>
-                <span class=\"TweetAuthor-name Identity-name customisable-highlight\" title=\"", (slice %v% "name"), "\" data-scribe=\"element:name\">", (slice %v% "name"), "</span>
-                ", ifelse(! is.na(slice %v% "verified"), "<span class=\"TweetAuthor-verifiedBadge\" data-scribe=\"element:verified_badge\"><div class=\"Icon Icon--verified \" aria-label=\"Verified Account\" title=\"Verified Account\" role=\"img\"></div><b class=\"u-hiddenVisually\">✔</b></span>", ""),"
-                </p>
-                <p><span class=\"TweetAuthor-screenName Identity-screenName\" title=\"@", (slice %v% "screen_name"), "\" data-scribe=\"element:screen_name\" dir=\"ltr\">@", (slice %v% "screen_name"), "</span></p>
-                <p>", (slice %v% "followers_count"), " followers</p>
-                </a>
-                </div>")
+        paste0("
+  <div class=\"ProfileCard-bg
+
+    \" style=\"background-color: #3B94D9\"></div>
+
+    <a href=\"https://twitter.com/", (slice %v% "screen_name"), "\" class=\"ProfileCard-avatarLink js-nav js-tooltip\" title=\"", (slice %v% "name"), "\" tabindex=\"-1\" aria-hidden=\"true\" data-send-impression-cookie=\"true\">
+        <img src=\"", (slice %v% "profile_image_url"),"\" alt=\"", (slice %v% "name"), "\" class=\"ProfileCard-avatarImage js-action-profile-avatar\">
+    </a>
+
+    <div class=\"UserActions   UserActions--small u-textLeft\">
+
+      <div class=\"user-actions btn-group not-following not-muting \" data-user-id=\"2425411130\" data-screen-name=\"mometfisher\" data-name=\"", (slice %v% "name"), "\" data-protected=\"false\">
+
+      </div>
+    </div>
+
+  <div class=\"ProfileCard-content \" data-screen-name=\"mometfisher\" data-user-id=\"2425411130\">
+    <div class=\"ProfileCard-userFields\">
+        <div class=\"ProfileNameTruncated account-group\">
+  <div class=\"u-textTruncate u-inlineBlock\">
+    <a class=\"fullname ProfileNameTruncated-link u-textInheritColor js-nav\" href=\"https://twitter.com/", (slice %v% "screen_name"), "\" data-aria-label-part=\"\" data-send-impression-cookie=\"true\">
+      ", (slice %v% "name"), "</a></div><span class=\"UserBadges\"><span class=\"Icon Icon--verified\"><span class=\"u-hiddenVisually\">Verified account</span></span></span>
+</div>
+        <div class=\"ProfileCard-screenname\">
+          <a href=\"https://twitter.com/", (slice %v% "screen_name"), "\" class=\"ProfileCard-screennameLink u-linkComplex js-nav\" data-aria-label-part=\"\" data-send-impression-cookie=\"true\">
+            <span class=\"username u-dir\" dir=\"ltr\">@<b class=\"u-linkComplex-target\">mometfisher</b></span>
+          </a>
+        </div>
+    </div>
+
+      <div class=\"bio-container\">
+        <p class=\"bio profile-field u-dir\" dir=\"ltr\">", (slice %v% "description"), "</p>
+      </div>
+
+  </div>
+      <div class=\"ProfileCardStats\">
+    <ul class=\"ProfileCardStats-statList Arrange Arrange--bottom Arrange--equal\"><li class=\"ProfileCardStats-stat Arrange-sizeFit\">
+        <a class=\"ProfileCardStats-statLink u-textUserColor u-linkClean u-block js-nav js-tooltip\" title=\"", (slice %v% "statuses_count"), " Tweets\" href=\"https://twitter.com/", (slice %v% "screen_name"), "\" data-element-term=\"tweet_stats\" data-send-impression-cookie=\"true\">
+          <span class=\"ProfileCardStats-statLabel u-block\">Tweets</span>
+          <span class=\"ProfileCardStats-statValue\" data-count=\"", (slice %v% "statuses_count"), "\" data-is-compact=\"false\">", (slice %v% "statuses_count"), "</span>
+        </a>
+      </li><li class=\"ProfileCardStats-stat Arrange-sizeFit\">
+          <a class=\"ProfileCardStats-statLink u-textUserColor u-linkClean u-block js-nav js-tooltip\" title=\"", (slice %v% "friends_count"), " Following\" href=\"https://twitter.com/", (slice %v% "screen_name"), "/following\" data-element-term=\"following_stats\" data-send-impression-cookie=\"true\">
+            <span class=\"ProfileCardStats-statLabel u-block\">Following</span>
+            <span class=\"ProfileCardStats-statValue\" data-count=\"", (slice %v% "friends_count"), "\" data-is-compact=\"false\">", (slice %v% "friends_count"), "</span>
+          </a>
+        </li><li class=\"ProfileCardStats-stat Arrange-sizeFit\">
+          <a class=\"ProfileCardStats-statLink u-textUserColor u-linkClean u-block js-nav js-tooltip\" title=\"", (slice %v% "followers_count"), " Followers\" href=\"https://twitter.com/", (slice %v% "screen_name"), "/followers\" data-element-term=\"follower_stats\" data-send-impression-cookie=\"true\">
+            <span class=\"ProfileCardStats-statLabel u-block\">Followers</span>
+            <span class=\"ProfileCardStats-statValue\" data-count=\"", (slice %v% "followers_count"), "\" data-is-compact=\"false\">", (slice %v% "followers_count"), "</span>
+          </a>
+        </li>
+    </ul>
+  </div>
+
+</div></div>
+
+")
     }
-    
+
     vertexcex = function(slice) {
         ifelse(is.na(slice %v% "followers_count"),
                1,
                rescale(log(as.integer(slice %v% "followers_count")), c(0.1,2)))
     }
-    
+
     edgelwd = function(slice) {
         rescale(log(as.integer(slice %e% "retweets")), c(1,5))
     }
-    
-    if (endsWith(args$outfile, "html")) {
+
+    if (is.null(args$outfile) || endsWith(args$outfile, "html")) {
         render.d3movie(net.dyn,
-                       filename=args$outfile,
+                       filename=if (is.null(args$outfile)) tempfile(fileext = '.html') else args$outfile,
                        displaylabels=TRUE,
                        label=vertexlabel,
     #                   label=netusers,
