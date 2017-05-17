@@ -49,6 +49,8 @@ def twitterHydrate(arglist):
     parser.add_argument('--access-token-secret', type=str,
                         help='Access token secret for Twitter authentication')
 
+    parser.add_argument(      '--retry',      type=int, default=5, help='Number of times to retry failed Twitter API call')
+
     parser.add_argument(      '--since',      type=str, help='Lower bound tweet date/time in any sensible format.')
     parser.add_argument(      '--until',      type=str, help='Upper bound tweet date/time in any sensible format.')
     parser.add_argument('-l', '--limit',      type=int, help='Limit number of tweets to process')
@@ -159,8 +161,20 @@ def twitterHydrate(arglist):
         if len(rows) == 0:
             break
 
-        ids = [row['id'] for row in rows]
-        tweets = api.GetStatuses(ids, map=True)
+        retry = args.retry
+        while True:
+            try:
+                tweets = api.GetStatuses([row['id'] for row in rows], map=True)
+                break
+            except twitter.error.TwitterError as error:
+                print(error)
+                if hasattr(error, 'code') and error.code == 88 and retry > 0:    # Internal error
+                    print ("Retrying")
+                    retry -= 1
+                    continue
+                else:
+                    raise
+
         for row in rows:
             tweet = tweets.get(row['id'])
             if tweet:
