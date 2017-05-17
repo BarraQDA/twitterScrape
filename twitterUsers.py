@@ -18,11 +18,9 @@
 
 from __future__ import print_function
 import argparse
-from requests_oauthlib import OAuth1Session
-import webbrowser
-import twitter
 import sys
-from TwitterFeed import TwitterRead, TwitterWrite
+import os
+from TwitterFeed import TwitterRead
 import unicodecsv
 import re
 from dateutil import parser as dateparser
@@ -38,23 +36,12 @@ def twitterUsers(arglist):
 
     parser.add_argument('-v', '--verbosity', type=int, default=1)
 
-    # Twitter authentication stuff
-    parser.add_argument('--consumer-key', type=str,
-                        help='Consumer key for Twitter authentication')
-    parser.add_argument('--consumer-secret', type=str,
-                        help='Consumer secret for Twitter authentication')
-
-    parser.add_argument('-a', '--application-only-auth', action='store_true')
-    parser.add_argument('--access-token-key', type=str,
-                        help='Access token key for Twitter authentication')
-    parser.add_argument('--access-token-secret', type=str,
-                        help='Access token secret for Twitter authentication')
-
     parser.add_argument(      '--since',      type=str, help='Lower bound tweet date/time in any sensible format.')
     parser.add_argument(      '--until',      type=str, help='Upper bound tweet date/time in any sensible format.')
     parser.add_argument('-l', '--limit',      type=int, help='Limit number of tweets to process')
 
-    parser.add_argument('-o', '--outfile', type=str, help='Output CSV file, otherwise use stdout')
+    parser.add_argument('-o', '--outfile', type=str, help='Output CSV user file, otherwise use stdout')
+    parser.add_argument('-n', '--number',     type=int, default=0, help='Maximum number of results to output')
     parser.add_argument('--no-comments',   action='store_true', help='Do not output descriptive comments')
     parser.add_argument('--no-header',     action='store_true', help='Do not output CSV header with column names')
 
@@ -66,6 +53,15 @@ def twitterUsers(arglist):
     since = dateparser.parse(args.since) if args.since else None
 
     twitterread = TwitterRead(args.infile, since=since, until=until, limit=args.limit)
+
+    if args.outfile is None:
+        outfile = sys.stdout
+    else:
+        if os.path.exists(args.outfile):
+            shutil.move(args.outfile, args.outfile + '.bak')
+
+        outfile = file(args.outfile, 'w')
+
     if args.no_comments:
         comments = None
     else:
@@ -77,100 +73,49 @@ def twitterUsers(arglist):
         comments += '# twitterUsers\n'
         comments += '#     outfile=' + (args.outfile or '<stdout>') + '\n'
         comments += '#     infile=' + (args.infile or '<stdin>') + '\n'
+        if args.since:
+            comments += '#     since=' + args.since+ '\n'
+        if args.until:
+            comments += '#     until=' + args.until + '\n'
         if args.limit:
             comments += '#     limit=' + str(args.limit) + '\n'
+        if args.number:
+            comments += '#     number=' + str(args.number) + '\n'
         if args.no_header:
             comments += '#     no-header\n'
 
         comments += twitterread.comments
+        outfile.write(comments)
 
-    # Twitter URLs
-    REQUEST_TOKEN_URL = 'https://api.twitter.com/oauth/request_token'
-    ACCESS_TOKEN_URL = 'https://api.twitter.com/oauth/access_token'
-    AUTHORIZATION_URL = 'https://api.twitter.com/oauth/authorize'
-    SIGNIN_URL = 'https://api.twitter.com/oauth/authenticate'
-
-    if not all([args.consumer_key, args.consumer_secret]):
-        print ("""
-    To access Twitter's API, you need a consumer key and secret for a registered
-    Twitter application. You can register an application or retrieve the consumer key
-    and secret for an already registerd application at https://dev.twitter.com/apps
-    """)
-        sys.exit()
-
-    if args.application_only_auth:
-        api = twitter.Api(
-                    consumer_key=args.consumer_key,
-                    consumer_secret=args.consumer_secret,
-                    application_only_auth=True,
-                    sleep_on_rate_limit=True
-            )
-    else:
-        if not all([args.access_token_key, args.access_token_secret]):
-            oauth_client = OAuth1Session(args.consumer_key, client_secret=args.consumer_secret, callback_uri='oob')
-
-            resp = oauth_client.fetch_request_token(REQUEST_TOKEN_URL)
-            url = oauth_client.authorization_url(AUTHORIZATION_URL)
-
-            print('Opening browser for Twitter authentication: ' + url, file=sys.stderr)
-
-            webbrowser.open(url)
-            print('Enter your pincode? ', file=sys.stderr)
-            pincode = raw_input()
-
-            oauth_client = OAuth1Session(args.consumer_key, client_secret=args.consumer_secret,
-                                        resource_owner_key=resp.get('oauth_token'),
-                                        resource_owner_secret=resp.get('oauth_token_secret'),
-                                        verifier=pincode)
-            resp = oauth_client.fetch_access_token(ACCESS_TOKEN_URL)
-            args.access_token_key = resp.get('oauth_token')
-            args.access_token_secret = resp.get('oauth_token_secret')
-
-            print('To re-use access token next time use the following arguments:', file=sys.stderr)
-            print('    --access-token-key ' + args.access_token_key + ' --access-token-secret ' + args.access_token_secret, file=sys.stderr)
-
-        api = twitter.Api(
-                    consumer_key=args.consumer_key,
-                    consumer_secret=args.consumer_secret,
-                    access_token_key=args.access_token_key,
-                    access_token_secret=args.access_token_secret,
-                    sleep_on_rate_limit=True
-            )
+    outcsv=unicodecsv.writer(outfile, lineterminator=os.linesep)
+    outcsv.writerow(['screen_name'])
 
     if args.verbosity >= 2:
         print("Loading tweets.", file=sys.stderr)
 
-    users = set()
+    users = {}
     while True:
         try:
             row = next(twitterread)
-            users |= set([row['user'].encode('utf-8').lower()])
+            users[row['user'].lower()] = row['user']
             if row.get('reply-to-user', '') != '':
-                users |= set([row['reply-to-user'].encode('utf-8').lower()])
+                users[row['reply-to-user'].lower()] = row['reply-to-user']
             for mention in row.get('mentions', []).split():
-                users |= set([mention.encode('utf-8').lower()])
+                users[mention.lower()] = mention
         except StopIteration:
             break
 
     if args.verbosity >= 2:
         print("Loaded ", twitterread.count, " tweets, ", len(users), " users. ", file=sys.stderr)
 
-    users = sorted(users, key=lambda user: user.lower())
-    useridx = 0
-    fieldnames = []
-    #fieldnames = ['default_profile', 'default_profile_image', 'follow_request_sent', 'geo_enabled', 'is_translator', 'profile_background_tile', 'profile_user_background_image', 'protected', 'verified', 'withheld_in_countries', 'withheld_scope']
-    while useridx < len(users):
-        userslice = users[useridx:useridx+100]
-        useridx += 100
-        userdata  = api.UsersLookup(screen_name=userslice,include_entities=True)
-        for userdatum in userdata:
-            userdict = userdatum.AsDict()
-            if not fieldnames:
-                fieldnames = userdict.keys()
-                fieldnames = fieldnames + list({'default_profile', 'default_profile_image', 'follow_request_sent', 'geo_enabled', 'is_translator', 'profile_background_tile', 'profile_user_background_image', 'protected', 'verified', 'withheld_in_countries', 'withheld_scope'} - set(fieldnames))
-                twitterwrite = TwitterWrite(args.outfile, comments=comments, fieldnames=fieldnames, header=not args.no_header)
+    userkeys = users.keys()
+    if args.number:
+        userkeys = userkeys[0:args.number]
 
-            twitterwrite.write(userdict)
+    for user in sorted(userkeys):
+        outcsv.writerow([users[user]])
+
+    outfile.close()
 
 if __name__ == '__main__':
     twitterUsers(None)
