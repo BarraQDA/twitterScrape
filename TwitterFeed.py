@@ -232,6 +232,18 @@ class TwitterRead(object):
             convert_to_int('reply-to')
             convert_to_int('reply-to-user-id')
 
+            def convert_to_utf8(key):
+                val = row.get(key)
+                if val is not None:
+                    try:
+                        row[key] = val.encode('utf-8')
+                    except (TypeError, ValueError):
+                        row[key] = None
+
+            convert_to_utf8('user')
+            convert_to_utf8('reply-to-user')
+            convert_to_utf8('mentions')
+
             break
 
         self.count += 1
