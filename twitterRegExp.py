@@ -35,8 +35,8 @@ from operator import sub, add
 
 def twitterRegExp(arglist):
     presets = {
-        'hashtags':{ 'column':'hashtags', 'regexp':r'(?P<hashtag>#\w+)',      'ignorecase':True },
-        'mentions':{ 'column':'mentions', 'regexp':r'(?P<mention>@\w+)',      'ignorecase':True },
+        'hashtags':{ 'column':'hashtags', 'regexp':r'(?P<hashtag>\w+)',       'ignorecase':True },
+        'mentions':{ 'column':'mentions', 'regexp':r'(?P<mention>\w+)',       'ignorecase':True },
         'links':   { 'column':'text',     'regexp':r'(?P<link>https?://\S+)', 'ignorecase':True }
     }
 
