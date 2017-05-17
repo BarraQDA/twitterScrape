@@ -137,8 +137,11 @@ twitterDynamicNetwork <- function(arglist) {
                                         hydrateduser$following         <- twitteruser$following[useridx]
                                         hydrateduser$friends_count     <- twitteruser$friends_count[useridx]
                                         hydrateduser$lang              <- twitteruser$lang[useridx]
+                                        hydrateduser$profile_background_image_url <- twitteruser$profile_background_image_url[useridx]
+                                        hydrateduser$profile_background_color <- twitteruser$profile_background_color[useridx]
                                         hydrateduser$profile_image_url <- twitteruser$profile_image_url[useridx]
                                         hydrateduser$description       <- twitteruser$description[useridx]
+                                        hydrateduser$verified          <- twitteruser$verified[useridx]
 
                                         return(hydrateduser)
                                     }
@@ -235,31 +238,33 @@ twitterDynamicNetwork <- function(arglist) {
 
     vertextooltip = function(slice) {
         paste0("
-  <div class=\"ProfileCard-bg
-
-    \" style=\"background-color: #3B94D9\"></div>
-
+  <div class=\"ProfileCard-bg\" style=\"", ifelse((slice %v% "profile_background_image_url") == "",
+                                                  paste0("background-color: #", (slice %v% "profile_background_color")),
+                                                  paste0("background-image: url('", (slice %v% "profile_background_image_url"), "')")),
+                                            "\"></div>
     <a href=\"https://twitter.com/", (slice %v% "screen_name"), "\" class=\"ProfileCard-avatarLink js-nav js-tooltip\" title=\"", (slice %v% "name"), "\" tabindex=\"-1\" aria-hidden=\"true\" data-send-impression-cookie=\"true\">
         <img src=\"", (slice %v% "profile_image_url"),"\" alt=\"", (slice %v% "name"), "\" class=\"ProfileCard-avatarImage js-action-profile-avatar\">
     </a>
 
     <div class=\"UserActions   UserActions--small u-textLeft\">
 
-      <div class=\"user-actions btn-group not-following not-muting \" data-user-id=\"2425411130\" data-screen-name=\"mometfisher\" data-name=\"", (slice %v% "name"), "\" data-protected=\"false\">
+      <div class=\"user-actions btn-group not-following not-muting \" data-user-id=\"2425411130\" data-screen-name=\"", (slice %v% "screen_name"), "\" data-name=\"", (slice %v% "name"), "\" data-protected=\"false\">
 
       </div>
     </div>
 
-  <div class=\"ProfileCard-content \" data-screen-name=\"mometfisher\" data-user-id=\"2425411130\">
+  <div class=\"ProfileCard-content \" data-screen-name=\"", (slice %v% "screen_name"), "\" data-user-id=\"2425411130\">
     <div class=\"ProfileCard-userFields\">
         <div class=\"ProfileNameTruncated account-group\">
   <div class=\"u-textTruncate u-inlineBlock\">
     <a class=\"fullname ProfileNameTruncated-link u-textInheritColor js-nav\" href=\"https://twitter.com/", (slice %v% "screen_name"), "\" data-aria-label-part=\"\" data-send-impression-cookie=\"true\">
-      ", (slice %v% "name"), "</a></div><span class=\"UserBadges\"><span class=\"Icon Icon--verified\"><span class=\"u-hiddenVisually\">Verified account</span></span></span>
-</div>
+      ", (slice %v% "name"), "</a></div><span class=\"UserBadges\">",
+      ifelse((slice %v% "verified") == "True", "<span class=\"Icon Icon--verified\">::before<span class=\"u-hiddenVisually\">Verified account</span>::after</span>", ""),
+      "</span>
+  </div>
         <div class=\"ProfileCard-screenname\">
           <a href=\"https://twitter.com/", (slice %v% "screen_name"), "\" class=\"ProfileCard-screennameLink u-linkComplex js-nav\" data-aria-label-part=\"\" data-send-impression-cookie=\"true\">
-            <span class=\"username u-dir\" dir=\"ltr\">@<b class=\"u-linkComplex-target\">mometfisher</b></span>
+            <span class=\"username u-dir\" dir=\"ltr\">@<b class=\"u-linkComplex-target\">", (slice %v% "screen_name"), "</b></span>
           </a>
         </div>
     </div>
