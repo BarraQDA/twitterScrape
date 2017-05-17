@@ -171,7 +171,7 @@ def twitterUserHydrate(arglist):
         if len(rows) == 0:
             break
 
-        userdata  = api.UsersLookup(screen_name=[row['screen_name'] for row in rows])
+        userdata  = api.UsersLookup(screen_name=[row['screen_name'].encode('utf-8') for row in rows])
         for userdatum in userdata:
             userdict = userdatum.AsDict()
             if not fieldnames:
