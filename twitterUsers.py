@@ -98,7 +98,7 @@ def twitterUsers(arglist):
         try:
             row = next(twitterread)
             users[row['user'].lower()] = row['user']
-            if row.get('reply-to-user', '') != '':
+            if row.get('reply-to-user', '') or '' != '':
                 users[row['reply-to-user'].lower()] = row['reply-to-user']
             for mention in row.get('mentions', []).split():
                 users[mention.lower()] = mention
