@@ -167,9 +167,9 @@ def twitterHydrate(arglist):
                 tweets = api.GetStatuses([row['id'] for row in rows], map=True)
                 break
             except twitter.error.TwitterError as error:
-                print(error)
+                if args.verbosity >= 2:
+                    print("Twitter error: ", error, file=sys.stderr)
                 if hasattr(error, 'code') and error.code == 88 and retry > 0:    # Internal error
-                    print ("Retrying")
                     retry -= 1
                     continue
                 else:
