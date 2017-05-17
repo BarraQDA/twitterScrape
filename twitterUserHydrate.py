@@ -23,6 +23,7 @@ import webbrowser
 import twitter
 import sys
 import os
+import shutil
 import unicodecsv
 import re
 
@@ -177,8 +178,12 @@ def twitterUserHydrate(arglist):
                 fieldnames = infieldnames + userdict.keys() + list({'default_profile', 'default_profile_image', 'follow_request_sent', 'geo_enabled', 'is_translator', 'profile_background_tile', 'profile_user_background_image', 'protected', 'verified', 'withheld_in_countries', 'withheld_scope'} - set(infieldnames) - set(userdict.keys()))
 
                 outunicodecsv=unicodecsv.DictWriter(outfile, fieldnames=fieldnames,                                        extrasaction='ignore', lineterminator=os.linesep)
+                if not args.no_header:
+                    outunicodecsv.writeheader()
 
             outunicodecsv.writerow(userdict)
+
+    outfile.close()
 
 if __name__ == '__main__':
     twitterUserHydrate(None)
