@@ -155,12 +155,12 @@ def twitterUserHydrate(arglist):
                     sleep_on_rate_limit=True
             )
 
-    if args.verbosity >= 2:
+    if args.verbosity >= 1:
         print("Loading users.", file=sys.stderr)
 
     fieldnames = None
     while True:
-        if args.verbosity >= 3:
+        if args.verbosity >= 2:
             print("Loading batch.", file=sys.stderr)
 
         rows = []
@@ -179,10 +179,10 @@ def twitterUserHydrate(arglist):
                 userdata  = api.UsersLookup(screen_name=[row['screen_name'].encode('utf-8') for row in rows])
                 break
             except twitter.error.TwitterError as error:
-                if args.verbosity >= 2:
-                    print("Twitter error: ", error, file=sys.stderr)
                 for message in error.message:
                     if message['code'] == 88 and retry > 0:
+                        if args.verbosity >= 2:
+                            print("Retrying after twitter error: ", error, file=sys.stderr)
                         retry -= 1
                         break
                 else:
