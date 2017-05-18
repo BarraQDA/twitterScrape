@@ -37,6 +37,8 @@ def twitterUsers(arglist):
 
     parser.add_argument('-v', '--verbosity', type=int, default=1)
 
+    parser.add_argument('-p', '--prelude',    type=str, nargs="*", help='Python code to execute before processing')
+    parser.add_argument('-f', '--filter',     type=str, help='Python expression evaluated to determine whether tweet is included')
     parser.add_argument(      '--since',      type=str, help='Lower bound tweet date/time in any sensible format.')
     parser.add_argument(      '--until',      type=str, help='Upper bound tweet date/time in any sensible format.')
     parser.add_argument('-l', '--limit',      type=int, help='Limit number of tweets to process')
@@ -49,6 +51,13 @@ def twitterUsers(arglist):
     parser.add_argument('infile', type=str, nargs='?', help='Input CSV file, otherwise use stdin')
 
     args = parser.parse_args(arglist)
+
+    if args.prelude:
+        if args.verbosity >= 1:
+            print("Executing prelude code.", file=sys.stderr)
+
+        for line in args.prelude:
+            exec(line) in globals()
 
     until = dateparser.parse(args.until) if args.until else None
     since = dateparser.parse(args.since) if args.since else None
@@ -74,6 +83,11 @@ def twitterUsers(arglist):
         comments += '# twitterUsers\n'
         comments += '#     outfile=' + (args.outfile or '<stdout>') + '\n'
         comments += '#     infile=' + (args.infile or '<stdin>') + '\n'
+        if args.prelude:
+            for line in args.prelude:
+                comments += '#     prelude=' + line + '\n'
+        if args.filter:
+            comments += '#     filter=' + args.filter + '\n'
         if args.since:
             comments += '#     since=' + args.since+ '\n'
         if args.until:
@@ -88,16 +102,26 @@ def twitterUsers(arglist):
         comments += twitterread.comments
         outfile.write(comments)
 
-    outcsv=unicodecsv.writer(outfile, lineterminator=os.linesep)
-    outcsv.writerow(['screen_name'])
+    if args.filter:
+            exec "\
+def evalfilter(" + ','.join(twitterread.fieldnames).replace('-','_') + ", **kwargs):\n\
+    return " + args.filter
 
-    if args.verbosity >= 2:
+    if args.verbosity >= 1:
         print("Loading tweets.", file=sys.stderr)
 
     users = {}
     while True:
         try:
-            row = next(twitterread)
+            while True:
+                row = next(twitterread)
+                if args.filter:
+                    rowargs = {key.replace('-','_'): value for key, value in row.iteritems()}
+                    if evalfilter(**rowargs):
+                        break
+                else:
+                    break
+
             users[row['user'].lower()] = row['user']
             if row.get('reply-to-user', '') or '' != '':
                 users[row['reply-to-user'].lower()] = row['reply-to-user']
@@ -113,6 +137,8 @@ def twitterUsers(arglist):
     if args.number:
         userkeys = userkeys[0:args.number]
 
+    outcsv=unicodecsv.writer(outfile, lineterminator=os.linesep)
+    outcsv.writerow(['screen_name'])
     for user in sorted(userkeys):
         outcsv.writerow([users[user]])
 
