@@ -37,6 +37,18 @@ def twitterUsers(arglist):
 
     parser.add_argument('-v', '--verbosity', type=int, default=1)
 
+    # Twitter authentication stuff - not used but include so replay works
+    parser.add_argument('--consumer-key', type=str,
+                        help='Consumer key for Twitter authentication')
+    parser.add_argument('--consumer-secret', type=str,
+                        help='Consumer secret for Twitter authentication')
+
+    parser.add_argument('-a', '--application-only-auth', action='store_true')
+    parser.add_argument('--access-token-key', type=str,
+                        help='Access token key for Twitter authentication')
+    parser.add_argument('--access-token-secret', type=str,
+                        help='Access token secret for Twitter authentication')
+
     parser.add_argument('-p', '--prelude',    type=str, nargs="*", help='Python code to execute before processing')
     parser.add_argument('-f', '--filter',     type=str, help='Python expression evaluated to determine whether tweet is included')
     parser.add_argument(      '--since',      type=str, help='Lower bound tweet date/time in any sensible format.')
