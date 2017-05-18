@@ -169,9 +169,10 @@ def twitterHydrate(arglist):
             except twitter.error.TwitterError as error:
                 if args.verbosity >= 2:
                     print("Twitter error: ", error, file=sys.stderr)
-                if hasattr(error, 'code') and error.code == 88 and retry > 0:    # Internal error
-                    retry -= 1
-                    continue
+                for message in error.message:
+                    if message['code'] == 88 and retry > 0:
+                        retry -= 1
+                        break
                 else:
                     raise
 

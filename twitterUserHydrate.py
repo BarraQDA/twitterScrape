@@ -49,6 +49,8 @@ def twitterUserHydrate(arglist):
     parser.add_argument('--access-token-secret', type=str,
                         help='Access token secret for Twitter authentication')
 
+    parser.add_argument(      '--retry',      type=int, default=5, help='Number of times to retry failed Twitter API call')
+
     parser.add_argument('-l', '--limit',      type=int, help='Limit number of tweets to process')
 
     parser.add_argument('-o', '--outfile', type=str, help='Output CSV file, otherwise use stdout')
@@ -158,7 +160,7 @@ def twitterUserHydrate(arglist):
 
     fieldnames = None
     while True:
-        if args.verbosity >= 2:
+        if args.verbosity >= 3:
             print("Loading batch.", file=sys.stderr)
 
         rows = []
@@ -171,7 +173,21 @@ def twitterUserHydrate(arglist):
         if len(rows) == 0:
             break
 
-        userdata  = api.UsersLookup(screen_name=[row['screen_name'].encode('utf-8') for row in rows])
+        retry = args.retry
+        while True:
+            try:
+                userdata  = api.UsersLookup(screen_name=[row['screen_name'].encode('utf-8') for row in rows])
+                break
+            except twitter.error.TwitterError as error:
+                if args.verbosity >= 2:
+                    print("Twitter error: ", error, file=sys.stderr)
+                for message in error.message:
+                    if message['code'] == 88 and retry > 0:
+                        retry -= 1
+                        break
+                else:
+                    raise
+
         for userdatum in userdata:
             userdict = userdatum.AsDict()
             if not fieldnames:
