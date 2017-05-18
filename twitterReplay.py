@@ -152,7 +152,8 @@ def twitterReplay(arglist):
                                                        stdout=subprocess.PIPE,
                                                        stdin=process.stdout,
                                                        stderr=sys.stderr)
-                process.wait()
+                if not args.dry_run:
+                    process.wait()
             else:
                 if args.verbosity >= 2:
                     print("File not replayed: " + outfilename, file=sys.stderr)
