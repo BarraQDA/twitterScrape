@@ -38,9 +38,9 @@ def twitterUserHydrate(arglist):
     parser.add_argument('-v', '--verbosity', type=int, default=1)
 
     # Twitter authentication stuff
-    parser.add_argument('--consumer-key', type=str,
+    parser.add_argument('--consumer-key', type=str, required=True,
                         help='Consumer key for Twitter authentication')
-    parser.add_argument('--consumer-secret', type=str,
+    parser.add_argument('--consumer-secret', type=str, required=True,
                         help='Consumer secret for Twitter authentication')
 
     parser.add_argument('-a', '--application-only-auth', action='store_true')
@@ -107,14 +107,6 @@ def twitterUserHydrate(arglist):
     ACCESS_TOKEN_URL = 'https://api.twitter.com/oauth/access_token'
     AUTHORIZATION_URL = 'https://api.twitter.com/oauth/authorize'
     SIGNIN_URL = 'https://api.twitter.com/oauth/authenticate'
-
-    if not all([args.consumer_key, args.consumer_secret]):
-        print ("""
-    To access Twitter's API, you need a consumer key and secret for a registered
-    Twitter application. You can register an application or retrieve the consumer key
-    and secret for an already registerd application at https://dev.twitter.com/apps
-    """)
-        sys.exit()
 
     if args.application_only_auth:
         api = twitter.Api(
