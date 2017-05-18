@@ -194,7 +194,7 @@ def evalscore(" + ','.join(twitterread.fieldnames).replace('-','_') + ", **kwarg
                 break
 
             if args.interval:
-                row['datesecs'] = calendar.timegm(dateparser.parse(row['date']).timetuple())
+                row['datesecs'] = calendar.timegm(row['date'].timetuple())
                 firstrow = rows[0] if len(rows) else None
                 while firstrow and firstrow['datesecs'] - row['datesecs'] > interval:
                     indexes  = firstrow['indexes']
