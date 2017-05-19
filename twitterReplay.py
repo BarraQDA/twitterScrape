@@ -39,9 +39,9 @@ def twitterReplay(arglist):
 
     args, extraargs = parser.parse_known_args()
 
-    fileregexp = re.compile(r"^#+ (.+) #+$", re.UNICODE)
-    cmdregexp  = re.compile(r"^#\s+([\w-]+)", re.UNICODE)
-    argregexp  = re.compile(r"^#\s+([\w-]+)(?:=(.+))?", re.UNICODE)
+    fileregexp = re.compile(r"^#+ (?P<file>.+) #+$", re.UNICODE)
+    cmdregexp  = re.compile(r"^#\s+(?P<cmd>[\w-]+)", re.UNICODE)
+    argregexp  = re.compile(r"^#\s+(?:--)(?P<name>[\w-]+)(?:=(?:\")(?P<value>.+)(?:\"))?", re.UNICODE)
     piperegexp = re.compile(r"^#+$", re.UNICODE)
 
     for infilename in args.infile:
@@ -64,6 +64,7 @@ def twitterReplay(arglist):
         commentline = comments.pop(0)
         filematch = fileregexp.match(commentline)
         while filematch:
+            filename  = filematch.group('file')
             pipestack = []
             infilelist = []
             outfile = None
@@ -72,7 +73,7 @@ def twitterReplay(arglist):
                 commentline = comments.pop(0)
                 cmdmatch = cmdregexp.match(commentline)
                 if cmdmatch:
-                    cmd = cmdmatch.group(1)
+                    cmd = cmdmatch.group('cmd')
                 else:
                     break
 
@@ -81,8 +82,8 @@ def twitterReplay(arglist):
                 commentline = comments.pop(0)
                 argmatch = argregexp.match(commentline)
                 while argmatch:
-                    argname  = argmatch.group(1)
-                    argvalue = argmatch.group(2)
+                    argname  = argmatch.group('name')
+                    argvalue = argmatch.group('value')
 
                     if argname == 'infile':
                         if argvalue != '<stdin>':
@@ -91,6 +92,7 @@ def twitterReplay(arglist):
                         if argname == 'outfile':
                             if argvalue != '<stdout>':
                                 outfile = argvalue
+                                assert (outfile == filename)
                         else:
                             if argname != lastargname:
                                 arglist.append('--' + argname)
