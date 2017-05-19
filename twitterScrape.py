@@ -78,7 +78,8 @@ def twitterScrape(arglist):
             comments += '#     infile=' + args.infile[0] + '\n'
             for fileidx in range(1, len(args.infile)):
                 comments += '             ' + args.infile[0] + '\n'
-        comments += '#     outfile=' + (args.outfile or '<stdout>') + '\n'
+        if args.outfile:
+            comments += '#     outfile=' + args.outfile + '\n'
         if args.user:
             comments += '#     user=' + args.user + '\n'
         if args.language:

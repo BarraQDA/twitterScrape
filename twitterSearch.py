@@ -88,7 +88,8 @@ def twitterSearch(arglist):
             comments += '#' * 80 + '\n'
 
         comments += '# twitterSearch\n'
-        comments += '#     outfile=' + (args.outfile or '<stdout>') + '\n'
+        if args.outfile:
+            comments += '#     outfile=' + args.outfile + '\n'
         if args.user:
             comments += '#     user=' + args.user + '\n'
         if args.query:

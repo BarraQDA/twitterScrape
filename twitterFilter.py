@@ -110,10 +110,12 @@ def twitterFilter(arglist):
     else:
         comments = ''
         comments += '# twitterFilter\n'
-        comments += '#     outfile=' + (args.outfile or '<stdout>') + '\n'
+        if args.outfile:
+            comments += '#     outfile=' + args.outfile + '\n'
         if args.rejfile:
             comments += '#     rejfile=' + args.rejfile + '\n'
-        comments += '#     infile=' + (args.infile or '<stdin>') + '\n'
+        if args.infile:
+            comments += '#     infile=' + args.infile + '\n'
         if args.limit:
             comments += '#     limit=' + str(args.limit) + '\n'
         if args.prelude:

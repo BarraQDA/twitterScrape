@@ -89,18 +89,20 @@ def twitterProximity(arglist):
             break
 
     if not args.no_comments:
-        outfile.write('# twitterRegExp\n')
-        outfile.write('#     outfile=' + (args.outfile or '<stdout>') + '\n')
-        outfile.write('#     infile=' + (args.infile or '<stdin>') + '\n')
+        comments += '# twitterProximity\n'
+        if args.outfile:
+            comments += '#     outfile=' + args.outfile + '\n'
+        if args.infile:
+            comments += '#     infile=' + args.infile + '\n'
         if args.limit:
-            outfile.write('#     limit=' + str(args.limit) + '\n')
-        outfile.write('#     keyword=' + args.keyword + '\n')
+            comments += '#     limit=' + str(args.limit) + '\n'
+        comments += '#     keyword=' + args.keyword + '\n'
         if args.threshold:
-            outfile.write('#     threshold=' + str(args.threshold) + '\n')
+            comments += '#     threshold=' + str(args.threshold) + '\n'
         if args.number:
-            outfile.write('#     number=' + str(args.number) + '\n')
+            comments += '#     number=' + str(args.number) + '\n'
         if args.textblob:
-            outfile.write('#     textblob\n')
+            comments += '#     textblob\n'
         if args.no_header:
             comments += '#     no-header\n'
 

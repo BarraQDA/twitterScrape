@@ -94,8 +94,10 @@ def twitterBanner(arglist):
             comments = '#' * 80 + '\n'
 
         comments += '# twitterUsers\n'
-        comments += '#     outfile=' + (args.outfile or '<stdout>') + '\n'
-        comments += '#     infile=' + (args.infile or '<stdin>') + '\n'
+        if args.outfile:
+            comments += '#     outfile=' + args.outfile + '\n'
+        if args.infile:
+            comments += '#     infile=' + args.infile + '\n'
         if args.limit:
             comments += '#     limit=' + str(args.limit) + '\n'
         if args.no_header:
