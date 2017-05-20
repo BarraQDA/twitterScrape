@@ -64,13 +64,14 @@ def twitterRegExp(arglist):
     parser.add_argument('-in', '--interval',  type=str, help='Interval for measuring frequency, for example "1 day".')
 
     parser.add_argument('-o', '--outfile',    type=str, help='Output CSV file, otherwise use stdout.')
-    parser.add_argument('-n', '--number',     type=int, default=0, help='Maximum number of results to output')
+    parser.add_argument('-n', '--number',     type=int, help='Maximum number of results to output')
     parser.add_argument('--no-comments',      action='store_true', help='Do not output descriptive comments')
     parser.add_argument('--no-header',        action='store_true', help='Do not output CSV header with column names')
 
     parser.add_argument('infile', type=str, nargs='?', help='Input CSV file, otherwise use stdin.')
 
     args = parser.parse_args(arglist)
+    hiddenargs = ['verbosity', 'jobs', 'batch', 'preset', 'no_comments']
 
     if args.preset:
         values = presets[args.preset]
@@ -124,42 +125,24 @@ def twitterRegExp(arglist):
 
     twitterread  = TwitterRead(args.infile, since=since, until=until, limit=args.limit)
     if not args.no_comments:
-        comments = ''
-        if args.outfile:
-            comments += (' ' + args.outfile + ' ').center(80, '#') + '\n'
-        else:
-            comments += '#' * 80 + '\n'
-
-        comments += '# twitterRegExp\n'
-        if args.outfile:
-            comments += '#     outfile=' + args.outfile + '\n'
-        if args.infile:
-            comments += '#     infile=' + args.infile + '\n'
-        if args.limit:
-            comments += '#     limit=' + str(args.limit) + '\n'
-        if args.prelude:
-            for line in args.prelude:
-                comments += '#     prelude=' + line + '\n'
-        if args.filter:
-            comments += '#     filter=' + args.filter + '\n'
-        if args.since:
-            comments += '#     since=' + args.since+ '\n'
-        if args.until:
-            comments += '#     until=' + args.until + '\n'
-        comments += '#     column=' + args.column+ '\n'
-        comments += '#     regexp=' + args.regexp + '\n'
-        if args.ignorecase:
-            comments += '#     ignorecase\n'
-        if args.interval:
-            comments += '#     interval=' + str(args.interval) + '\n'
-        for scoreitem in args.score:
-            comments += '#     score=' + scoreitem + '\n'
-        if args.threshold:
-            comments += '#     threshold=' + str(args.threshold) + '\n'
-        if args.number:
-            comments += '#     number=' + str(args.number) + '\n'
-        if args.no_header:
-            comments += '#     no-header\n'
+        comments = ((' ' + args.outfile + ' ') if args.outfile else '').center(80, '#') + '\n'
+        comments += '# ' + os.path.basename(sys.argv[0]) + '\n'
+        arglist = args.__dict__.keys()
+        for arg in arglist:
+            if arg not in hiddenargs:
+                val = getattr(args, arg)
+                if type(val) == int:
+                    comments += '#     --' + arg + '=' + str(val) + '\n'
+                elif type(val) == str:
+                    comments += '#     --' + arg + '="' + val + '"\n'
+                elif type(val) == bool and val:
+                    comments += '#     --' + arg + '\n'
+                elif type(val) == list:
+                    for valitem in val:
+                        if type(valitem) == int:
+                            comments += '#     --' + arg + '=' + str(valitem) + '\n'
+                        elif type(valitem) == str:
+                            comments += '#     --' + arg + '="' + valitem + '"\n'
 
         outfile.write(comments + twitterread.comments)
 
@@ -298,7 +281,7 @@ def evalscore(" + ','.join(twitterread.fieldnames).replace('-','_') + ", **kwarg
                             for match in mergedresult.keys() if mergedresult[match][0] >= args.threshold or 0],
                         key=lambda item: (-item['score'][0], item['match']))
 
-    if args.number != 0:
+    if args.number:
         sortedresult = sortedresult[0:args.number]
 
     for result in sortedresult:

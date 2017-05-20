@@ -60,6 +60,7 @@ def twitterUserHydrate(arglist):
     parser.add_argument('infile', type=str, nargs='?', help='Input CSV file, otherwise use stdin')
 
     args = parser.parse_args(arglist)
+    hiddenargs = ['verbosity', 'consumer_key', 'consumer_secret', 'application_only_auth', 'access_token_key', 'access_token_secret', 'retry', 'no_comments']
 
     if args.infile is None:
         infile = sys.stdin
@@ -87,20 +88,24 @@ def twitterUserHydrate(arglist):
         outfile = file(args.outfile, 'w')
 
     if not args.no_comments:
-        if args.outfile:
-            comments = (' ' + args.outfile + ' ').center(80, '#') + '\n'
-        else:
-            comments = '#' * 80 + '\n'
-
-        comments += '# twitterUserHydrate\n'
-        if args.outfile:
-            comments += '#     outfile=' + args.outfile + '\n'
-        if args.infile:
-            comments += '#     infile=' + args.infile + '\n'
-        if args.limit:
-            comments += '#     limit=' + str(args.limit) + '\n'
-        if args.no_header:
-            comments += '#     no-header\n'
+        comments = ((' ' + args.outfile + ' ') if args.outfile else '').center(80, '#') + '\n'
+        comments += '# ' + os.path.basename(sys.argv[0]) + '\n'
+        arglist = args.__dict__.keys()
+        for arg in arglist:
+            if arg not in hiddenargs:
+                val = getattr(args, arg)
+                if type(val) == int:
+                    comments += '#     --' + arg + '=' + str(val) + '\n'
+                elif type(val) == str:
+                    comments += '#     --' + arg + '="' + val + '"\n'
+                elif type(val) == bool and val:
+                    comments += '#     --' + arg + '\n'
+                elif type(val) == list:
+                    for valitem in val:
+                        if type(valitem) == int:
+                            comments += '#     --' + arg + '=' + str(valitem) + '\n'
+                        elif type(valitem) == str:
+                            comments += '#     --' + arg + '="' + valitem + '"\n'
 
         outfile.write(comments + incomments)
 

@@ -39,7 +39,7 @@ def twitterFrequency(arglist):
     parser.add_argument('-v', '--verbosity',  type=int, default=1)
 
     parser.add_argument('-p', '--prelude',    type=str, nargs="*", help='Python code to execute before processing')
-    parser.add_argument('-f', '--filter',     type=str, nargs='+', help='Python expression evaluated to determine whether tweet is included')
+    parser.add_argument('-f', '--filter',     type=str, nargs='+', required=True, help='Python expression evaluated to determine whether tweet is included')
     parser.add_argument('-t', '--title',      type=str, nargs='*', help='Title of column corresponding to filter')
     parser.add_argument(      '--since',      type=str, help='Lower bound tweet date/time in any sensible format.')
     parser.add_argument(      '--until',      type=str, help='Upper bound tweet date/time in any sensible format.')
@@ -54,6 +54,7 @@ def twitterFrequency(arglist):
     parser.add_argument('--no-header',        action='store_true', help='Do not output CSV header with column names')
 
     parser.add_argument('infile', type=str, nargs='?', help='Input CSV file, otherwise use stdin.')
+    hiddenargs = ['verbosity', 'no_comments']
 
     args = parser.parse_args(arglist)
 
@@ -81,40 +82,26 @@ def twitterFrequency(arglist):
 
     twitterread  = TwitterRead(args.infile, since=since, until=until, limit=args.limit)
     if not args.no_comments:
-        comments = ''
-        if args.outfile:
-            comments += (' ' + args.outfile + ' ').center(80, '#') + '\n'
-        else:
-            comments += '#' * 80 + '\n'
+        comments = ((' ' + args.outfile + ' ') if args.outfile else '').center(80, '#') + '\n'
+        comments += '# ' + os.path.basename(sys.argv[0]) + '\n'
+        arglist = args.__dict__.keys()
+        for arg in arglist:
+            if arg not in hiddenargs:
+                val = getattr(args, arg)
+                if type(val) == int:
+                    comments += '#     --' + arg + '=' + str(val) + '\n'
+                elif type(val) == str:
+                    comments += '#     --' + arg + '="' + val + '"\n'
+                elif type(val) == bool and val:
+                    comments += '#     --' + arg + '\n'
+                elif type(val) == list:
+                    for valitem in val:
+                        if type(valitem) == int:
+                            comments += '#     --' + arg + '=' + str(valitem) + '\n'
+                        elif type(valitem) == str:
+                            comments += '#     --' + arg + '="' + valitem + '"\n'
 
-        comments += '# twitterFrequency\n'
-        if args.outfile:
-            comments += '#     outfile=' + args.outfile + '\n'
-        if args.infile:
-            comments += '#     infile=' + args.infile + '\n'
-        if args.limit:
-            comments += '#     limit=' + str(args.limit) + '\n'
-        if args.prelude:
-            for line in args.prelude:
-                comments += '#     prelude=' + line + '\n'
-        for filter in args.filter:
-            comments += '#     filter=' + filter + '\n'
-        if args.title:
-            for title in args.title:
-                comments += '#     title=' + title + '\n'
-        if args.since:
-            comments += '#     since=' + args.since+ '\n'
-        if args.until:
-            comments += '#     until=' + args.until + '\n'
-        comments += '#     score=' + args.score + '\n'
-        if args.interval:
-            comments += '#     interval=' + str(args.interval) + '\n'
-        if args.no_header:
-            comments += '#     no-header\n'
-
-        comments += twitterread.comments
-
-        outfile.write(comments)
+        outfile.write(comments+twitterread.comments)
 
     exec "\
 def evalfilter(" + ','.join(twitterread.fieldnames).replace('-','_') + ", **kwargs):\n\
@@ -141,7 +128,7 @@ def evalscore(" + ','.join(twitterread.fieldnames).replace('-','_') + ", **kwarg
 
         rowargs = {key.replace('-','_'): value for key, value in row.iteritems()}
         row['score']     = evalscore(**rowargs)
-        row['datesecs']  = calendar.timegm(dateparser.parse(row['date']).timetuple())
+        row['datesecs']  = calendar.timegm(row['date'].timetuple())
 
         firstrow = rows[0] if len(rows) > 0 else None
         while firstrow and firstrow['datesecs'] - row['datesecs'] > interval:
@@ -151,7 +138,7 @@ def evalscore(" + ','.join(twitterread.fieldnames).replace('-','_') + ", **kwarg
                     runningscore[filteridx] -= firstrow['score']
 
             if any(filters):
-                outunicodecsv.writerow([datetime.datetime.utcfromtimestamp(firstrow['datesecs'] - interval).isoformat()] + runningscore)
+                outunicodecsv.writerow([datetime.datetime.utcfromtimestamp(firstrow['datesecs'] - interval)] + runningscore)
 
             del rows[0]
             firstrow = rows[0] if len(rows) else None

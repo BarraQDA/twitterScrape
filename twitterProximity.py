@@ -192,7 +192,7 @@ def twitterProximity(arglist):
                             key=lambda item: item['score'],
                             reverse=True)
 
-    if args.number != 0:
+    if args.number:
         sortedscore = sortedscore[0:args.number]
 
     outunicodecsv=unicodecsv.DictWriter(outfile, fieldnames=['word', 'score'],

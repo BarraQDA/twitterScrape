@@ -38,16 +38,12 @@ def twitterUsers(arglist):
     parser.add_argument('-v', '--verbosity', type=int, default=1)
 
     # Twitter authentication stuff - not used but include so replay works
-    parser.add_argument('--consumer-key', type=str,
-                        help='Consumer key for Twitter authentication')
-    parser.add_argument('--consumer-secret', type=str,
-                        help='Consumer secret for Twitter authentication')
+    parser.add_argument('--consumer-key',    type=str, help=argparse.SUPPRESS)
+    parser.add_argument('--consumer-secret', type=str, help=argparse.SUPPRESS)
 
-    parser.add_argument('-a', '--application-only-auth', action='store_true')
-    parser.add_argument('--access-token-key', type=str,
-                        help='Access token key for Twitter authentication')
-    parser.add_argument('--access-token-secret', type=str,
-                        help='Access token secret for Twitter authentication')
+    parser.add_argument('--application-only-auth', action='store_true', help=argparse.SUPPRESS)
+    parser.add_argument('--access-token-key',    type=str, help=argparse.SUPPRESS)
+    parser.add_argument('--access-token-secret', type=str, help=argparse.SUPPRESS)
 
     parser.add_argument('-p', '--prelude',    type=str, nargs="*", help='Python code to execute before processing')
     parser.add_argument('-f', '--filter',     type=str, help='Python expression evaluated to determine whether tweet is included')
@@ -56,13 +52,14 @@ def twitterUsers(arglist):
     parser.add_argument('-l', '--limit',      type=int, help='Limit number of tweets to process')
 
     parser.add_argument('-o', '--outfile', type=str, help='Output CSV user file, otherwise use stdout')
-    parser.add_argument('-n', '--number',     type=int, default=0, help='Maximum number of results to output')
+    parser.add_argument('-n', '--number',     type=int, help='Maximum number of results to output')
     parser.add_argument('--no-comments',   action='store_true', help='Do not output descriptive comments')
     parser.add_argument('--no-header',     action='store_true', help='Do not output CSV header with column names')
 
     parser.add_argument('infile', type=str, nargs='?', help='Input CSV file, otherwise use stdin')
 
     args = parser.parse_args(arglist)
+    hiddenargs = ['verbosity', 'consumer_key', 'consumer_secret', 'application_only_auth', 'access_token_key', 'access_token_secret', 'no_comments']
 
     if args.prelude:
         if args.verbosity >= 1:
@@ -84,37 +81,27 @@ def twitterUsers(arglist):
 
         outfile = file(args.outfile, 'w')
 
-    if args.no_comments:
-        comments = None
-    else:
-        if args.outfile:
-            comments = (' ' + args.outfile + ' ').center(80, '#') + '\n'
-        else:
-            comments = '#' * 80 + '\n'
+    if not args.no_comments:
+        comments = ((' ' + args.outfile + ' ') if args.outfile else '').center(80, '#') + '\n'
+        comments += '# ' + os.path.basename(sys.argv[0]) + '\n'
+        arglist = args.__dict__.keys()
+        for arg in arglist:
+            if arg not in hiddenargs:
+                val = getattr(args, arg)
+                if type(val) == int:
+                    comments += '#     --' + arg + '=' + str(val) + '\n'
+                elif type(val) == str:
+                    comments += '#     --' + arg + '="' + val + '"\n'
+                elif type(val) == bool and val:
+                    comments += '#     --' + arg + '\n'
+                elif type(val) == list:
+                    for valitem in val:
+                        if type(valitem) == int:
+                            comments += '#     --' + arg + '=' + str(valitem) + '\n'
+                        elif type(valitem) == str:
+                            comments += '#     --' + arg + '="' + valitem + '"\n'
 
-        comments += '# twitterUsers\n'
-        if args.outfile:
-            comments += '#     outfile=' + args.outfile + '\n'
-        if args.infile:
-            comments += '#     infile=' + args.infile + '\n'
-        if args.prelude:
-            for line in args.prelude:
-                comments += '#     prelude=' + line + '\n'
-        if args.filter:
-            comments += '#     filter=' + args.filter + '\n'
-        if args.since:
-            comments += '#     since=' + args.since+ '\n'
-        if args.until:
-            comments += '#     until=' + args.until + '\n'
-        if args.limit:
-            comments += '#     limit=' + str(args.limit) + '\n'
-        if args.number:
-            comments += '#     number=' + str(args.number) + '\n'
-        if args.no_header:
-            comments += '#     no-header\n'
-
-        comments += twitterread.comments
-        outfile.write(comments)
+        outfile.write(comments + twitterread.comments)
 
     if args.filter:
             exec "\

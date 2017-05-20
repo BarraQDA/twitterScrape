@@ -42,13 +42,14 @@ def twitterScrape(arglist):
     parser.add_argument(      '--until',    type=str, help='Upper bound search date.')
 
     parser.add_argument('-o', '--outfile',  type=str, help='Output file, otherwise use stdout.')
-    parser.add_argument('-n', '--number',   type=int, default=0, help='Maximum number of results to output')
+    parser.add_argument('-n', '--number',   type=int, help='Maximum number of results to output')
     parser.add_argument('--no-comments',    action='store_true', help='Do not output descriptive comments')
     parser.add_argument('--no-header',      action='store_true', help='Do not output CSV header with column names')
 
     parser.add_argument('infile', type=str, nargs='*', help='Input CSV files.')
 
     args = parser.parse_args(arglist)
+    hiddenargs = ['verbosity', 'timeout', 'no_comments']
 
     # Import twitter feed modules if we are going to need them
     if args.query or args.user:
@@ -67,35 +68,24 @@ def twitterScrape(arglist):
     if args.no_comments:
         comments = None
     else:
-        comments = ''
-        if args.outfile:
-            comments += (' ' + args.outfile + ' ').center(80, '#') + '\n'
-        else:
-            comments += '#' * 80 + '\n'
-
-        comments += '# twitterScrape\n'
-        if len(args.infile) > 0:
-            comments += '#     infile=' + args.infile[0] + '\n'
-            for fileidx in range(1, len(args.infile)):
-                comments += '             ' + args.infile[0] + '\n'
-        if args.outfile:
-            comments += '#     outfile=' + args.outfile + '\n'
-        if args.user:
-            comments += '#     user=' + args.user + '\n'
-        if args.language:
-            comments += '#     language=' + args.language + '\n'
-        if args.query:
-            comments += '#     query=' + args.query + '\n'
-        if args.since:
-            comments += '#     since=' + args.since + '\n'
-        if args.until:
-            comments += '#     until=' + args.until + '\n'
-        if args.force:
-            comments += '#     force\n'
-        if args.number:
-            comments += '#     number=' + str(args.number) + '\n'
-        if args.no_header:
-            comments += '#     no-header\n'
+        comments = ((' ' + args.outfile + ' ') if args.outfile else '').center(80, '#') + '\n'
+        comments += '# ' + os.path.basename(sys.argv[0]) + '\n'
+        arglist = args.__dict__.keys()
+        for arg in arglist:
+            if arg not in hiddenargs:
+                val = getattr(args, arg)
+                if type(val) == int:
+                    comments += '#     --' + arg + '=' + str(val) + '\n'
+                elif type(val) == str:
+                    comments += '#     --' + arg + '="' + val + '"\n'
+                elif type(val) == bool and val:
+                    comments += '#     --' + arg + '\n'
+                elif type(val) == list:
+                    for valitem in val:
+                        if type(valitem) == int:
+                            comments += '#     --' + arg + '=' + str(valitem) + '\n'
+                        elif type(valitem) == str:
+                            comments += '#     --' + arg + '="' + valitem + '"\n'
 
     # Function to simplify reading tweets from CSV or feed
     def nextornone(reader):

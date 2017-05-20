@@ -57,6 +57,7 @@ def twitterMatrix(arglist):
     parser.add_argument('infile', type=str, nargs='?', help='Input CSV file, otherwise use stdin.')
 
     args = parser.parse_args(arglist)
+    hiddenargs = ['verbosity', 'jobs', 'batch', 'no_comments']
 
     if args.jobs is None:
         import multiprocessing
@@ -100,38 +101,26 @@ def twitterMatrix(arglist):
 
     twitterread  = TwitterRead(args.infile, since=since, until=until, limit=args.limit)
     if not args.no_comments:
-        comments = ''
-        if args.outfile:
-            comments += (' ' + args.outfile + ' ').center(80, '#') + '\n'
-        else:
-            comments += '#' * 80 + '\n'
+        comments = ((' ' + args.outfile + ' ') if args.outfile else '').center(80, '#') + '\n'
+        comments += '# ' + os.path.basename(sys.argv[0]) + '\n'
+        arglist = args.__dict__.keys()
+        for arg in arglist:
+            if arg not in hiddenargs:
+                val = getattr(args, arg)
+                if type(val) == int:
+                    comments += '#     --' + arg + '=' + str(val) + '\n'
+                elif type(val) == str:
+                    comments += '#     --' + arg + '="' + val + '"\n'
+                elif type(val) == bool and val:
+                    comments += '#     --' + arg + '\n'
+                elif type(val) == list:
+                    for valitem in val:
+                        if type(valitem) == int:
+                            comments += '#     --' + arg + '=' + str(valitem) + '\n'
+                        elif type(valitem) == str:
+                            comments += '#     --' + arg + '="' + valitem + '"\n'
 
-        comments += '# twitterMatrix\n'
-        if args.outfile:
-            comments += '#     outfile=' + args.outfile + '\n'
-        if args.infile:
-            comments += '#     infile=' + args.infile + '\n'
-        if args.limit:
-            comments += '#     limit=' + str(args.limit) + '\n'
-        if args.prelude:
-            for line in args.prelude:
-                comments += '#     prelude=' + line + '\n'
-        if args.filter:
-            comments += '#     filter=' + args.filter + '\n'
-        if args.since:
-            comments += '#     since=' + args.since+ '\n'
-        if args.until:
-            comments += '#     until=' + args.until + '\n'
-        comments += '#     column=' + args.column + '\n'
-        comments += '#     words=' + str(args.words) + '\n'
-        if args.textblob:
-            comments += '#     textblob\n'
-        if args.no_header:
-            comments += '#     no-header\n'
-
-        comments += twitterread.comments
-
-        outfile.write(comments)
+        outfile.write(comments+twitterread.comments)
 
     if args.filter:
         exec "\
@@ -202,7 +191,7 @@ def evalfilter(" + ','.join(twitterread.fieldnames).replace('-','_') + ", **kwar
 
     outunicodecsv=unicodecsv.writer(outfile, lineterminator=os.linesep)
     if not args.no_header:
-        outunicodecsv.writerow([''] + wordlist)
+        outunicodecsv.writerow(['word'] + wordlist)
     for row in range(0, len(wordlist)):
         outunicodecsv.writerow([wordlist[row]] + cooccurrencematrix[row])
     outfile.close()

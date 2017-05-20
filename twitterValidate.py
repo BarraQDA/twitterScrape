@@ -48,7 +48,7 @@ def twitterValidate(arglist):
         if curid == '':
             blankrowcount += 1
         else:
-            curdate = dateparser.parse(row['date'])
+            curdate = row['date']
             if blankrowcount > 1:
                 print("Multiple blank rows after id:" + (lastid or '') + " - " + (lastdate or ''), file=sys.stderr)
             blankrowcount = 0

@@ -105,7 +105,7 @@ def twitterFilter(arglist):
         outedgerows[outrowindex] = outrowtslist
 
     for row in twitterread:
-        rowts = calendar.timegm(dateparser.parse(row['date']).timetuple()) * 1000
+        rowts = calendar.timegm(row['date'].timetuple()) * 1000
         for mention in row['mentions'].split():
             addedge(row['user'], mention, rowts)
 

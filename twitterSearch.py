@@ -62,7 +62,7 @@ def twitterSearch(arglist):
 
     parser.add_argument('-o', '--outfile', type=str, nargs='?',
                         help='Output file name, otherwise use stdout.')
-    parser.add_argument('-n', '--number',   type=int, default=0, help='Maximum number of results to output')
+    parser.add_argument('-n', '--number',   type=int, help='Maximum number of results to output')
     parser.add_argument('--no-comments',    action='store_true', help='Do not output descriptive comments')
     parser.add_argument('--no-header',      action='store_true', help='Do not output CSV header with column names')
 
@@ -71,6 +71,7 @@ def twitterSearch(arglist):
 
 
     args = parser.parse_args(arglist)
+    hiddenargs = ['verbosity', 'consumer_key', 'consumer_secret', 'application_only_auth', 'access_token_key', 'access_token_secret', 'no_comments']
 
     if args.outfile is None:
         outfile = sys.stdout
@@ -81,29 +82,24 @@ def twitterSearch(arglist):
         outfile = file(args.outfile, 'w')
 
     if not args.no_comments:
-        comments = ''
-        if args.outfile:
-            comments += (' ' + args.outfile + ' ').center(80, '#') + '\n'
-        else:
-            comments += '#' * 80 + '\n'
-
-        comments += '# twitterSearch\n'
-        if args.outfile:
-            comments += '#     outfile=' + args.outfile + '\n'
-        if args.user:
-            comments += '#     user=' + args.user + '\n'
-        if args.query:
-            comments += '#     query=' + args.query + '\n'
-        if args.language:
-            comments += '#     language=' + args.language + '\n'
-        if args.since:
-            comments += '#     since=' + args.since+ '\n'
-        if args.until:
-            comments += '#     until=' + args.until + '\n'
-        if args.number:
-            comments += '#     number=' + str(args.number) + '\n'
-        if args.no_header:
-            comments += '#     no-header\n'
+        comments = ((' ' + args.outfile + ' ') if args.outfile else '').center(80, '#') + '\n'
+        comments += '# ' + os.path.basename(sys.argv[0]) + '\n'
+        arglist = args.__dict__.keys()
+        for arg in arglist:
+            if arg not in hiddenargs:
+                val = getattr(args, arg)
+                if type(val) == int:
+                    comments += '#     --' + arg + '=' + str(val) + '\n'
+                elif type(val) == str:
+                    comments += '#     --' + arg + '="' + val + '"\n'
+                elif type(val) == bool and val:
+                    comments += '#     --' + arg + '\n'
+                elif type(val) == list:
+                    for valitem in val:
+                        if type(valitem) == int:
+                            comments += '#     --' + arg + '=' + str(valitem) + '\n'
+                        elif type(valitem) == str:
+                            comments += '#     --' + arg + '="' + valitem + '"\n'
 
         comments += '#' * 80 + '\n'
 

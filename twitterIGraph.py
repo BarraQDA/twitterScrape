@@ -134,7 +134,7 @@ def evalweight(" + ','.join(twitterread.fieldnames).replace('-','_') + ", **kwar
     starttime = sys.maxint
 
     for row in twitterread:
-        rowts = calendar.timegm(dateparser.parse(row['date']).timetuple())
+        rowts = calendar.timegm(row['date'].timetuple())
         rowargs = {key.replace('-','_'): value for key, value in row.iteritems()}
         weight = evalweight(**rowargs)
         if rowts < starttime:

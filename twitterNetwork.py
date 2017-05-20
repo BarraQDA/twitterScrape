@@ -42,8 +42,8 @@ def twitterNetwork(arglist):
     parser.add_argument(      '--until',     type=str, help='Upper bound tweet date/time in any sensible format.')
     parser.add_argument('-l', '--limit',     type=int, help='Limit number of tweets to process')
 
-    parser.add_argument(      '--from',      type=str, required=True, dest='fromcode', help='Python code evaluated to generate "from" code(s), for example "user"')
-    parser.add_argument(      '--to',        type=str, required=True, dest='tocode', help='Python code evaluated to generate "to" code(s), for example "mentions.split()')
+    parser.add_argument(      '--fromlist',  type=str, required=True, help='Python code evaluated to generate "from" code(s), for example "user"')
+    parser.add_argument(      '--tolist',    type=str, required=True, help='Python code evaluated to generate "to" code(s), for example "mentions.split()')
     parser.add_argument('-s', '--score',     type=str, default='1', help='Python expression to evaluate tweet score(s), for example "1 + retweets + favorites"')
     parser.add_argument('-tt', '--tothreshold', type=float, help='Threshold score for "from" vector to be included')
     parser.add_argument('-ft', '--fromthreshold', type=float, help='Threshold score for "from" vector to be included')
@@ -56,6 +56,7 @@ def twitterNetwork(arglist):
     parser.add_argument('infile', type=str, nargs='?', help='Input CSV file, otherwise use stdin.')
 
     args = parser.parse_args(arglist)
+    hiddenargs = ['verbosity', 'jobs', 'batch', 'no_comments']
 
     if args.jobs is None:
         import multiprocessing
@@ -87,43 +88,27 @@ def twitterNetwork(arglist):
 
     twitterread  = TwitterRead(args.infile, since=since, until=until, limit=args.limit)
     if not args.no_comments:
-        comments = ''
-        if args.outfile:
-            comments += (' ' + args.outfile + ' ').center(80, '#') + '\n'
-        else:
-            comments += '#' * 80 + '\n'
+        comments = ((' ' + args.outfile + ' ') if args.outfile else '').center(80, '#') + '\n'
+        comments += '# ' + os.path.basename(sys.argv[0]) + '\n'
+        print (args.__dict__)
+        arglist = args.__dict__.keys()
+        for arg in arglist:
+            if arg not in hiddenargs:
+                val = getattr(args, arg)
+                if type(val) == int:
+                    comments += '#     --' + arg + '=' + str(val) + '\n'
+                elif type(val) == str:
+                    comments += '#     --' + arg + '="' + val + '"\n'
+                elif type(val) == bool and val:
+                    comments += '#     --' + arg + '\n'
+                elif type(val) == list:
+                    for valitem in val:
+                        if type(valitem) == int:
+                            comments += '#     --' + arg + '=' + str(valitem) + '\n'
+                        elif type(valitem) == str:
+                            comments += '#     --' + arg + '="' + valitem + '"\n'
 
-        comments += '# twitterNetwork\n'
-        if args.outfile:
-            comments += '#     outfile=' + args.outfile + '\n'
-        if args.infile:
-            comments += '#     infile=' + args.infile + '\n'
-        if args.limit:
-            comments += '#     limit=' + str(args.limit) + '\n'
-        if args.prelude:
-            for line in args.prelude:
-                comments += '#     prelude=' + line + '\n'
-        if args.filter:
-            comments += '#     filter=' + args.filter + '\n'
-        if args.since:
-            comments += '#     since=' + args.since+ '\n'
-        if args.until:
-            comments += '#     until=' + args.until + '\n'
-        comments += '#     from=' + args.fromcode + '\n'
-        comments += '#     to=' + args.tocode + '\n'
-        comments += '#     score=' + args.score + '\n'
-        if args.fromthreshold:
-            comments += '#     fromthreshold=' + str(args.fromthreshold) + '\n'
-        if args.tothreshold:
-            comments += '#     tothreshold=' + str(args.tothreshold) + '\n'
-        if args.threshold:
-            comments += '#     threshold=' + str(args.threshold) + '\n'
-        if args.no_header:
-            comments += '#     no-header\n'
-
-        comments += twitterread.comments
-
-        outfile.write(comments)
+        outfile.write(comments+twitterread.comments)
 
     if args.filter:
         exec "\
@@ -136,11 +121,11 @@ def evalscore(" + ','.join(twitterread.fieldnames).replace('-','_') + ", **kwarg
 
     exec "\
 def evalfrom(" + ','.join(twitterread.fieldnames).replace('-','_') + ", **kwargs):\n\
-    return " + args.fromcode
+    return " + args.fromlist
 
     exec "\
 def evalto(" + ','.join(twitterread.fieldnames).replace('-','_') + ", **kwargs):\n\
-    return " + args.tocode
+    return " + args.tolist
 
     if args.verbosity >= 1:
         print("Loading twitter data.", file=sys.stderr)
