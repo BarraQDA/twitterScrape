@@ -22,7 +22,7 @@ import os
 import sys
 from TwitterFeed import TwitterRead
 import re
-import datetime
+from datetime import datetime
 import subprocess
 
 def twitterReplay(arglist):
@@ -79,8 +79,8 @@ def twitterReplay(arglist):
 
                 arglist = []
                 lastargname = ''
-                commentline = comments.pop(0)
-                argmatch = argregexp.match(commentline)
+                commentline = comments.pop(0) if len(comments) > 0 else None
+                argmatch = argregexp.match(commentline) if commentline else None
                 while argmatch:
                     argname  = argmatch.group('name')
                     argvalue = argmatch.group('value')
@@ -101,12 +101,11 @@ def twitterReplay(arglist):
                             if argvalue is not None:
                                 arglist.append(argvalue)
 
-                    commentline = comments.pop(0)
-                    argmatch = argregexp.match(commentline)
+                    commentline = comments.pop(0) if len(comments) > 0 else None
+                    argmatch = argregexp.match(commentline) if commentline else None
 
                 pipestack.append((cmd, arglist + extraargs))
-
-                pipematch = piperegexp.match(commentline)
+                pipematch = piperegexp.match(commentline) if commentline else None
 
             replaystack.append((pipestack, infilelist, outfile))
 
@@ -114,7 +113,7 @@ def twitterReplay(arglist):
             if depth == args.depth:
                 break
 
-            filematch = fileregexp.match(commentline)
+            filematch = fileregexp.match(commentline) if commentline else None
 
 
         if replaystack:
@@ -125,10 +124,10 @@ def twitterReplay(arglist):
         execute = args.force
         while pipestack:
             if not execute:
-                outfilestamp = datetime.datetime.utcfromtimestamp(os.path.getmtime(outfilename))
+                outfilestamp = (datetime.utcfromtimestamp(os.path.getmtime(outfilename)) if os.path.isfile(outfilename) else None) if outfilename else None
                 for infilename in infilelist:
-                    infilestamp = datetime.datetime.utcfromtimestamp(os.path.getmtime(infilename))
-                    if infilestamp > outfilestamp:
+                    infilestamp = (datetime.utcfromtimestamp(os.path.getmtime(infilename)) if os.path.isfile(infilename) else None) if infilename else None
+                    if infilestamp > (outfilestamp or datetime.min):
                         execute = True
                         break
 
@@ -139,7 +138,7 @@ def twitterReplay(arglist):
                     if infilelist:
                         arglist = infilelist + arglist
                     infilelist = None
-                    if len(pipestack) == 0:
+                    if len(pipestack) == 0 and '--outfile' not in arglist:
                         arglist = arglist + ['--outfile', outfilename]
                     if args.verbosity >= 1:
                         print("Executing: " + cmd + ' ' + ' '.join(arglist), file=sys.stderr)
