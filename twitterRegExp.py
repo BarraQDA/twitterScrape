@@ -33,6 +33,12 @@ import calendar
 from pytimeparse.timeparse import timeparse
 from operator import sub, add
 
+def cleanKey(key):
+    return re.sub('[^0-9a-zA-Z_]', '_', key)
+
+def cleanDictKeys(d):
+    return {cleanKey(key): value for key, value in d.iteritems()}
+
 def twitterRegExp(arglist):
     presets = {
         'hashtags':{ 'column':'hashtags', 'regexp':r'(?P<hashtag>\w+)',       'ignorecase':True },
@@ -148,11 +154,11 @@ def twitterRegExp(arglist):
 
     if args.filter:
             exec "\
-def evalfilter(" + ','.join(twitterread.fieldnames).replace('-','_') + ", **kwargs):\n\
+def evalfilter(" + ','.join([cleanKey(fieldname) for fieldname in twitterread.fieldnames]) + ",**kwargs):\n\
     return " + args.filter
 
     exec "\
-def evalscore(" + ','.join(twitterread.fieldnames).replace('-','_') + ", **kwargs):\n\
+def evalscore(" + ','.join([cleanKey(fieldname) for fieldname in twitterread.fieldnames]) + ",**kwargs):\n\
     return [" + ','.join([scoreitem for scoreitem in args.score]) + "]"
 
     if args.verbosity >= 1:
@@ -169,7 +175,7 @@ def evalscore(" + ','.join(twitterread.fieldnames).replace('-','_') + ", **kwarg
                 while True:
                     row = next(twitterread)
                     if args.filter:
-                        rowargs = {key.replace('-','_'): value for key, value in row.iteritems()}
+                        rowargs = cleanDictKeys(row)
                         if evalfilter(**rowargs):
                             break
                     else:
@@ -196,7 +202,7 @@ def evalscore(" + ','.join(twitterread.fieldnames).replace('-','_') + ", **kwarg
             for match in matches:
                 if not rowscore:
                     if not args.filter:     # NB Optimisation, rowargs already calculated
-                        rowargs = {key.replace('-','_'): value for key, value in row.iteritems()}
+                        rowargs = cleanDictKeys(row)
                     rowscore = evalscore(**rowargs)
 
                 if args.ignorecase:
@@ -244,7 +250,7 @@ def evalscore(" + ','.join(twitterread.fieldnames).replace('-','_') + ", **kwarg
                 for rowindex in p.range(0, rowcount):
                     row = rows[rowindex]
                     if args.filter:
-                        rowargs = {key.replace('-','_'): value for key, value in row.iteritems()}
+                        rowargs = cleanDictKeys(row)
                         if not evalfilter(**rowargs):
                             continue
 
@@ -253,7 +259,7 @@ def evalscore(" + ','.join(twitterread.fieldnames).replace('-','_') + ", **kwarg
                     for match in matches:
                         if not rowscore:
                             if not args.filter:     # NB Optimisation, rowargs already calculated
-                                rowargs = {key.replace('-','_'): value for key, value in row.iteritems()}
+                                rowargs = cleanDictKeys(row)
                             rowscore = evalscore(**rowargs)
 
                         if args.ignorecase:

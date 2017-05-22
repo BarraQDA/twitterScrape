@@ -27,8 +27,11 @@ import re
 from dateutil import parser as dateparser
 import datetime
 
-MENTIONREGEXP=re.compile(r'(@\w+)', re.UNICODE)
-HASHTAGREGEXP=re.compile(r'(#\w+)', re.UNICODE)
+def cleanKey(key):
+    return re.sub('[^0-9a-zA-Z_]', '_', key)
+
+def cleanDictKeys(d):
+    return {cleanKey(key): value for key, value in d.iteritems()}
 
 def twitterUsers(arglist):
 
@@ -105,7 +108,7 @@ def twitterUsers(arglist):
 
     if args.filter:
             exec "\
-def evalfilter(" + ','.join(twitterread.fieldnames).replace('-','_') + ", **kwargs):\n\
+def evalfilter(" + ','.join([cleanKey(fieldname) for fieldname in twitterread.fieldnames]) + ",**kwargs):\n\
     return " + args.filter
 
     if args.verbosity >= 1:
@@ -117,7 +120,7 @@ def evalfilter(" + ','.join(twitterread.fieldnames).replace('-','_') + ", **kwar
             while True:
                 row = next(twitterread)
                 if args.filter:
-                    rowargs = {key.replace('-','_'): value for key, value in row.iteritems()}
+                    rowargs = cleanDictKeys(row)
                     if evalfilter(**rowargs):
                         break
                 else:

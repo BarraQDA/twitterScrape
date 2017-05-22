@@ -30,6 +30,12 @@ import pymp
 from igraph import *
 import numpy as np
 
+def cleanKey(key):
+    return re.sub('[^0-9a-zA-Z_]', '_', key)
+
+def cleanDictKeys(d):
+    return {cleanKey(key): value for key, value in d.iteritems()}
+
 def twitterMatrix(arglist):
 
     parser = argparse.ArgumentParser(description='Twitter co-occurrence matrix computation.',
@@ -124,7 +130,7 @@ def twitterMatrix(arglist):
 
     if args.filter:
         exec "\
-def evalfilter(" + ','.join(twitterread.fieldnames).replace('-','_') + ", **kwargs):\n\
+def evalfilter(" + ','.join([cleanKey(fieldname) for fieldname in twitterread.fieldnames]) + ",**kwargs):\n\
     return [" + ','.join([filteritem for filteritem in args.filter]) + "]"
 
     if args.verbosity >= 1:
@@ -157,7 +163,7 @@ def evalfilter(" + ','.join(twitterread.fieldnames).replace('-','_') + ", **kwar
             for rowindex in p.range(0, rowcount):
                 row = rows[rowindex]
                 if args.filter:
-                    rowargs = {key.replace('-','_'): value for key, value in row.iteritems()}
+                    rowargs = cleanDictKeys(row)
                     if not evalfilter(**rowargs):
                         continue
 

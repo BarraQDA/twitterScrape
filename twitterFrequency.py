@@ -32,6 +32,12 @@ from dateutil import parser as dateparser
 from pytimeparse.timeparse import timeparse
 import calendar
 
+def cleanKey(key):
+    return re.sub('[^0-9a-zA-Z_]', '_', key)
+
+def cleanDictKeys(d):
+    return {cleanKey(key): value for key, value in d.iteritems()}
+
 def twitterFrequency(arglist):
     parser = argparse.ArgumentParser(description='Twitter feed frequency matrix producer.',
                                      fromfile_prefix_chars='@')
@@ -104,11 +110,11 @@ def twitterFrequency(arglist):
         outfile.write(comments+twitterread.comments)
 
     exec "\
-def evalfilter(" + ','.join(twitterread.fieldnames).replace('-','_') + ", **kwargs):\n\
+def evalfilter(" + ','.join([cleanKey(fieldname) for fieldname in twitterread.fieldnames]) + ",**kwargs):\n\
     return [" + ','.join([filteritem for filteritem in args.filter]) + "]"
 
     exec "\
-def evalscore(" + ','.join(twitterread.fieldnames).replace('-','_') + ", **kwargs):\n\
+def evalscore(" + ','.join([cleanKey(fieldname) for fieldname in twitterread.fieldnames]) + ",**kwargs):\n\
     return " + args.score
 
     outunicodecsv=unicodecsv.writer(outfile, lineterminator=os.linesep)
@@ -126,7 +132,7 @@ def evalscore(" + ','.join(twitterread.fieldnames).replace('-','_') + ", **kwarg
         except StopIteration:
             break
 
-        rowargs = {key.replace('-','_'): value for key, value in row.iteritems()}
+        rowargs = cleanDictKeys(row)
         row['score']     = evalscore(**rowargs)
         row['datesecs']  = calendar.timegm(row['date'].timetuple())
 

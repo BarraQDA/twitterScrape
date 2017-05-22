@@ -22,9 +22,16 @@ import sys
 from TwitterFeed import TwitterRead
 import string
 import unicodedata
+import re
 import pymp
 from dateutil import parser as dateparser
 from wordcloud import WordCloud
+
+def cleanKey(key):
+    return re.sub('[^0-9a-zA-Z_]', '_', key)
+
+def cleanDictKeys(d):
+    return {cleanKey(key): value for key, value in d.iteritems()}
 
 def twitterCloud(arglist):
     parser = argparse.ArgumentParser(description='Twitter feed word cloud.',
@@ -80,7 +87,7 @@ def twitterCloud(arglist):
 
     if args.filter:
         exec "\
-def evalfilter(" + ','.join(twitterread.fieldnames).replace('-','_') + ", **kwargs):\n\
+def evalfilter(" + ','.join([cleanKey(fieldname) for fieldname in twitterread.fieldnames]) + ",**kwargs):\n\
     return " + args.filter
 
     from nltk.corpus import stopwords
@@ -128,7 +135,7 @@ def evalfilter(" + ','.join(twitterread.fieldnames).replace('-','_') + ", **kwar
             for rowindex in p.range(0, rowcount):
                 row = rows[rowindex]
                 if args.filter:
-                    rowargs = {key.replace('-','_'): value for key, value in row.iteritems()}
+                    rowargs = cleanDictKeys(row)
                     if not evalfilter(**rowargs):
                         continue
 
