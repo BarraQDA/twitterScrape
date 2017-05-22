@@ -30,6 +30,12 @@ import pymp
 import re
 from dateutil import parser as dateparser
 
+def cleanKey(key):
+    return re.sub('[^0-9a-zA-Z_]', '_', key)
+
+def cleanDictKeys(d):
+    return {cleanKey(key): value for key, value in d.iteritems()}
+
 def twitterFilter(arglist):
 
     parser = argparse.ArgumentParser(description='Twitter CSV file processor.',
@@ -81,15 +87,15 @@ def twitterFilter(arglist):
         exec(os.linesep.join(args.prelude)) in globals()
 
     if args.regexp:
-        if args.ignorecase:
-            regexp = re.compile(args.regexp, re.IGNORECASE | re.UNICODE)
-        else:
-            regexp = re.compile(args.regexp, re.UNICODE)
+        regexp = re.compile(args.regexp, re.UNICODE | (re.IGNORECASE if args.ignorecase else 0))
+        regexpfields = list(regexp.groupindex)
+    else:
+        regexpfields = None
 
     until = dateparser.parse(args.until) if args.until else None
     since = dateparser.parse(args.since) if args.since else None
 
-    twitterread  = TwitterRead(args.infile, since=since, until=until, limit=args.limit)
+    twitterread  = TwitterRead(args.infile, since=since, until=until, limit=args.limit, blanks=True)
 
     if args.outfile is None:
         outfile = sys.stdout
@@ -109,8 +115,7 @@ def twitterFilter(arglist):
         outcomments = None
         rejcomments = None
     else:
-        comments = ((' ' + args.outfile + ' ') if args.outfile else '').center(80, '#') + '\n'
-        comments += '# ' + os.path.basename(sys.argv[0]) + '\n'
+        comments = '# ' + os.path.basename(sys.argv[0]) + '\n'
         arglist = args.__dict__.keys()
         for arg in arglist:
             if arg not in hiddenargs:
@@ -141,27 +146,28 @@ def twitterFilter(arglist):
             rejcomments += comments + twitterread.comments
             rejfile.write(rejcomments)
 
-    # Check either copy or header/data are specified
-    if args.copy == bool(args.header) or bool(args.header) != bool(args.data):
-        raise RuntimeError("You must specify either --copy or both --header and --data")
+    if (bool(args.header) != bool(args.data)) or (sum([args.copy, bool(regexpfields), bool(args.header)]) == 0):
+        raise RuntimeError("You must specify at least one of a regular expression with named fields, --copy, or both --header and --data")
+
+    outfieldnames = (twitterread.fieldnames if args.copy else []) + (regexpfields if regexpfields else []) + (args.header.split(',') if args.header else [])
 
     outcsv=unicodecsv.writer(outfile, lineterminator=os.linesep)
 
     if not args.no_header:
-        outcsv.writerow(args.header.split(',') if args.header else twitterread.fieldnames)
+        outcsv.writerow(outfieldnames)
     if args.rejfile:
         rejcsv=unicodecsv.writer(rejfile, lineterminator=os.linesep)
         if not args.no_header:
-            rejcsv.writerow(args.header.split(',') if args.header else twitterread.fieldnames)
+            rejcsv.writerow(outfieldnames)
 
     if args.filter:
         exec "\
-def evalfilter(" + ','.join(twitterread.fieldnames).replace('-','_') + ", **kwargs):\n\
+def evalfilter(" + ','.join([cleanKey(fieldname) for fieldname in twitterread.fieldnames]) + ",**kwargs):\n\
     return " + args.filter
 
     if args.data:
         exec "\
-def evalcolumn(" + ','.join(twitterread.fieldnames).replace('-','_') + ", **kwargs):\n\
+def evalcolumn(" + ','.join([cleanKey(fieldname) for fieldname in twitterread.fieldnames]) + ",**kwargs):\n\
     return " + args.data
 
     if args.verbosity >= 1:
@@ -173,30 +179,35 @@ def evalcolumn(" + ','.join(twitterread.fieldnames).replace('-','_') + ", **kwar
     if args.jobs == 1:
         for row in twitterread:
             keep = True
-            rowargs = {key.replace('-','_'): value for key, value in row.iteritems()}
+            rowargs = cleanDictKeys(row)
             if args.filter:
                 keep = (evalfilter(**rowargs) or False) and keep
-
             if args.regexp:
-                keep = keep and (regexp.search(unicode(row[args.column])) or False)
+                regexpmatch = regexp.match(unicode(row[args.column]))
+                keep = keep and (regexpmatch or False)
 
             if keep == args.invert and not args.rejfile:
                 continue
 
+            outrow = []
             if args.copy:
-                outrows = [[row[key] for key in twitterread.fieldnames]]
-            else:
-                outrows = evalcolumn(**rowargs)
-
-            for outrow in outrows:
-                if keep != args.invert:
-                    outcsv.writerow(outrow)
-                    outrowcount += 1
-                    if args.number and outrowcount == args.number:
-                        break
+                outrow += [row[key] for key in twitterread.fieldnames]
+            if args.data:
+                outrow += evalcolumn(**rowargs)
+            if regexpfields:
+                if regexpmatch:
+                    outrow += [regexpmatch.group(regexpfield) for regexpfield in regexpfields]
                 else:
-                    rejcsv.writerow(outrow)
-                    rejrowcount += 1
+                    outrow += [None for regexpfield in regexpfields]
+
+            if keep != args.invert:
+                outcsv.writerow(outrow)
+                outrowcount += 1
+                if args.number and outrowcount == args.number:
+                    break
+            else:
+                rejcsv.writerow(outrow)
+                rejrowcount += 1
 
             if args.number and outrowcount == args.number:
                 break
@@ -234,25 +245,32 @@ def evalcolumn(" + ','.join(twitterread.fieldnames).replace('-','_') + ", **kwar
                     reject = {}
                 for rowindex in p.range(0, rowcount):
                     row = rows[rowindex]
-                    rowargs = {key.replace('-','_'): value for key, value in row.iteritems()}
                     keep = True
+                    rowargs = cleanDictKeys(row)
                     if args.filter:
                         keep = (evalfilter(**rowargs) or False) and keep
                     if args.regexp:
-                        keep = keep and (regexp.search(unicode(row[args.column])) or False)
+                        regexpmatch = regexp.match(unicode(row[args.column]))
+                        keep = keep and (regexpmatch or False)
 
                     if keep == args.invert and not args.rejfile:
                         continue
 
+                    outrow = []
                     if args.copy:
-                        outrows = [[row[key] for key in twitterread.fieldnames]]
-                    else:
-                        outrows = evalcolumn(**rowargs)
+                        outrow += [row[key] for key in twitterread.fieldnames]
+                    if args.data:
+                        outrow += evalcolumn(**rowargs)
+                    if regexpfields:
+                        if regexpmatch:
+                            outrow += [regexpmatch.group(regexpfield) for regexpfield in regexpfields]
+                        else:
+                            outrow += [None for regexpfield in regexpfields]
 
                     if keep != args.invert:
-                        result[row['id']] = outrows
+                        result[row['id']] = outrow
                     else:
-                        reject[row['id']] = outrows
+                        reject[row['id']] = outrow
 
                 if args.verbosity >= 2:
                     print("Thread " + str(p.thread_num) + " returned " + str(len(result)) + " results.", file=sys.stderr)
@@ -279,11 +297,10 @@ def evalcolumn(" + ','.join(twitterread.fieldnames).replace('-','_') + ", **kwar
 
             endindex = None
             for index in sorted(mergedresult.keys(), reverse=True):
-                for outrow in mergedresult[index]:
-                    outcsv.writerow(outrow)
-                    outrowcount += 1
-                    if args.number and outrowcount == args.number:
-                        break
+                outcsv.writerow(mergedresult[index])
+                outrowcount += 1
+                if args.number and outrowcount == args.number:
+                    break
 
                 if args.number and outrowcount == args.number:
                     endindex = index
@@ -294,8 +311,7 @@ def evalcolumn(" + ','.join(twitterread.fieldnames).replace('-','_') + ", **kwar
                     if index < endindex:
                         break
 
-                    for outrow in mergedreject[index]:
-                        rejcsv.writerow(outrow)
+                    rejcsv.writerow(mergedreject[index])
 
             if args.number and outrowcount == args.number:
                 break
