@@ -28,12 +28,6 @@ import unicodedata
 from dateutil import parser as dateparser
 import pymp
 
-def cleanKey(key):
-    return re.sub('[^0-9a-zA-Z_]', '_', key)
-
-def cleanDictKeys(d):
-    return {cleanKey(key): value for key, value in d.iteritems()}
-
 def twitterNetwork(arglist):
     parser = argparse.ArgumentParser(description='Twitter network matrix computation.',
                                      fromfile_prefix_chars='@')
@@ -116,22 +110,23 @@ def twitterNetwork(arglist):
 
         outfile.write(comments+twitterread.comments)
 
+    argbadchars = re.compile(r'[^0-9a-zA-Z_]')
     if args.filter:
         exec "\
-def evalfilter(" + ','.join([cleanKey(fieldname) for fieldname in twitterread.fieldnames]) + ",**kwargs):\n\
-    return [" + ','.join([filteritem for filteritem in args.filter]) + "]"
+def evalfilter(" + ','.join([argbadchars.sub('_', fieldname) for fieldname in twitterread.fieldnames]) + ",**kwargs):\n\
+    return [" + ','.join([filteritem for filteritem in args.filter]) + "]" in locals()
 
     exec "\
-def evalscore(" + ','.join([cleanKey(fieldname) for fieldname in twitterread.fieldnames]) + ",**kwargs):\n\
-    return " + args.score
+def evalscore(" + ','.join([argbadchars.sub('_', fieldname) for fieldname in twitterread.fieldnames]) + ",**kwargs):\n\
+    return " + args.score in locals()
 
     exec "\
-def evalfrom(" + ','.join([cleanKey(fieldname) for fieldname in twitterread.fieldnames]) + ",**kwargs):\n\
-    return " + args.fromlist
+def evalfrom(" + ','.join([argbadchars.sub('_', fieldname) for fieldname in twitterread.fieldnames]) + ",**kwargs):\n\
+    return " + args.fromlist in locals()
 
     exec "\
-def evalto(" + ','.join([cleanKey(fieldname) for fieldname in twitterread.fieldnames]) + ",**kwargs):\n\
-    return " + args.tolist
+def evalto(" + ','.join([argbadchars.sub('_', fieldname) for fieldname in twitterread.fieldnames]) + ",**kwargs):\n\
+    return " + args.tolist in locals()
 
     if args.verbosity >= 1:
         print("Loading twitter data.", file=sys.stderr)
@@ -168,7 +163,7 @@ def evalto(" + ','.join([cleanKey(fieldname) for fieldname in twitterread.fieldn
             tototal = {}
             for rowindex in p.range(0, rowcount):
                 row = rows[rowindex]
-                rowargs = cleanDictKeys(row)
+                rowargs = {argbadchars.sub('_', key): value for key, value in row.iteritems()}
                 if args.filter and not evalfilter(**rowargs):
                     continue
 

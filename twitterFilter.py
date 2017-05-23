@@ -30,12 +30,6 @@ import pymp
 import re
 from dateutil import parser as dateparser
 
-def cleanKey(key):
-    return re.sub('[^0-9a-zA-Z_]', '_', key)
-
-def cleanDictKeys(d):
-    return {cleanKey(key): value for key, value in d.iteritems()}
-
 def twitterFilter(arglist):
 
     parser = argparse.ArgumentParser(description='Twitter CSV file processor.',
@@ -160,15 +154,16 @@ def twitterFilter(arglist):
         if not args.no_header:
             rejcsv.writerow(outfieldnames)
 
+    argbadchars = re.compile(r'[^0-9a-zA-Z_]')
     if args.filter:
         exec "\
-def evalfilter(" + ','.join([cleanKey(fieldname) for fieldname in twitterread.fieldnames]) + ",**kwargs):\n\
-    return " + args.filter
+def evalfilter(" + ','.join([argbadchars.sub('_', fieldname) for fieldname in twitterread.fieldnames]) + ",**kwargs):\n\
+    return " + args.filter in locals()
 
     if args.data:
         exec "\
-def evalcolumn(" + ','.join([cleanKey(fieldname) for fieldname in twitterread.fieldnames]) + ",**kwargs):\n\
-    return " + args.data
+def evalcolumn(" + ','.join([argbadchars.sub('_', fieldname) for fieldname in twitterread.fieldnames]) + ",**kwargs):\n\
+    return " + args.data in locals()
 
     if args.verbosity >= 1:
         print("Loading twitter data.", file=sys.stderr)
@@ -179,7 +174,7 @@ def evalcolumn(" + ','.join([cleanKey(fieldname) for fieldname in twitterread.fi
     if args.jobs == 1:
         for row in twitterread:
             keep = True
-            rowargs = cleanDictKeys(row)
+            rowargs = {argbadchars.sub('_', key): value for key, value in row.iteritems()}
             if args.filter:
                 keep = (evalfilter(**rowargs) or False) and keep
             if args.regexp:
@@ -246,7 +241,7 @@ def evalcolumn(" + ','.join([cleanKey(fieldname) for fieldname in twitterread.fi
                 for rowindex in p.range(0, rowcount):
                     row = rows[rowindex]
                     keep = True
-                    rowargs = cleanDictKeys(row)
+                    rowargs = {argbadchars.sub('_', key): value for key, value in row.iteritems()}
                     if args.filter:
                         keep = (evalfilter(**rowargs) or False) and keep
                     if args.regexp:

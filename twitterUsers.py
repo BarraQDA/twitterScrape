@@ -27,12 +27,6 @@ import re
 from dateutil import parser as dateparser
 import datetime
 
-def cleanKey(key):
-    return re.sub('[^0-9a-zA-Z_]', '_', key)
-
-def cleanDictKeys(d):
-    return {cleanKey(key): value for key, value in d.iteritems()}
-
 def twitterUsers(arglist):
 
     parser = argparse.ArgumentParser(description='Retrieve twitter users from ID.',
@@ -106,10 +100,11 @@ def twitterUsers(arglist):
 
         outfile.write(comments + twitterread.comments)
 
+    argbadchars = re.compile(r'[^0-9a-zA-Z_]')
     if args.filter:
             exec "\
-def evalfilter(" + ','.join([cleanKey(fieldname) for fieldname in twitterread.fieldnames]) + ",**kwargs):\n\
-    return " + args.filter
+def evalfilter(" + ','.join([argbadchars.sub('_', fieldname) for fieldname in twitterread.fieldnames]) + ",**kwargs):\n\
+    return " + args.filter in locals()
 
     if args.verbosity >= 1:
         print("Loading tweets.", file=sys.stderr)
@@ -120,7 +115,7 @@ def evalfilter(" + ','.join([cleanKey(fieldname) for fieldname in twitterread.fi
             while True:
                 row = next(twitterread)
                 if args.filter:
-                    rowargs = cleanDictKeys(row)
+                    rowargs = {argbadchars.sub('_', key): value for key, value in row.iteritems()}
                     if evalfilter(**rowargs):
                         break
                 else:

@@ -30,12 +30,6 @@ import pymp
 from igraph import *
 import numpy as np
 
-def cleanKey(key):
-    return re.sub('[^0-9a-zA-Z_]', '_', key)
-
-def cleanDictKeys(d):
-    return {cleanKey(key): value for key, value in d.iteritems()}
-
 def twitterMatrix(arglist):
 
     parser = argparse.ArgumentParser(description='Twitter co-occurrence matrix computation.',
@@ -128,10 +122,11 @@ def twitterMatrix(arglist):
 
         outfile.write(comments+twitterread.comments)
 
+    argbadchars = re.compile(r'[^0-9a-zA-Z_]')
     if args.filter:
         exec "\
-def evalfilter(" + ','.join([cleanKey(fieldname) for fieldname in twitterread.fieldnames]) + ",**kwargs):\n\
-    return [" + ','.join([filteritem for filteritem in args.filter]) + "]"
+def evalfilter(" + ','.join([argbadchars.sub('_', fieldname) for fieldname in twitterread.fieldnames]) + ",**kwargs):\n\
+    return [" + ','.join([filteritem for filteritem in args.filter]) + "]" in locals()
 
     if args.verbosity >= 1:
         print("Loading twitter data.", file=sys.stderr)
@@ -163,7 +158,7 @@ def evalfilter(" + ','.join([cleanKey(fieldname) for fieldname in twitterread.fi
             for rowindex in p.range(0, rowcount):
                 row = rows[rowindex]
                 if args.filter:
-                    rowargs = cleanDictKeys(row)
+                    rowargs = {argbadchars.sub('_', key): value for key, value in row.iteritems()}
                     if not evalfilter(**rowargs):
                         continue
 

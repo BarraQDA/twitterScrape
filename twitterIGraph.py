@@ -31,12 +31,6 @@ import calendar
 import datetime
 from pytimeparse.timeparse import timeparse
 
-def cleanKey(key):
-    return re.sub('[^0-9a-zA-Z_]', '_', key)
-
-def cleanDictKeys(d):
-    return {cleanKey(key): value for key, value in d.iteritems()}
-
 def twitterIGraph(arglist):
 
     parser = argparse.ArgumentParser(description='Create CSV file suitable for Gephi.',
@@ -75,9 +69,10 @@ def twitterIGraph(arglist):
 
     twitterread  = TwitterRead(args.infile, since=since, until=until, limit=args.limit)
 
+    argbadchars = re.compile(r'[^0-9a-zA-Z_]')
     exec "\
-def evalweight(" + ','.join([cleanKey(fieldname) for fieldname in twitterread.fieldnames]) + ",**kwargs):\n\
-    return " + args.weight in globals()
+def evalweight(" + ','.join([argbadchars.sub('_', fieldname) for fieldname in twitterread.fieldnames]) + ",**kwargs):\n\
+    return " + args.weight in locals()
 
     if args.outedgefile is None:
         outedgefile = sys.stdout
@@ -141,7 +136,7 @@ def evalweight(" + ','.join([cleanKey(fieldname) for fieldname in twitterread.fi
 
     for row in twitterread:
         rowts = calendar.timegm(row['date'].timetuple())
-        rowargs = cleanDictKeys(row)
+        rowargs = {argbadchars.sub('_', key): value for key, value in row.iteritems()}
         weight = evalweight(**rowargs)
         if rowts < starttime:
             starttime = rowts

@@ -32,12 +32,6 @@ from dateutil import parser as dateparser
 from pytimeparse.timeparse import timeparse
 import calendar
 
-def cleanKey(key):
-    return re.sub('[^0-9a-zA-Z_]', '_', key)
-
-def cleanDictKeys(d):
-    return {cleanKey(key): value for key, value in d.iteritems()}
-
 def twitterFrequency(arglist):
     parser = argparse.ArgumentParser(description='Twitter feed frequency matrix producer.',
                                      fromfile_prefix_chars='@')
@@ -109,13 +103,14 @@ def twitterFrequency(arglist):
 
         outfile.write(comments+twitterread.comments)
 
+    argbadchars = re.compile(r'[^0-9a-zA-Z_]')
     exec "\
-def evalfilter(" + ','.join([cleanKey(fieldname) for fieldname in twitterread.fieldnames]) + ",**kwargs):\n\
-    return [" + ','.join([filteritem for filteritem in args.filter]) + "]"
+def evalfilter(" + ','.join([argbadchars.sub('_', fieldname) for fieldname in twitterread.fieldnames]) + ",**kwargs):\n\
+    return [" + ','.join([filteritem for filteritem in args.filter]) + "]" in locals()
 
     exec "\
-def evalscore(" + ','.join([cleanKey(fieldname) for fieldname in twitterread.fieldnames]) + ",**kwargs):\n\
-    return " + args.score
+def evalscore(" + ','.join([argbadchars.sub('_', fieldname) for fieldname in twitterread.fieldnames]) + ",**kwargs):\n\
+    return " + args.score in locals()
 
     outunicodecsv=unicodecsv.writer(outfile, lineterminator=os.linesep)
     if not args.no_header:
@@ -132,7 +127,7 @@ def evalscore(" + ','.join([cleanKey(fieldname) for fieldname in twitterread.fie
         except StopIteration:
             break
 
-        rowargs = cleanDictKeys(row)
+        rowargs = {argbadchars.sub('_', key): value for key, value in row.iteritems()}
         row['score']     = evalscore(**rowargs)
         row['datesecs']  = calendar.timegm(row['date'].timetuple())
 
