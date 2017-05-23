@@ -47,6 +47,7 @@ def csvFilter(arglist):
     parser.add_argument('-l', '--limit',      type=int, help='Limit number of tweets to process')
 
     parser.add_argument('-C', '--copy',       action='store_true', help='If true, copy all columns from input file.')
+    parser.add_argument('-x', '--exclude',    type=str, help='If specified, copy all columns from input file except those in this comma-separated list')
     parser.add_argument('-H', '--header',     type=str, help='Comma-separated list of column names to create.')
     parser.add_argument('-d', '--data',       type=str, help='Python code to produce dict to fill or overwrite columns.')
 
@@ -148,11 +149,14 @@ def csvFilter(arglist):
             rejcomments += comments + incomments
             rejfile.write(rejcomments)
 
-    if not(args.copy or bool(args.header) or bool(regexpfields)):
-        raise RuntimeError("You must specify at least one --copy --header or a regular expression with named fields")
+    # If no columns specified, assume we mean copy columns from infile
+    if not(args.exclude or bool(args.header) or bool(regexpfields)):
+        args.copy = True
 
     outfieldnames = []
-    if args.copy:
+    if args.exclude:
+        outfieldnames += [fieldname for fieldname in infieldnames if fieldname not in args.exclude.split(',')]
+    elif args.copy:
         outfieldnames += infieldnames
     if args.header:
         outfieldnames += [fieldname for fieldname in args.header.split(',') if fieldname not in outfieldnames]
@@ -164,7 +168,7 @@ def csvFilter(arglist):
     if not args.no_header:
         outcsv.writeheader()
     if args.rejfile:
-        rejcsv=unicodecsv.DictWriter(outfile, fieldnames=outfieldnames, extrasaction='ignore', lineterminator=os.linesep)
+        rejcsv=unicodecsv.DictWriter(rejfile, fieldnames=outfieldnames, extrasaction='ignore', lineterminator=os.linesep)
         if not args.no_header:
             rejcsv.writeheader()
 
@@ -205,7 +209,7 @@ def evaldata(" + ','.join([argbadchars.sub('_', fieldname) for fieldname in infi
                 continue
 
             outrow = row.copy()
-            if args.regexp:
+            if args.regexp and regexpmatch:
                 outrow.update({regexpfield: regexpmatch.group(regexpfield) for regexpfield in regexpfields})
             if args.data:
                 datadict = evaldata(**rowargs)
@@ -273,7 +277,7 @@ def evaldata(" + ','.join([argbadchars.sub('_', fieldname) for fieldname in infi
                         continue
 
                     outrow = row.copy()
-                    if args.regexp:
+                    if args.regexp and regexpmatch:
                         outrow.update({regexpfield: regexpmatch.group(regexpfield) for regexpfield in regexpfields})
                     if args.data:
                         datadict = evaldata(**rowargs)
