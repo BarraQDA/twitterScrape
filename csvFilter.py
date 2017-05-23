@@ -48,7 +48,7 @@ def csvFilter(arglist):
 
     parser.add_argument('-C', '--copy',       action='store_true', help='If true, copy all columns from input file.')
     parser.add_argument('-H', '--header',     type=str, help='Comma-separated list of column names to create.')
-    parser.add_argument('-d', '--data',       type=str, help='Python code to produce list of lists to output as columns.')
+    parser.add_argument('-d', '--data',       type=str, help='Python code to produce dict to fill or overwrite columns.')
 
     parser.add_argument('-o', '--outfile',    type=str, help='Output CSV file, otherwise use stdout.')
     parser.add_argument(      '--rejfile',    type=str, help='Output CSV file for rejected tweets')
@@ -148,19 +148,25 @@ def csvFilter(arglist):
             rejcomments += comments + incomments
             rejfile.write(rejcomments)
 
-    if (bool(args.header) != bool(args.data)) or (sum([args.copy, bool(regexpfields), bool(args.header)]) == 0):
-        raise RuntimeError("You must specify at least one of a regular expression with named fields, --copy, or both --header and --data")
+    if not(args.copy or bool(args.header) or bool(regexpfields)):
+        raise RuntimeError("You must specify at least one --copy --header or a regular expression with named fields")
 
-    outfieldnames = (infieldnames if args.copy else []) + (regexpfields if regexpfields else []) + (args.header.split(',') if args.header else [])
+    outfieldnames = []
+    if args.copy:
+        outfieldnames += infieldnames
+    if args.header:
+        outfieldnames += [fieldname for fieldname in args.header.split(',') if fieldname not in outfieldnames]
+    if regexpfields:
+        outfieldnames += [fieldname for fieldname in regexpfields if fieldname not in outfieldnames]
 
-    outcsv=unicodecsv.writer(outfile, lineterminator=os.linesep)
+    outcsv=unicodecsv.DictWriter(outfile, fieldnames=outfieldnames, extrasaction='ignore', lineterminator=os.linesep)
 
     if not args.no_header:
-        outcsv.writerow(outfieldnames)
+        outcsv.writeheader()
     if args.rejfile:
-        rejcsv=unicodecsv.writer(rejfile, lineterminator=os.linesep)
+        rejcsv=unicodecsv.DictWriter(outfile, fieldnames=outfieldnames, extrasaction='ignore', lineterminator=os.linesep)
         if not args.no_header:
-            rejcsv.writerow(outfieldnames)
+            rejcsv.writeheader()
 
     argbadchars = re.compile(r'[^0-9a-zA-Z_]')
     if args.filter:
@@ -170,7 +176,7 @@ def evalfilter(" + ','.join([argbadchars.sub('_', fieldname) for fieldname in in
 
     if args.data:
         exec "\
-def evalcolumn(" + ','.join([argbadchars.sub('_', fieldname) for fieldname in infieldnames]) + ",**kwargs):\n\
+def evaldata(" + ','.join([argbadchars.sub('_', fieldname) for fieldname in infieldnames]) + ",**kwargs):\n\
     return " + args.data in locals()
 
     if args.verbosity >= 1:
@@ -198,16 +204,12 @@ def evalcolumn(" + ','.join([argbadchars.sub('_', fieldname) for fieldname in in
             if keep == args.invert and not args.rejfile:
                 continue
 
-            outrow = []
-            if args.copy:
-                outrow += [row[key] for key in infieldnames]
+            outrow = row.copy()
+            if args.regexp:
+                outrow.update({regexpfield: regexpmatch.group(regexpfield) for regexpfield in regexpfields})
             if args.data:
-                outrow += evalcolumn(**rowargs)
-            if regexpfields:
-                if regexpmatch:
-                    outrow += [regexpmatch.group(regexpfield) for regexpfield in regexpfields]
-                else:
-                    outrow += [None for regexpfield in regexpfields]
+                datadict = evaldata(**rowargs)
+                outrow.update(datadict)
 
             if keep != args.invert:
                 outcsv.writerow(outrow)
@@ -270,16 +272,12 @@ def evalcolumn(" + ','.join([argbadchars.sub('_', fieldname) for fieldname in in
                     if keep == args.invert and not args.rejfile:
                         continue
 
-                    outrow = []
-                    if args.copy:
-                        outrow += [row[key] for key in infieldnames]
+                    outrow = row.copy()
+                    if args.regexp:
+                        outrow.update({regexpfield: regexpmatch.group(regexpfield) for regexpfield in regexpfields})
                     if args.data:
-                        outrow += evalcolumn(**rowargs)
-                    if regexpfields:
-                        if regexpmatch:
-                            outrow += [regexpmatch.group(regexpfield) for regexpfield in regexpfields]
-                        else:
-                            outrow += [None for regexpfield in regexpfields]
+                        datadict = evaldata(**rowargs)
+                        outrow.update(datadict)
 
                     if keep != args.invert:
                         result[row['_Id']] = outrow
