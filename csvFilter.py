@@ -120,21 +120,22 @@ def csvFilter(arglist):
     else:
         comments = '# ' + os.path.basename(sys.argv[0]) + '\n'
         arglist = args.__dict__.keys()
-        for arg in arglist:
-            if arg not in hiddenargs:
-                val = getattr(args, arg)
-                if type(val) == int:
-                    comments += '#     --' + arg + '=' + str(val) + '\n'
-                elif type(val) == str:
-                    comments += '#     --' + arg + '="' + val + '"\n'
-                elif type(val) == bool and val:
-                    comments += '#     --' + arg + '\n'
-                elif type(val) == list:
-                    for valitem in val:
-                        if type(valitem) == int:
-                            comments += '#     --' + arg + '=' + str(valitem) + '\n'
-                        elif type(valitem) == str:
-                            comments += '#     --' + arg + '="' + valitem + '"\n'
+            for arg in arglist:
+                if arg not in hiddenargs:
+                    val = getattr(args, arg)
+                    if type(val) == str or type(val) == unicode:
+                        comments += '#     --' + arg + '="' + val + '"\n'
+                    elif type(val) == bool:
+                        if val:
+                            comments += '#     --' + arg + '\n'
+                    elif type(val) == list:
+                        for valitem in val:
+                            if type(valitem) == str:
+                                comments += '#     --' + arg + '="' + valitem + '"\n'
+                            else:
+                                comments += '#     --' + arg + '=' + str(valitem) + '\n'
+                    elif val is not None:
+                        comments += '#     --' + arg + '=' + str(val) + '\n'
 
         if args.outfile:
             outcomments = (' ' + args.outfile + ' ').center(80, '#') + '\n'
