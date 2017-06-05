@@ -30,7 +30,7 @@ import re
 
 def csvFilter(arglist):
 
-    parser = argparse.ArgumentParser(description='Twitter CSV file processor.',
+    parser = argparse.ArgumentParser(description='CSV file processor.',
                                      fromfile_prefix_chars='@')
 
     parser.add_argument('-v', '--verbosity',  type=int, default=1)
@@ -120,22 +120,22 @@ def csvFilter(arglist):
     else:
         comments = '# ' + os.path.basename(sys.argv[0]) + '\n'
         arglist = args.__dict__.keys()
-            for arg in arglist:
-                if arg not in hiddenargs:
-                    val = getattr(args, arg)
-                    if type(val) == str or type(val) == unicode:
-                        comments += '#     --' + arg + '="' + val + '"\n'
-                    elif type(val) == bool:
-                        if val:
-                            comments += '#     --' + arg + '\n'
-                    elif type(val) == list:
-                        for valitem in val:
-                            if type(valitem) == str:
-                                comments += '#     --' + arg + '="' + valitem + '"\n'
-                            else:
-                                comments += '#     --' + arg + '=' + str(valitem) + '\n'
-                    elif val is not None:
-                        comments += '#     --' + arg + '=' + str(val) + '\n'
+        for arg in arglist:
+            if arg not in hiddenargs:
+                val = getattr(args, arg)
+                if type(val) == str or type(val) == unicode:
+                    comments += '#     --' + arg + '="' + val + '"\n'
+                elif type(val) == bool:
+                    if val:
+                        comments += '#     --' + arg + '\n'
+                elif type(val) == list:
+                    for valitem in val:
+                        if type(valitem) == str:
+                            comments += '#     --' + arg + '="' + valitem + '"\n'
+                        else:
+                            comments += '#     --' + arg + '=' + str(valitem) + '\n'
+                elif val is not None:
+                    comments += '#     --' + arg + '=' + str(val) + '\n'
 
         if args.outfile:
             outcomments = (' ' + args.outfile + ' ').center(80, '#') + '\n'
@@ -185,7 +185,7 @@ def evaldata(" + ','.join([argbadchars.sub('_', fieldname) for fieldname in infi
     return " + args.data in locals()
 
     if args.verbosity >= 1:
-        print("Loading twitter data.", file=sys.stderr)
+        print("Loading CSV data.", file=sys.stderr)
 
     inrowcount = 0
     outrowcount = 0
