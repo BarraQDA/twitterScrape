@@ -33,11 +33,6 @@ from pytimeparse.timeparse import timeparse
 from operator import sub, add
 
 def csvCollect(arglist):
-    presets = {
-        'hashtags':{ 'column':'hashtags', 'regexp':r'(?P<hashtag>\w+)',       'ignorecase':True },
-        'mentions':{ 'column':'mentions', 'regexp':r'(?P<mention>\w+)',       'ignorecase':True },
-        'links':   { 'column':'text',     'regexp':r'(?P<link>https?://\S+)', 'ignorecase':True }
-    }
 
     parser = argparse.ArgumentParser(description='CSV data collection.',
                                      fromfile_prefix_chars='@')
@@ -45,8 +40,6 @@ def csvCollect(arglist):
     parser.add_argument('-v', '--verbosity',  type=int, default=1)
     parser.add_argument('-j', '--jobs',       type=int, help='Number of parallel tasks, default is number of CPUs. May affect performance but not results.')
     parser.add_argument('-b', '--batch',      type=int, default=100000, help='Number of tweets to process per batch. Use to limit memory usage with very large files. May affect performance but not results.')
-
-    parser.add_argument(      '--preset',     choices=presets)
 
     parser.add_argument('-p', '--prelude',    type=str, nargs="*", help='Python code to execute before processing')
     parser.add_argument('-f', '--filter',     type=str, help='Python expression evaluated to determine whether tweet is included')
@@ -75,17 +68,11 @@ def csvCollect(arglist):
     args = parser.parse_args(arglist)
     hiddenargs = ['verbosity', 'jobs', 'batch', 'preset', 'no_comments']
 
-    if args.preset:
-        values = presets[args.preset]
-        for name in values.keys():
-            if not getattr(args, name):
-                setattr(args, name, values[name])
+    if (args.regexp is None) == (args.data is None):
+        raise RuntimeError("Exactly one of 'data' and 'regexp' must be specified.")
 
-    # Handle required arguments and defaults manually so that presets can work
-    if not args.regexp and not args.data:
-        raise RuntimeError("At least one of 'preset', 'data' and 'regexp' must be specified.")
-    if not args.column:
-        args.column = 'text'
+    if args.regexp and not args.column:
+        raise RuntimeError("'column' must be specified for regexp.")
 
     if args.interval:   # Multiprocessing requires single thread
         args.jobs = 1
@@ -111,7 +98,13 @@ def csvCollect(arglist):
         regexp = re.compile(args.regexp, re.UNICODE | (re.IGNORECASE if args.ignorecase else 0))
         fields += list(regexp.groupindex)
     if args.data:
-        fields += args.header.split(',')
+        if args.header:
+            fields += args.header.split(',')
+            if len(args.data) != len(fields):
+                raise RuntimeError("Number of column headers must equal number of data items.")
+        else:
+            fields = list(range(1, len(args.data)+1))
+
 
     if args.interval:
         interval = timeparse(args.interval)
@@ -123,7 +116,7 @@ def csvCollect(arglist):
     else:
         infile = file(args.infile, 'r')
 
-    # Skip comments at start of infile.
+    # Collect comments and open infile.
     incomments = ''
     while True:
         line = infile.readline()
@@ -166,6 +159,7 @@ def csvCollect(arglist):
 
         outfile.write(comments + incomments)
 
+    # Dynamic code for filter, data and score
     argbadchars = re.compile(r'[^0-9a-zA-Z_]')
     if args.filter:
             exec "\
@@ -191,6 +185,7 @@ def evalscore(" + ','.join([argbadchars.sub('_', fieldname) for fieldname in inf
         if args.interval:
             runningresult = {}
         while True:
+            rowargs = None
             try:
                 while True:
                     row = next(inreader)
@@ -203,6 +198,8 @@ def evalscore(" + ','.join([argbadchars.sub('_', fieldname) for fieldname in inf
 
             except StopIteration:
                 break
+
+            # Deal with frequency calculation using column 'date'
             if args.interval:
                 row['datesecs'] = calendar.timegm(row['date'].timetuple())
                 firstrow = rows[0] if len(rows) else None
@@ -221,7 +218,7 @@ def evalscore(" + ','.join([argbadchars.sub('_', fieldname) for fieldname in inf
                 matches = regexp.finditer(unicode(row[args.column]))
                 for match in matches:
                     if not rowscore:
-                        if not args.filter:     # NB Optimisation, rowargs already calculated
+                        if not rowargs:     # NB Optimisation
                             rowargs = {argbadchars.sub('_', key): value for key, value in row.iteritems()}
                         rowscore = evalscore(**rowargs)
 
@@ -239,10 +236,12 @@ def evalscore(" + ','.join([argbadchars.sub('_', fieldname) for fieldname in inf
                         mergedresult[index] = map(add, mergedresult.get(index, [0] * len(args.score)), rowscore)
 
             if args.data:
-                rowargs = {argbadchars.sub('_', key): value for key, value in row.iteritems()}
+                if not rowargs:     # NB Optimisation
+                    rowargs = {argbadchars.sub('_', key): value for key, value in row.iteritems()}
                 matches = evalcolumn(**rowargs)
                 for match in matches:
-                    rowscore = evalscore(**rowargs)
+                    if not rowscore:
+                        rowscore = evalscore(**rowargs)
 
                     if args.ignorecase:
                         index = tuple(value.lower() for value in match)
@@ -288,25 +287,43 @@ def evalscore(" + ','.join([argbadchars.sub('_', fieldname) for fieldname in inf
                 result = {}
                 for rowindex in p.range(0, rowcount):
                     row = rows[rowindex]
+                    rowargs = None
                     if args.filter:
                         rowargs = {argbadchars.sub('_', key): value for key, value in row.iteritems()}
                         if not evalfilter(**rowargs):
                             continue
 
-                    matches = regexp.finditer(unicode(row[args.column]))
                     rowscore = None
-                    for match in matches:
-                        if not rowscore:
-                            if not args.filter:     # NB Optimisation, rowargs already calculated
-                                rowargs = {argbadchars.sub('_', key): value for key, value in row.iteritems()}
-                            rowscore = evalscore(**rowargs)
+                    if args.regexp:
+                        matches = regexp.finditer(unicode(row[args.column]))
+                        rowscore = None
+                        for match in matches:
+                            if not rowscore:
+                                if not args.rowargs:    # NB Optimisation
+                                    rowargs = {argbadchars.sub('_', key): value for key, value in row.iteritems()}
+                                rowscore = evalscore(**rowargs)
 
-                        if args.ignorecase:
-                            index = tuple(value.lower() for value in match.groupdict().values())
-                        else:
-                            index = tuple(match.groupdict().values())
+                            if args.ignorecase:
+                                index = tuple(value.lower() for value in match.groupdict().values())
+                            else:
+                                index = tuple(match.groupdict().values())
 
-                        result[index] = map(add, result.get(index, [0] * len(args.score)), rowscore)
+                            result[index] = map(add, result.get(index, [0] * len(args.score)), rowscore)
+
+                    if args.data:
+                        if not rowargs:     # NB Optimisation
+                            rowargs = {argbadchars.sub('_', key): value for key, value in row.iteritems()}
+                        matches = evalcolumn(**rowargs)
+                        for match in matches:
+                            if not rowscore:
+                                rowscore = evalscore(**rowargs)
+
+                            if args.ignorecase:
+                                index = tuple(value.lower() for value in match)
+                            else:
+                                index = tuple(value for value in match)
+
+                            result[index] = map(add, result.get(index, [0] * len(args.score)), rowscore)
 
                 if args.verbosity >= 2:
                     print("Thread " + str(p.thread_num) + " found " + str(len(result)) + " results.", file=sys.stderr)
