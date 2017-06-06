@@ -146,11 +146,11 @@ def twitterReplay(arglist):
                     if not args.dry_run:
                         if not process:
                             process = subprocess.Popen([cmd+'.py'] + arglist,
-                                                       stdout=subprocess.PIPE,
+                                                       stdout=sys.stdout,
                                                        stderr=sys.stderr)
                         else:
                             process = subprocess.Popen([cmd+'.py'] + arglist,
-                                                       stdout=subprocess.PIPE,
+                                                       stdout=sys.stdout,
                                                        stdin=process.stdout,
                                                        stderr=sys.stderr)
                 if not args.dry_run:
