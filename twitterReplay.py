@@ -41,7 +41,7 @@ def twitterReplay(arglist):
 
     fileregexp = re.compile(r"^#+ (?P<file>.+) #+$", re.UNICODE)
     cmdregexp  = re.compile(r"^#\s+(?P<cmd>[\w-]+)", re.UNICODE)
-    argregexp  = re.compile(r"^#\s+(?:--)(?P<name>[\w-]+)(?:=(?:\")(?P<value>.+)(?:\"))?", re.UNICODE)
+    argregexp  = re.compile(r"^#\s+(?:--)(?P<name>[\w-]+)(?:=(?P<quote>\"?)(?P<value>.+)(?P=quote))?", re.UNICODE)
     piperegexp = re.compile(r"^#+$", re.UNICODE)
 
     for infilename in args.infile:
@@ -104,7 +104,7 @@ def twitterReplay(arglist):
                     commentline = comments.pop(0) if len(comments) > 0 else None
                     argmatch = argregexp.match(commentline) if commentline else None
 
-                pipestack.append((cmd, arglist + extraargs))
+                pipestack.append((cmd, arglist + extraargs + ['--verbosity', str(args.verbosity)]))
                 pipematch = piperegexp.match(commentline) if commentline else None
 
             replaystack.append((pipestack, infilelist, outfile))
@@ -146,11 +146,11 @@ def twitterReplay(arglist):
                     if not args.dry_run:
                         if not process:
                             process = subprocess.Popen([cmd+'.py'] + arglist,
-                                                       stdout=sys.stdout,
+                                                       stdout=subprocess.PIPE if len(pipestack) else sys.stdout,
                                                        stderr=sys.stderr)
                         else:
                             process = subprocess.Popen([cmd+'.py'] + arglist,
-                                                       stdout=sys.stdout,
+                                                       stdout=subprocess.PIPE if len(pipestack) else sys.stdout,
                                                        stdin=process.stdout,
                                                        stderr=sys.stderr)
                 if not args.dry_run:
