@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 #
-# Copyright 2016 Jonathan Schultz
+# Copyright 2017 Jonathan Schultz
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -178,6 +178,7 @@ def evalscore(" + ','.join([argbadchars.sub('_', fieldname) for fieldname in inf
     if args.verbosity >= 1:
         print("Loading CSV data.", file=sys.stderr)
 
+    inrowcount = 0
     # NB Code for single- and multi-threaded processing is separate
     mergedresult = {}
     if args.jobs == 1:
@@ -185,10 +186,14 @@ def evalscore(" + ','.join([argbadchars.sub('_', fieldname) for fieldname in inf
         if args.interval:
             runningresult = {}
         while True:
+            if args.limit and inrowcount == args.limit:
+                break
+
             rowargs = None
             try:
                 while True:
                     row = next(inreader)
+                    inrowcount += 1
                     if args.filter:
                         rowargs = {argbadchars.sub('_', key): value for key, value in row.iteritems()}
                         if evalfilter(**rowargs):
@@ -269,8 +274,11 @@ def evalscore(" + ','.join([argbadchars.sub('_', fieldname) for fieldname in inf
             rows = []
             batchcount = 0
             while batchcount < args.batch:
+                if args.limit and inrowcount == args.limit:
+                    break
                 try:
                     rows.append(next(inreader))
+                    inrowcount += 1
                     batchcount += 1
                 except StopIteration:
                     break
