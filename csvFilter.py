@@ -86,7 +86,7 @@ def csvFilter(arglist):
     if args.infile is None:
         infile = sys.stdin
     else:
-        infile = file(args.infile, 'r')
+        infile = file(args.infile, 'rU')
 
     # Skip comments at start of infile.
     incomments = ''

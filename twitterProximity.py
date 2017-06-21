@@ -75,7 +75,7 @@ def twitterProximity(arglist):
     if args.infile is None:
         infile = sys.stdin
     else:
-        infile = file(args.infile, 'r')
+        infile = file(args.infile, 'rU')
 
     # Copy comments at start of infile to outfile. Avoid using tell/seek since
     # we want to be able to process stdin.

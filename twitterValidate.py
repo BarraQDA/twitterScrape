@@ -37,7 +37,7 @@ def twitterValidate(arglist):
     if args.infile is None:
         infile = sys.stdin
     else:
-        infile = file(args.infile, 'r')
+        infile = file(args.infile, 'rU')
 
     inreader=unicodecsv.DictReader(infile)
     lastid = None

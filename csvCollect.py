@@ -114,7 +114,7 @@ def csvCollect(arglist):
     if args.infile is None:
         infile = sys.stdin
     else:
-        infile = file(args.infile, 'r')
+        infile = file(args.infile, 'rU')
 
     # Collect comments and open infile.
     incomments = ''

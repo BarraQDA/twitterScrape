@@ -49,7 +49,7 @@ def twitterReplay(arglist):
             print("Replaying " + infilename, file=sys.stderr)
 
         # Read comments at start of infile.
-        infile = file(infilename, 'r')
+        infile = file(infilename, 'rU')
         comments = []
         while True:
             line = infile.readline()
