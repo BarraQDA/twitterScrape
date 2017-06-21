@@ -131,9 +131,10 @@ twitterDynamicNetwork <- function(script, arglist) {
     twitterread$ts <- as.integer(as.POSIXct(strptime(twitterread$date, "%Y-%m-%d %H:%M:%S", tz="UTC")))
 
     twitterread <- twitterread[twitterread$ts >= since & twitterread$ts < until,]
-    if (! is.null(args$limit) & args$limit < nrow(twitterread)){
-        twitterread <- twitterread[1:args$limit,]
-    }
+    if (! is.null(args$limit))
+        if (args$limit < nrow(twitterread))
+            twitterread <- twitterread[1:args$limit,]
+
     twitterread$user <- tolower(twitterread$user)
     twitterread$mentions <- tolower(twitterread$mentions)
     twitterread$reply.to.user <- tolower(twitterread$reply.to.user)
