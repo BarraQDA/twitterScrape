@@ -17,7 +17,7 @@
 
 library('argparse')
 
-twitterDynamicNetwork <- function(arglist) {
+twitterDynamicNetwork <- function(script, arglist) {
     parser <- ArgumentParser(description='Visualise a dynamic network from a CSV file')
 
     parser$add_argument('-v', '--verbosity',  type="integer",  default=1)
@@ -38,6 +38,7 @@ twitterDynamicNetwork <- function(arglist) {
     parser$add_argument(      '--degree',     type="integer", help="Display name of vertices with at least this degree.")
 
     parser$add_argument('-o', '--outfile',    type="character", help='Output HTML or mp4 file.')
+    parser$add_argument('--no-comments',      action='store_true', help='Do not output descriptive comments')
 
     parser$add_argument('--userfile', type="character", help="CSV file containing Twitter user info")
     parser$add_argument('infile', type="character", nargs='?', help='Input CSV file, otherwise use stdin.')
@@ -70,8 +71,9 @@ twitterDynamicNetwork <- function(arglist) {
     if (is.null(args$infile))
         args$infile = 'stdin'
 
-    skipheader <- function(file){
-        pos = seek(file)
+    loadcomments <- function(file){
+        comments <- ''
+        pos <- seek(file)
         while (TRUE) {
             line <- readLines(file, 1)
             if (substr(line, 1, 1) != '#') {
@@ -79,10 +81,13 @@ twitterDynamicNetwork <- function(arglist) {
                 break
             }
             else
-                pos = seek(file)
+                comments <- paste(comments, line, sep='\n')
+                pos <- seek(file)
         }
+        return (comments)
     }
 
+    library('stringr')
     library('data.table')
     library('network')
     library('ndtv')
@@ -90,7 +95,38 @@ twitterDynamicNetwork <- function(arglist) {
     library('rjson')
 
     infile <- file(args$infile, open="rU")
-    skipheader(infile)
+    incomments <- loadcomments(infile)
+    hiddenargs = c('verbosity')
+
+    if (! args$no_comments) {
+        comments <- paste0(str_pad(paste0(' ', args$outfile, ' '), 80, 'both', '#'), '\n')
+        comments <- paste0(comments, '# ', script, '\n')
+        for (arg in attributes(args)$names) {
+            if (! arg %in% hiddenargs) {
+                val <- args[[arg]]
+                if (class(val) == 'character')
+                    comments <- paste0(comments, '#     --', arg, '="', val, '"\n')
+                else if (class(val) == 'logical') {
+                    if (val)
+                        comments <- paste0(comments, '#     --', arg, '\n')
+                }
+                else if (class(val) == 'list') {
+                    for (valitem in val)
+                        if (class(valitem) == 'character')
+                            comments <- paste0(comments, '#     --', arg, '="', valitem, '"\n')
+                        else
+                            comments <- paste0(comments, '#     --', arg, '=', valitem, '\n')
+
+
+                }
+                else if (! is.null(val))
+                    comments <- paste0(comments, '#     --', arg, '=', val, '\n')
+            }
+        }
+
+        write(comments, file=paste0(tools::file_path_sans_ext(args$outfile), '.log'))
+    }
+
     twitterread <- read.csv(infile, header=T, colClasses="character")
     twitterread$ts <- as.integer(as.POSIXct(strptime(twitterread$date, "%Y-%m-%d %H:%M:%S", tz="UTC")))
 
@@ -116,7 +152,7 @@ twitterDynamicNetwork <- function(arglist) {
 
     if (! is.null(args$userfile)) {
         userfile <- file(args$userfile, open="rU")
-        skipheader(userfile)
+        loadcomments(userfile)
         twitteruser <- read.csv(userfile, header=T, colClasses="character")
 
         hydratedusers <- rbindlist(lapply(
@@ -335,4 +371,5 @@ twitterDynamicNetwork <- function(arglist) {
 }
 
 if (! interactive())
-    twitterDynamicNetwork(commandArgs(trailingOnly = T))
+    script = basename(sub(".*=", "", commandArgs()[4])) # Ugly!
+    twitterDynamicNetwork(script, commandArgs(trailingOnly = T))
