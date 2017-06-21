@@ -129,6 +129,8 @@ twitterDynamicNetwork <- function(script, arglist) {
 
     twitterread <- read.csv(infile, header=T, colClasses="character")
     twitterread$ts <- as.integer(as.POSIXct(strptime(twitterread$date, "%Y-%m-%d %H:%M:%S", tz="UTC")))
+    if (is.null(twitterread$ts))
+        twitterread$ts <- as.integer(as.POSIXct(strptime(twitterread$date, "%Y-%m-%dT%H:%M:%S", tz="UTC")))
 
     twitterread <- twitterread[twitterread$ts >= since & twitterread$ts < until,]
     if (! is.null(args$limit))
