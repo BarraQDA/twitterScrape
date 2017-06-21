@@ -40,7 +40,7 @@ def twitterReplay(arglist):
     args, extraargs = parser.parse_known_args()
 
     fileregexp = re.compile(r"^#+ (?P<file>.+) #+$", re.UNICODE)
-    cmdregexp  = re.compile(r"^#\s+(?P<cmd>[\w-]+)", re.UNICODE)
+    cmdregexp  = re.compile(r"^#\s+(?P<cmd>[\w\.-]+)", re.UNICODE)
     argregexp  = re.compile(r"^#\s+(?:--)(?P<name>[\w-]+)(?:=(?P<quote>\"?)(?P<value>.+)(?P=quote))?", re.UNICODE)
     piperegexp = re.compile(r"^#+$", re.UNICODE)
 
@@ -145,11 +145,11 @@ def twitterReplay(arglist):
 
                     if not args.dry_run:
                         if not process:
-                            process = subprocess.Popen([cmd+'.py'] + arglist,
+                            process = subprocess.Popen([cmd] + arglist,
                                                        stdout=subprocess.PIPE if len(pipestack) else sys.stdout,
                                                        stderr=sys.stderr)
                         else:
-                            process = subprocess.Popen([cmd+'.py'] + arglist,
+                            process = subprocess.Popen([cmd] + arglist,
                                                        stdout=subprocess.PIPE if len(pipestack) else sys.stdout,
                                                        stdin=process.stdout,
                                                        stderr=sys.stderr)
