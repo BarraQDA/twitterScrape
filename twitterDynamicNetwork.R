@@ -129,8 +129,7 @@ twitterDynamicNetwork <- function(script, arglist) {
 
     twitterread <- read.csv(infile, header=T, colClasses="character")
     twitterread$ts <- as.integer(as.POSIXct(strptime(twitterread$date, "%Y-%m-%d %H:%M:%S", tz="UTC")))
-    if (is.null(twitterread$ts))
-        twitterread$ts <- as.integer(as.POSIXct(strptime(twitterread$date, "%Y-%m-%dT%H:%M:%S", tz="UTC")))
+    twitterread$ts <- ifelse(is.na(twitterread$ts), as.integer(as.POSIXct(strptime(twitterread$date, "%Y-%m-%dT%H:%M:%S", tz="UTC"))), twitterread$ts)
 
     twitterread <- twitterread[twitterread$ts >= since & twitterread$ts < until,]
     if (! is.null(args$limit))
@@ -163,9 +162,9 @@ twitterDynamicNetwork <- function(script, arglist) {
                             function(user) {
                                 if (! is.na(user) & user != "NA") {
                                     useridx <- which(tolower(twitteruser$screen_name) == user )
-                                    if (! is.null(useridx)) {
-                                        hydrateduser = list()
-                                        hydrateduser$id                <- user
+                                    hydrateduser = list()
+                                    hydrateduser$id                <- user
+                                    if (length(useridx) > 0) {
                                         hydrateduser$statuses_count    <- twitteruser$statuses_count[useridx]
                                         hydrateduser$screen_name       <- twitteruser$screen_name[useridx]
                                         hydrateduser$name              <- twitteruser$name[useridx]
@@ -181,11 +180,11 @@ twitterDynamicNetwork <- function(script, arglist) {
                                         hydrateduser$profile_image_url <- twitteruser$profile_image_url[useridx]
                                         hydrateduser$description       <- twitteruser$description[useridx]
                                         hydrateduser$verified          <- twitteruser$verified[useridx]
-
-                                        return(hydrateduser)
                                     }
+                                    return(hydrateduser)
                                 }
-                            }))
+                            }),
+                            fill=TRUE)
     }
     else {
         hydratedusers <- rbindlist(lapply(
