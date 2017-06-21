@@ -41,7 +41,7 @@ def twitterReplay(arglist):
 
     fileregexp = re.compile(r"^#+ (?P<file>.+) #+$", re.UNICODE)
     cmdregexp  = re.compile(r"^#\s+(?P<cmd>[\w\.-]+)", re.UNICODE)
-    argregexp  = re.compile(r"^#\s+(?:--)(?P<name>[\w-]+)(?:=(?P<quote>\"?)(?P<value>.+)(?P=quote))?", re.UNICODE)
+    argregexp  = re.compile(r"^#\s+(?:--)?(?P<name>[\w-]+)(?:=(?P<quote>\"?)(?P<value>.+)(?P=quote))?", re.UNICODE)
     piperegexp = re.compile(r"^#+$", re.UNICODE)
 
     for infilename in args.infile:
@@ -107,7 +107,8 @@ def twitterReplay(arglist):
                 pipestack.append((cmd, arglist + extraargs + ['--verbosity', str(args.verbosity)]))
                 pipematch = piperegexp.match(commentline) if commentline else None
 
-            replaystack.append((pipestack, infilelist, outfile))
+            if outfile:
+                replaystack.append((pipestack, infilelist, outfile))
 
             depth += 1
             if depth == args.depth:
