@@ -124,7 +124,11 @@ twitterDynamicNetwork <- function(script, arglist) {
             }
         }
 
-        write(comments, file=paste0(tools::file_path_sans_ext(args$outfile), '.log'))
+        logfile <- paste0(args$outfile, '.log')
+        if (file.exists(logfile))
+            file.rename(logfile, paste0(args$outfile, '.bak'))
+
+        write(comments, file=logfile)
     }
 
     twitterread <- read.csv(infile, header=T, colClasses="character")
