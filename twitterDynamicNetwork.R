@@ -134,7 +134,6 @@ twitterDynamicNetwork <- function(script, arglist) {
     twitterread <- read.csv(infile, header=T, colClasses="character")
     twitterread$ts <- as.integer(as.POSIXct(strptime(twitterread$date, "%Y-%m-%d %H:%M:%S", tz="UTC")))
     twitterread$ts <- ifelse(is.na(twitterread$ts), as.integer(as.POSIXct(strptime(twitterread$date, "%Y-%m-%dT%H:%M:%S", tz="UTC"))), twitterread$ts)
-
     twitterread <- twitterread[twitterread$ts >= since & twitterread$ts < until,]
     if (! is.null(args$limit))
         if (args$limit < nrow(twitterread))
@@ -167,7 +166,7 @@ twitterDynamicNetwork <- function(script, arglist) {
                                 if (! is.na(user) & user != "NA") {
                                     useridx <- which(tolower(twitteruser$screen_name) == user )
                                     hydrateduser = list()
-                                    hydrateduser$id                <- user
+                                    hydrateduser$id <- user
                                     if (length(useridx) > 0) {
                                         hydrateduser$statuses_count    <- twitteruser$statuses_count[useridx]
                                         hydrateduser$screen_name       <- twitteruser$screen_name[useridx]
@@ -196,7 +195,7 @@ twitterDynamicNetwork <- function(script, arglist) {
                             function(user) {
                                 if (! is.na(user) & user != "NA") {
                                     hydrateduser = list()
-                                    hydrateduser$id  <- user
+                                    hydrateduser$id <- user
 
                                     return(hydrateduser)
                                 }
