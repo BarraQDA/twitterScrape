@@ -17,6 +17,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 from __future__ import print_function
+import gooey
 import argparse
 from requests_oauthlib import OAuth1Session
 import webbrowser
@@ -26,101 +27,144 @@ import os
 import shutil
 import unicodecsv
 import string
-import pytz
+from dateutil import parser as dateparser
+import calendar
 import datetime
 
 # Hack away deprecation warning -
 import warnings
 warnings.simplefilter("ignore", DeprecationWarning)
 
-def twitterSearch(arglist):
+def add_arguments(parser):
+    parser.description = "Search twitter using API."
 
-    parser = argparse.ArgumentParser(description='Search twitter using REST API.',
-                                     fromfile_prefix_chars='@')
+    querygroup = parser.add_argument_group('Query')
+    querygroup.add_argument('-s', '--string',   type=str,
+                            help='String to query')
+    querygroup.add_argument('-u', '--user',     type=str,
+                            help='Twitter username to match')
+    querygroup.add_argument('-l', '--language', type=str,
+                            help='Language filter')
+    querygroup.add_argument('-g', '--geo',      type=str,
+                            help='Geographic filter')
+    querygroup.add_argument(      '--since',    type=str, widget='DateChooser',
+                            help='Lower bound search date/time')
+    querygroup.add_argument(      '--until',    type=str, widget='DateChooser',
+                            help='Upper bound search date/time')
 
-    parser.add_argument('-v', '--verbosity', type=int, default=1)
+    outputgroup = parser.add_argument_group('Output')
+    outputgroup.add_argument('-o', '--output-file',  type=str,
+                             help='Output file, otherwise use stdout')
+    outputgroup.add_argument('-n', '--number',   type=int,
+                             help='Maximum number of results to output')
+    outputgroup.add_argument('--no-comments',    action='store_true',
+                             help='Do not output descriptive comments')
+    outputgroup.add_argument('--no-header',      action='store_true',
+                             help='Do not output CSV header with column names')
 
     # Twitter authentication stuff
-    parser.add_argument('--consumer-key', type=str, required=True,
-                        help='Consumer key for Twitter authentication')
-    parser.add_argument('--consumer-secret', type=str, required=True,
-                        help='Consumer secret for Twitter authentication')
+    authgroup = parser.add_argument_group('Authentication')
+    authgroup.add_argument('--auth-file', type=str, default='twitterauth.txt',
+                           help='Twitter authentication data file to use or create')
 
-    parser.add_argument('-a', '--application-only-auth', action='store_true')
-    parser.add_argument('--access-token-key', type=str,
-                        help='Access token key for Twitter authentication')
-    parser.add_argument('--access-token-secret', type=str,
-                        help='Access token secret for Twitter authentication')
+    authgroup.add_argument('--consumer-key', type=str)
+    authgroup.add_argument('--consumer-secret', type=str)
+    authgroup.add_argument('-a', '--app-only-auth', action='store_true',
+                           help="Application-only authentication")
+    authgroup.add_argument('--access-token-key', type=str)
+    authgroup.add_argument('--access-token-secret', type=str)
 
-    parser.add_argument('-u', '--user',     type=str, help='Twitter username to filter.')
-    parser.add_argument('-q', '--query',    type=str, help='Search string for twitter feed. Either USER or QUERY must be defined to open a twitter feed.')
-    parser.add_argument('-l', '--language', type=str, help='Language code to filter.')
-    parser.add_argument('-g', '--geo',      type=str, help='Geographic code to filter.')
+    advancedgroup = parser.add_argument_group('Advanced')
+    advancedgroup.add_argument('-v', '--verbosity', type=int, default=1)
+    advancedgroup.add_argument('-m', '--maxid',  type=str,
+                               help='Maximum status id')
 
-    parser.add_argument(      '--since',    type=str, help='Lower bound search date.')
-    parser.add_argument(      '--until',    type=str, help='Upper bound search date.')
+    parser.set_defaults(func=twitterSearch)
+    parser.set_defaults(hiddenargs=['verbosity', 'auth_file', 'consumer_key', 'consumer_secret', 'app_only_auth', 'access_token_key', 'access_token_secret', 'no_comments'])
 
-    parser.add_argument('-o', '--outfile', type=str, nargs='?',
-                        help='Output file name, otherwise use stdout.')
-    parser.add_argument('-n', '--number',   type=int, help='Maximum number of results to output')
-    parser.add_argument('--no-comments',    action='store_true', help='Do not output descriptive comments')
-    parser.add_argument('--no-header',      action='store_true', help='Do not output CSV header with column names')
+@gooey.Gooey(ignore_command=None, force_command='--gui',
+             default_cols=1,
+             load_cmd_args=True, use_argparse_groups=True)
+def parse_arguments():
+    parser = gooey.GooeyParser()
+    add_arguments(parser)
+    return vars(parser.parse_args(None))
 
-    parser.add_argument('-m', '--maxid',  type=str, nargs='?',
-                        help='Maximum status id.')
+def build_comments(kwargs):
+    comments = ((' ' + kwargs['output_file'] + ' ') if kwargs['output_file'] else '').center(80, '#') + '\n'
+    comments += '# ' + os.path.basename(__file__) + '\n'
+    hiddenargs = kwargs['hiddenargs'] + ['hiddenargs', 'func']
+    for argname, argval in kwargs.iteritems():
+        if argname not in hiddenargs:
+            if type(argval) == str or type(argval) == unicode:
+                comments += '#     --' + argname + '="' + argval + '"\n'
+            elif type(argval) == bool:
+                if argval:
+                    comments += '#     --' + argname + '\n'
+            elif type(argval) == list:
+                for valitem in argval:
+                    if type(valitem) == str:
+                        comments += '#     --' + argname + '="' + valitem + '"\n'
+                    else:
+                        comments += '#     --' + argname + '=' + str(valitem) + '\n'
+            elif argval is not None:
+                comments += '#     --' + argname + '=' + str(argval) + '\n'
 
+    comments += '#' * 80 + '\n'
+    return comments
 
-    args = parser.parse_args(arglist)
-    hiddenargs = ['verbosity', 'consumer_key', 'consumer_secret', 'application_only_auth', 'access_token_key', 'access_token_secret', 'no_comments']
+def twitterSearch(string, user, language, geo, since, until,
+                  output_file, number, no_comments, no_header,
+                  auth_file, consumer_key, consumer_secret, app_only_auth, access_token_key, access_token_secret,
+                  verbosity, maxid, comments, **extraargs):
 
-    if args.outfile is None:
-        outfile = sys.stdout
+    until = str(calendar.timegm(dateparser.parse(until).utctimetuple())) if until else None
+    since = str(calendar.timegm(dateparser.parse(since).utctimetuple())) if since else None
+
+    if output_file:
+        if os.path.exists(output_file):
+            shutil.move(output_file, output_file+ '.bak')
+
+        outfile = file(output_file, 'w')
     else:
-        if os.path.exists(args.outfile):
-            shutil.move(args.outfile, args.outfile + '.bak')
+        outfile = sys.stdout
 
-        outfile = file(args.outfile, 'w')
-
-    if not args.no_comments:
-        comments = ((' ' + args.outfile + ' ') if args.outfile else '').center(80, '#') + '\n'
-        comments += '# ' + os.path.basename(sys.argv[0]) + '\n'
-        arglist = args.__dict__.keys()
-        for arg in arglist:
-            if arg not in hiddenargs:
-                val = getattr(args, arg)
-                if type(val) == str or type(val) == unicode:
-                    comments += '#     --' + arg + '="' + val + '"\n'
-                elif type(val) == bool:
-                    if val:
-                        comments += '#     --' + arg + '\n'
-                elif type(val) == list:
-                    for valitem in val:
-                        if type(valitem) == str:
-                            comments += '#     --' + arg + '="' + valitem + '"\n'
-                        else:
-                            comments += '#     --' + arg + '=' + str(valitem) + '\n'
-                elif val is not None:
-                    comments += '#     --' + arg + '=' + str(val) + '\n'
-
-        comments += '#' * 80 + '\n'
-
+    if not no_comments:
         outfile.write(comments)
 
-    # Twitter URLs
-    REQUEST_TOKEN_URL = 'https://api.twitter.com/oauth/request_token'
-    ACCESS_TOKEN_URL = 'https://api.twitter.com/oauth/access_token'
-    AUTHORIZATION_URL = 'https://api.twitter.com/oauth/authorize'
-    SIGNIN_URL = 'https://api.twitter.com/oauth/authenticate'
+    if auth_file:
+        if os.path.exists(auth_file):
+            authfile = file(auth_file, 'rU')
 
-    if args.application_only_auth:
+            authparser = argparse.ArgumentParser()
+            authparser.add_argument('--consumer-key',        type=str)
+            authparser.add_argument('--consumer-secret',     type=str)
+            authparser.add_argument('--access-token-key',    type=str)
+            authparser.add_argument('--access-token-secret', type=str)
+
+            authargs, dummy = authparser.parse_known_args(authfile.read().split())
+
+            consumer_key          = consumer_key        or authargs.consumer_key
+            consumer_secret       = consumer_secret     or authargs.consumer_secret
+            access_token_key      = access_token_key    or authargs.access_token_key
+            access_token_secret   = access_token_secret or authargs.access_token_secret
+            app_only_auth = not all([access_token_key, access_token_secret])
+
+    if app_only_auth:
         api = twitter.Api(
-                    consumer_key=args.consumer_key,
-                    consumer_secret=args.consumer_secret,
-                    application_only_auth=True
+                    consumer_key=consumer_key,
+                    consumer_secret=consumer_secret,
+                    application_only_auth=True,
+                    sleep_on_rate_limit=True
             )
     else:
-        if not all([args.access_token_key, args.access_token_secret]):
-            oauth_client = OAuth1Session(args.consumer_key, client_secret=args.consumer_secret, callback_uri='oob')
+        if not all([access_token_key, access_token_secret]):
+            # Twitter URLs
+            REQUEST_TOKEN_URL = 'https://api.twitter.com/oauth/request_token'
+            ACCESS_TOKEN_URL = 'https://api.twitter.com/oauth/access_token'
+            AUTHORIZATION_URL = 'https://api.twitter.com/oauth/authorize'
+
+            oauth_client = OAuth1Session(consumer_key, client_secret=consumer_secret, callback_uri='oob')
 
             resp = oauth_client.fetch_request_token(REQUEST_TOKEN_URL)
             url = oauth_client.authorization_url(AUTHORIZATION_URL)
@@ -131,50 +175,65 @@ def twitterSearch(arglist):
             print('Enter your pincode? ', file=sys.stderr)
             pincode = raw_input()
 
-            oauth_client = OAuth1Session(args.consumer_key, client_secret=args.consumer_secret,
+            oauth_client = OAuth1Session(consumer_key, client_secret=consumer_secret,
                                         resource_owner_key=resp.get('oauth_token'),
                                         resource_owner_secret=resp.get('oauth_token_secret'),
                                         verifier=pincode)
             resp = oauth_client.fetch_access_token(ACCESS_TOKEN_URL)
-            args.access_token_key = resp.get('oauth_token')
-            args.access_token_secret = resp.get('oauth_token_secret')
+            access_token_key = resp.get('oauth_token')
+            access_token_secret = resp.get('oauth_token_secret')
 
             print('To re-use access token next time use the following arguments:', file=sys.stderr)
-            print('    --access-token-key ' + args.access_token_key + ' --access-token-secret ' + args.access_token_secret, file=sys.stderr)
+            print('    --access-token-key ' + access_token_key + ' --access-token-secret ' + access_token_secret, file=sys.stderr)
 
         api = twitter.Api(
-                    consumer_key=args.consumer_key,
-                    consumer_secret=args.consumer_secret,
-                    access_token_key=args.access_token_key,
-                    access_token_secret=args.access_token_secret,
+                    consumer_key=consumer_key,
+                    consumer_secret=consumer_secret,
+                    access_token_key=access_token_key,
+                    access_token_secret=access_token_secret,
                     sleep_on_rate_limit=True
             )
 
+    if not os.path.exists(auth_file):
+        authfile = file(auth_file, 'w')
+        print('--consumer-key',    consumer_key,    file=authfile)
+        print('--consumer-secret', consumer_secret, file=authfile)
+        if all([access_token_key, access_token_secret]):
+            print('--access_token-key',    access_token_key,    file=authfile)
+            print('--access_token-secret', access_token_secret, file=authfile)
+
+        authfile.close()
+
     tweetcount = 0
-    if args.maxid is None:
+    if maxid is None:
         maxid = None
     else:
-        maxid = int(args.maxid)
+        maxid = int(maxid)
 
     fieldnames = ['user', 'date', 'text', 'replies', 'retweets', 'favorites', 'reply-to', 'reply-to-user', 'reply-to-user-id', 'quote', 'lang', 'geo', 'mentions', 'hashtags', 'user-id', 'id']
     outunicodecsv=unicodecsv.DictWriter(outfile, fieldnames,
                                         extrasaction='ignore', lineterminator=os.linesep)
-    if not args.no_header:
+    if not no_header:
         outunicodecsv.writeheader()
 
     while True:
         query  = 'q='
-        query += args.query                 if args.query    else ''
-        query += ('&geocode=' + args.geo)   if args.geo      else ''
-        query += ('&from=' + args.user)     if args.user     else ''
-        query += ('&lang=' + args.language) if args.language else ''
-        query += ('&since=' + args.since)   if args.since    else ''
-        query += ('&until=' + args.until)   if args.until    else ''
-        query += ('&count=' + str(args.number - tweetcount)) if args.number else ''
+        query += string                if string   else ''
+        query += ('&geocode=' + geo)   if geo      else ''
+        query += ('&from=' + user)     if user     else ''
+        query += ('&lang=' + language) if language else ''
+        query += ('&since=' + since)   if since    else ''
+        query += ('&until=' + until)   if until    else ''
+        query += ('&count=' + str(number - tweetcount)) if number else ''
         query += ('&max_id='+str(maxid)) if maxid else ''
-        if args.verbosity >= 2:
+        if verbosity >= 2:
             print('Query: ' + query, file=sys.stderr)
-        tweets = api.GetSearch(raw_query=query)
+        try:
+            tweets = api.GetSearch(raw_query=query)
+        except twitter.error.TwitterError as error:
+            print(error.message)
+            break
+
         if len(tweets) == 0:
             break
 
@@ -191,17 +250,17 @@ def twitterSearch(arglist):
                     'favorites': tweet.favorite_count,
                     'lang': tweet.lang,
                     'geo': tweet.geo,
-                    'mentions': u' '.join([user.screen_name for user    in tweet.user_mentions]),
-                    'hashtags': u' '.join([hashtag.text     for hashtag in tweet.hashtags]),
+                    'mentions': u' '.join([mention.screen_name for mention in tweet.user_mentions]),
+                    'hashtags': u' '.join([hashtag.text        for hashtag in tweet.hashtags]),
                     'user-id': tweet.user.id,
                     'id': tweet.id_str,
                 })
 
                 tweetcount += 1
-                if args.number and tweetcount == args.number:
+                if number and tweetcount == number:
                     break
 
-        if args.number and tweetcount == args.number:
+        if number and tweetcount == number:
             break
 
         maxid = tweets[-1].id - 1
@@ -209,4 +268,6 @@ def twitterSearch(arglist):
     outfile.close()
 
 if __name__ == '__main__':
-    twitterSearch(None)
+    kwargs = parse_arguments()
+    kwargs['comments'] = build_comments(kwargs)
+    kwargs['func'](**kwargs)

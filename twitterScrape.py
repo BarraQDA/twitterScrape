@@ -17,76 +17,113 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 from __future__ import print_function
+import gooey
 import argparse
 from TwitterFeed import TwitterRead, TwitterWrite
 import sys
 import os
 from dateutil import parser as dateparser
 from datetime import datetime, date, timedelta
+import pytz
 import shutil
 
-def twitterScrape(arglist):
+def add_arguments(parser):
+    parser.description = "Scrape and merge twitter feed."
 
-    parser = argparse.ArgumentParser(description='Scrape and merge twitter feed using pyquery.',
-                                     fromfile_prefix_chars='@')
+    querygroup = parser.add_argument_group('Query')
+    querygroup.add_argument('-s', '--string',   type=str,
+                            help='String to query.')
+    querygroup.add_argument('-u', '--user',     type=str,
+                            help='Twitter username to match.')
+    querygroup.add_argument('-l', '--language', type=str,
+                            help='Language filter for twitter feed.')
+    querygroup.add_argument(      '--since',    type=str, widget='DateChooser',
+                            help='Lower bound search date.')
+    querygroup.add_argument(      '--until',    type=str, widget='DateChooser',
+                            help='Upper bound search date.')
 
-    parser.add_argument('-v', '--verbosity', type=int, default=1)
+    outputgroup = parser.add_argument_group('Output')
+    outputgroup.add_argument('-o', '--output-file',  type=str,
+                             help='Output file, otherwise use stdout.')
+    outputgroup.add_argument('-n', '--number',   type=int,
+                             help='Maximum number of results to output')
+    outputgroup.add_argument('--no-comments',    action='store_true',
+                             help='Do not output descriptive comments')
+    outputgroup.add_argument('--no-header',      action='store_true',
+                             help='Do not output CSV header with column names')
 
-    parser.add_argument('-u', '--user',     type=str, help='Twitter username to match.')
-    parser.add_argument('-q', '--query',    type=str, help='Search string for twitter feed. Either USER or QUERY must be defined to open a twitter feed.')
-    parser.add_argument('-l', '--language', type=str, help='Language filter for twitter feed.')
-    parser.add_argument('-f', '--force',    action='store_true', help='Run twitter query over periods covered by input file(s). Default is to only run twitter period over gaps.')
-    parser.add_argument('-t', '--timeout',  type=int, default=5, help='Timeout for socket operations.')
+    inputgroup = parser.add_argument_group('Input')
+    inputgroup.add_argument('input_file', type=str, nargs='*', widget='FileChooser',
+                            help='Input CSV files.')
+    inputgroup.add_argument('-f', '--force',    action='store_true',
+                            help='Run twitter query over periods covered by input file(s). Default is to only run twitter period over gaps.')
 
-    parser.add_argument(      '--since',    type=str, help='Lower bound search date.')
-    parser.add_argument(      '--until',    type=str, help='Upper bound search date.')
+    advancedgroup = parser.add_argument_group('Advanced')
+    advancedgroup.add_argument('-v', '--verbosity', type=int, default=1)
+    advancedgroup.add_argument('-t', '--timeout',   type=int, default=5,
+                               help='Timeout for socket operations.')
 
-    parser.add_argument('-o', '--outfile',  type=str, help='Output file, otherwise use stdout.')
-    parser.add_argument('-n', '--number',   type=int, help='Maximum number of results to output')
-    parser.add_argument('--no-comments',    action='store_true', help='Do not output descriptive comments')
-    parser.add_argument('--no-header',      action='store_true', help='Do not output CSV header with column names')
+    parser.set_defaults(func=twitterScrape)
+    parser.set_defaults(hiddenargs=['hiddenargs', 'verbosity', 'timeout', 'no_comments'])
 
-    parser.add_argument('infile', type=str, nargs='*', help='Input CSV files.')
+@gooey.Gooey(ignore_command=None, force_command='--gui',
+             default_cols=1,
+             load_cmd_args=True, use_argparse_groups=True)
+def parse_arguments():
+    parser = gooey.GooeyParser()
+    add_arguments(parser)
+    return vars(parser.parse_args(None))
 
-    args = parser.parse_args(arglist)
-    hiddenargs = ['verbosity', 'timeout', 'no_comments']
+def build_comments(kwargs):
+    comments = ((' ' + kwargs['output_file'] + ' ') if kwargs['output_file'] else '').center(80, '#') + '\n'
+    comments += '# ' + os.path.basename(__file__) + '\n'
+    hiddenargs = kwargs['hiddenargs'] + ['hiddenargs', 'func']
+    for argname, argval in kwargs.iteritems():
+        if argname not in hiddenargs:
+            if type(argval) == str or type(argval) == unicode:
+                comments += '#     --' + argname + '="' + argval + '"\n'
+            elif type(argval) == bool:
+                if argval:
+                    comments += '#     --' + argname + '\n'
+            elif type(argval) == list:
+                for valitem in argval:
+                    if type(valitem) == str:
+                        comments += '#     --' + argname + '="' + valitem + '"\n'
+                    else:
+                        comments += '#     --' + argname + '=' + str(valitem) + '\n'
+            elif argval is not None:
+                comments += '#     --' + argname + '=' + str(argval) + '\n'
+
+    comments += '#' * 80 + '\n'
+    return comments
+
+def twitterScrape(string, user, language, since, until,
+                  output_file, number, no_comments, no_header,
+                  input_file, force,
+                  verbosity, timeout, comments, **extraargs):
 
     # Import twitter feed modules if we are going to need them
-    if args.query or args.user:
+    if string or user:
         from TwitterFeed import TwitterFeed
         import urllib2
 
-    until = dateparser.parse(args.until) if args.until else None
-    since = dateparser.parse(args.since) if args.since else None
+    if until:
+        until = dateparser.parse(until)
+        if until.tzinfo:
+            until = until.astimezone(pytz.utc).replace(tzinfo=None)
+    if since:
+        since = dateparser.parse(since)
+        if since.tzinfo:
+            since = since.astimezone(pytz.utc).replace(tzinfo=None)
 
     # Handle in situ replacement of output file
     tempoutfile = None
-    if args.outfile is not None and os.path.isfile(args.outfile):
-        args.infile += [args.outfile]
-        tempoutfile = args.outfile + '.part'
+    if output_file is not None and os.path.isfile(output_file):
+        input_file += [output_file]
+        tempoutfile = output_file + '.part'
 
-    if args.no_comments:
+    if no_comments:
         comments = None
-    else:
-        comments = ((' ' + args.outfile + ' ') if args.outfile else '').center(80, '#') + '\n'
-        comments += '# ' + os.path.basename(sys.argv[0]) + '\n'
-        arglist = args.__dict__.keys()
-        for arg in arglist:
-            if arg not in hiddenargs:
-                val = getattr(args, arg)
-                if type(val) == str or type(val) == unicode:
-                    comments += '#     --' + arg + '="' + val + '"\n'
-                elif type(val) == bool:
-                    if val:
-                        comments += '#     --' + arg + '\n'
-                elif type(val) == list:
-                    for valitem in val:
-                        if type(valitem) == str:
-                            comments += '#     --' + arg + '="' + valitem + '"\n'
-                        else:
-                            comments += '#     --' + arg + '=' + str(valitem) + '\n'
-                elif val is not None:
-                    comments += '#     --' + arg + '=' + str(val) + '\n'
 
     # Function to simplify reading tweets from CSV or feed
     def nextornone(reader):
@@ -100,13 +137,13 @@ def twitterScrape(arglist):
     currow = []
     rowcnt = []
     headidx = None
-    for fileidx in range(len(args.infile)):
-        thisinreader = TwitterRead(args.infile[fileidx], since=since, until=until, blanks=True)
+    for fileidx in range(len(input_file)):
+        thisinreader = TwitterRead(input_file[fileidx], since=since, until=until, blanks=True)
         comments += thisinreader.comments
 
         inreader += [thisinreader]
         if inreader[fileidx].fieldnames != inreader[0].fieldnames:
-            raise RuntimeError("File: " + args.infile[fileidx] + " has mismatched field names")
+            raise RuntimeError("File: " + input_file[fileidx] + " has mismatched field names")
 
         currowitem = nextornone(inreader[fileidx])
         currow += [currowitem]
@@ -115,23 +152,25 @@ def twitterScrape(arglist):
             if headidx is None or currowitem['id'] > currow[headidx]['id']:
                 headidx = fileidx
 
-        if args.verbosity >= 2:
+        if verbosity >= 2:
             if currowitem:
-                print("Read id: " + str(currowitem['id']) + " from " + args.infile[fileidx], file=sys.stderr)
+                print("Read id: " + str(currowitem['id']) + " from " + input_file[fileidx], file=sys.stderr)
             else:
-                print("End of " + args.infile[fileidx], file=sys.stderr)
+                print("End of " + input_file[fileidx], file=sys.stderr)
 
     # Finish comment block only if no input files - otherwise expect input file to do so.
-    if len(args.infile) == 0:
+    if len(input_file) == 0:
         comments += '#' * 80 + '\n'
 
-    if headidx is not None and args.verbosity >= 2:
-        print("Head input is " + args.infile[headidx], file=sys.stderr)
+    if headidx is not None and verbosity >= 2:
+        print("Head input is " + input_file[headidx], file=sys.stderr)
 
-    if len(args.infile) > 0:
+    if len(input_file) > 0:
         fieldnames = inreader[0].fieldnames
     else:
         fieldnames = ['user', 'date', 'text', 'replies', 'retweets', 'favorites', 'conversation', 'quote', 'quote-user', 'quote-user-id', 'lang', 'geo', 'mentions', 'hashtags', 'user-id', 'id']
+
+    twitterwrite = TwitterWrite(tempoutfile if tempoutfile else output_file, comments=comments, fieldnames=fieldnames, header=not no_header)
 
     # Prepare twitter feed
     twitterfeed = None
@@ -141,12 +180,12 @@ def twitterScrape(arglist):
     inreader += [None]
     currow += [None]
     rowcnt += [0]
-    args.infile += ['twitter feed']
+    input_file += ['twitter feed']
 
     # Start twitter feed if already needed
-    if (args.query or args.user) and (args.force or until is None or headidx is None or until > currow[headidx]['date']):
+    if (string or user) and (force or until is None or headidx is None or until > currow[headidx]['date']):
         twittersince = since.date() if since else None
-        if (not args.force) and (headidx is not None):
+        if (not force) and (headidx is not None):
             twittersince = max(twittersince, currow[headidx]['date'].date()) if twittersince else currow[headidx]['date'].date()
 
         if until:
@@ -157,11 +196,11 @@ def twitterScrape(arglist):
             twitteruntil = None
 
         while True:
-            if args.verbosity >= 1:
+            if verbosity >= 1:
                 print("Opening twitter feed with until:" + (twitteruntil.isoformat() if twitteruntil else '') + ", since:" + (twittersince.isoformat() if twittersince else ''), file=sys.stderr)
             try:
-                twitterfeed = TwitterFeed(language=args.language, user=args.user, query=args.query,
-                                            until=twitteruntil, since=twittersince, timeout=args.timeout)
+                twitterfeed = TwitterFeed(language=language, user=user, query=string,
+                                            until=twitteruntil, since=twittersince, timeout=timeout)
                 currowitem = nextornone(twitterfeed)
                 while currowitem:
                     if not until or currowitem['date'] < until:
@@ -170,11 +209,11 @@ def twitterScrape(arglist):
 
                 break
             except (urllib2.HTTPError, urllib2.URLError) as err:
-                if args.verbosity >= 2:
+                if verbosity >= 2:
                     print(err, file=sys.stderr)
                 pass
 
-        if args.verbosity >= 2:
+        if verbosity >= 2:
             if currowitem:
                 print("Read id: " + str(currowitem['id']) + " from twitter feed", file=sys.stderr)
 
@@ -183,27 +222,25 @@ def twitterScrape(arglist):
             inreader[twitteridx] = twitterfeed
             if headidx is None or currowitem['id'] > currow[headidx]['id']:
                 headidx = twitteridx
-                if args.verbosity >= 2:
+                if verbosity >= 2:
                     print("Head input is twitter feed", file=sys.stderr)
         else:
             twitterfeed = None
-            if args.verbosity >= 1:
+            if verbosity >= 1:
                 print("Twitter feed returned no results", file=sys.stderr)
 
     pacing = [(headidx is not None and currow[fileidx] and currow[fileidx]['id'] == currow[headidx]['id'])
                     for fileidx in range(len(inreader))]
 
-    if args.verbosity >= 2:
+    if verbosity >= 2:
         for fileidx in range(len(inreader)):
             if pacing[fileidx]:
-                print(args.infile[fileidx] + " is pacing", file=sys.stderr)
+                print(input_file[fileidx] + " is pacing", file=sys.stderr)
 
     if headidx is None:
-        if args.verbosity >= 1:
+        if verbosity >= 1:
             print("Nothing to do.", file=sys.stderr)
         sys.exit()
-
-    twitterwrite = TwitterWrite(tempoutfile if tempoutfile else args.outfile, comments=comments, fieldnames=fieldnames, header=not args.no_header)
 
     # Main loop
     while True:
@@ -212,7 +249,7 @@ def twitterScrape(arglist):
             break
 
         twitterwrite.write(currow[headidx])
-        if args.number and twitterwrite.count == args.number:
+        if number and twitterwrite.count == number:
             break
 
         rowcnt[headidx] += 1
@@ -227,17 +264,17 @@ def twitterScrape(arglist):
                     currow[fileidx] = nextornone(inreader[fileidx])
                 except (urllib2.HTTPError, urllib2.URLError) as err:
                     httperror = True
-                    if args.verbosity >= 2:
+                    if verbosity >= 2:
                         print(err, file=sys.stderr)
 
-                if args.verbosity >= 2:
+                if verbosity >= 2:
                     if currow[fileidx]:
-                        print("Read id: " + str(currow[fileidx]['id']) + " from " + args.infile[fileidx], file=sys.stderr)
+                        print("Read id: " + str(currow[fileidx]['id']) + " from " + input_file[fileidx], file=sys.stderr)
                     else:
-                        print("End of " + args.infile[fileidx], file=sys.stderr)
+                        print("End of " + input_file[fileidx], file=sys.stderr)
                 if currow[fileidx] is None:
-                    if args.verbosity >= 1:
-                        print("Closing " + args.infile[fileidx] + " after " + str(rowcnt[fileidx]) + " rows.", file=sys.stderr)
+                    if verbosity >= 1:
+                        print("Closing " + input_file[fileidx] + " after " + str(rowcnt[fileidx]) + " rows.", file=sys.stderr)
                     rowcnt[fileidx] = 0
                     pacing[fileidx] = False
                     inreader[fileidx] = None
@@ -246,8 +283,8 @@ def twitterScrape(arglist):
                 # Test for blank record in CSV
                 elif currow[fileidx]['id'] == None:
                     currow[fileidx] = None
-                    if args.verbosity >= 1:
-                        print(args.infile[fileidx] + " has gap after id:" + str(currowid) + " - " + currowdate.isoformat(), file=sys.stderr)
+                    if verbosity >= 1:
+                        print(input_file[fileidx] + " has gap after id:" + str(currowid) + " - " + currowdate.isoformat(), file=sys.stderr)
 
         headidx = None
         for fileidx in range(len(inreader)):
@@ -260,15 +297,15 @@ def twitterScrape(arglist):
                 # The follow section is executed following a blank line in a CSV file
                 if currow[fileidx] is None:
                     currow[fileidx] = nextornone(inreader[fileidx])
-                    if args.verbosity >= 2:
+                    if verbosity >= 2:
                         if currow[fileidx]:
-                            print("Read id: " + str(currow[fileidx]['id']) + " from " + args.infile[fileidx], file=sys.stderr)
+                            print("Read id: " + str(currow[fileidx]['id']) + " from " + input_file[fileidx], file=sys.stderr)
                         else:
-                            print("End of " + args.infile[fileidx], file=sys.stderr)
+                            print("End of " + input_file[fileidx], file=sys.stderr)
                     pacing[fileidx] = False
                     if currow[fileidx] is None:
-                        if args.verbosity >= 1:
-                            print("Closing " + args.infile[fileidx] + " after " + str(rowcnt[fileidx]) + " rows.", file=sys.stderr)
+                        if verbosity >= 1:
+                            print("Closing " + input_file[fileidx] + " after " + str(rowcnt[fileidx]) + " rows.", file=sys.stderr)
                         rowcnt[fileidx] = 0
                         inreader[fileidx] = None
                     elif nextheadidx is None or currow[fileidx]['id'] > currow[nextheadidx]['id']:
@@ -277,21 +314,21 @@ def twitterScrape(arglist):
                 if currow[fileidx]:
                     if pacing[fileidx]:
                         if currow[fileidx]['id'] != currow[headidx]['id']:
-                            print("WARNING: Missing tweet, id: " + str(currow[headidx]['id']) + " in file: " + args.infile[fileidx], file=sys.stderr)
+                            print("WARNING: Missing tweet, id: " + str(currow[headidx]['id']) + " in file: " + input_file[fileidx], file=sys.stderr)
                             pacing[fileidx] = False
                     elif headidx is not None:
                         if currow[fileidx]['id'] == currow[headidx]['id']:
-                            if args.verbosity >= 2:
-                                print(args.infile[fileidx] + " now pacing.", file=sys.stderr)
+                            if verbosity >= 2:
+                                print(input_file[fileidx] + " now pacing.", file=sys.stderr)
                             pacing[fileidx] = True
 
         headidx = nextheadidx
-        if args.verbosity >= 2:
-            print("Head input is " + (args.infile[headidx] if headidx is not None else 'empty'), file=sys.stderr)
+        if verbosity >= 2:
+            print("Head input is " + (input_file[headidx] if headidx is not None else 'empty'), file=sys.stderr)
 
         # Stop reading twitter feed if it is now paced by an input file
-        if (not args.force) and inreader[twitteridx] and any(pacing[0:-1]):
-            if args.verbosity >= 1:
+        if (not force) and inreader[twitteridx] and any(pacing[0:-1]):
+            if verbosity >= 1:
                 print("Closing twitter feed after " + str(rowcnt[twitteridx]) + " rows.", file=sys.stderr)
 
             # Remember last date from twitter feed so we can re-use the feed later.
@@ -302,15 +339,15 @@ def twitterScrape(arglist):
             inreader[twitteridx] = None
 
         # If no file is now pacing, try opening a new twitter feed
-        while (args.query or args.user) and not any(pacing):
+        while (string or user) and not any(pacing):
             newsince = since.date() if since else None
-            if (not args.force) and (headidx is not None):
+            if (not force) and (headidx is not None):
                 newsince = max(newsince or date.min, currow[headidx]['date'].date())
 
             # Continue with current twitter feed if since dates match and last retrieved is same day
             # as we are looking for
-            if twitterfeed and (args.force or ((twittersince or date.min) <= (newsince or date.min) and twitterdate == lastdatetime.date())):
-                if args.verbosity >= 1:
+            if twitterfeed and (force or ((twittersince or date.min) <= (newsince or date.min) and twitterdate == lastdatetime.date())):
+                if verbosity >= 1:
                     print("Continuing twitter feed with until:" + (twitteruntil.isoformat() if twitteruntil else '') + ", since:" + (twittersince.isoformat() if twittersince else ''), file=sys.stderr)
             # Otherwise start a new twitter feed.
             else:
@@ -337,21 +374,21 @@ def twitterScrape(arglist):
                 else:
                     break
 
-                if args.verbosity >= 1:
+                if verbosity >= 1:
                     print("Opening twitter feed with until:" + twitteruntil.isoformat() + ", since:" + (twittersince.isoformat() if twittersince else ''), file=sys.stderr)
 
-                twitterfeed = TwitterFeed(language=args.language, user=args.user, query=args.query,
+                twitterfeed = TwitterFeed(language=language, user=user, query=string,
                                         until=twitteruntil, since=twittersince)
 
             if twitterfeed:
                 try:
-                    if args.verbosity >= 1:
+                    if verbosity >= 1:
                         print("Searching twitter feed for id:" + str(lastid), file=sys.stderr)
                     currowitem = nextornone(twitterfeed)
                     while currowitem and currowitem['id'] > lastid:
                         currowitem = nextornone(twitterfeed)
 
-                    if args.verbosity >= 1:
+                    if verbosity >= 1:
                         if currowitem:
                             print("Found id:" + str(currowitem['id']), file=sys.stderr)
 
@@ -360,12 +397,12 @@ def twitterScrape(arglist):
                             currowitem = nextornone(twitterfeed)
                             if currowitem:
                                 pacing[twitteridx] = True
-                                if args.verbosity >= 2:
+                                if verbosity >= 2:
                                     print("Twitter feed now pacing.", file=sys.stderr)
 
                 except (urllib2.HTTPError, urllib2.URLError) as err:
                     httperror = True
-                    if args.verbosity >= 1:
+                    if verbosity >= 1:
                         print(err, file=sys.stderr)
 
                 if currowitem:
@@ -373,13 +410,13 @@ def twitterScrape(arglist):
                     currow[twitteridx] = currowitem
                     if headidx is None or currowitem['id'] > currow[headidx]['id']:
                         headidx = twitteridx
-                        if args.verbosity >= 2:
+                        if verbosity >= 2:
                             print("Head input is twitter feed", file=sys.stderr)
 
                     break
                 else:
                     twitterfeed = None
-                    if args.verbosity >= 1:
+                    if verbosity >= 1:
                         print("End of twitter feed", file=sys.stderr)
 
         if not any(pacing):
@@ -393,7 +430,9 @@ def twitterScrape(arglist):
     # Finish up
     del twitterwrite
     if tempoutfile:
-        shutil.move(tempoutfile, args.outfile)
+        shutil.move(tempoutfile, output_file)
 
 if __name__ == '__main__':
-    twitterScrape(None)
+    kwargs = parse_arguments()
+    kwargs['comments'] = build_comments(kwargs)
+    kwargs['func'](**kwargs)
