@@ -84,11 +84,11 @@ def add_arguments(parser):
 
 @gooey.Gooey(ignore_command=None, force_command='--gui',
              default_cols=1,
-             load_cmd_args=True, use_argparse_groups=True)
+             load_cmd_args=True, use_argparse_groups=True, use_tabs=True)
 def parse_arguments():
     parser = gooey.GooeyParser()
     add_arguments(parser)
-    return vars(parser.parse_args(None))
+    return vars(parser.parse_args())
 
 def build_comments(kwargs):
     comments = ((' ' + kwargs['output_file'] + ' ') if kwargs['output_file'] else '').center(80, '#') + '\n'
@@ -116,7 +116,7 @@ def build_comments(kwargs):
 def twitterSearch(string, user, language, geo, since, until,
                   output_file, number, no_comments, no_header,
                   auth_file, consumer_key, consumer_secret, app_only_auth, access_token_key, access_token_secret,
-                  verbosity, maxid, comments, **extraargs):
+                  verbosity, maxid, comments, **dummy):
 
     until = str(calendar.timegm(dateparser.parse(until).utctimetuple())) if until else None
     since = str(calendar.timegm(dateparser.parse(since).utctimetuple())) if since else None

@@ -68,11 +68,11 @@ def add_arguments(parser):
 
 @gooey.Gooey(ignore_command=None, force_command='--gui',
              default_cols=1,
-             load_cmd_args=True, use_argparse_groups=True)
+             load_cmd_args=True, use_argparse_groups=True, use_tabs=True)
 def parse_arguments():
     parser = gooey.GooeyParser()
     add_arguments(parser)
-    return vars(parser.parse_args(None))
+    return vars(parser.parse_args())
 
 def build_comments(kwargs):
     comments = ((' ' + kwargs['output_file'] + ' ') if kwargs['output_file'] else '').center(80, '#') + '\n'
@@ -100,7 +100,7 @@ def build_comments(kwargs):
 def twitterScrape(string, user, language, since, until,
                   output_file, number, no_comments, no_header,
                   input_file, force,
-                  verbosity, timeout, comments, **extraargs):
+                  verbosity, timeout, comments, **dummy):
 
     # Import twitter feed modules if we are going to need them
     if string or user:
