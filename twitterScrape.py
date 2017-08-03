@@ -43,7 +43,7 @@ def add_arguments(parser):
                             help='Upper bound search date.')
 
     outputgroup = parser.add_argument_group('Output')
-    outputgroup.add_argument('-o', '--output-file',  type=str,
+    outputgroup.add_argument('-o', '--outfile',  type=str,
                              help='Output file, otherwise use stdout.')
     outputgroup.add_argument('-n', '--number',   type=int,
                              help='Maximum number of results to output')
@@ -53,7 +53,7 @@ def add_arguments(parser):
                              help='Do not output CSV header with column names')
 
     inputgroup = parser.add_argument_group('Input')
-    inputgroup.add_argument('input_file', type=str, nargs='*', widget='FileChooser',
+    inputgroup.add_argument('infile', type=str, nargs='*', widget='FileChooser',
                             help='Input CSV files.')
     inputgroup.add_argument('-f', '--force',    action='store_true',
                             help='Run twitter query over periods covered by input file(s). Default is to only run twitter period over gaps.')
@@ -75,7 +75,7 @@ def parse_arguments():
     return vars(parser.parse_args())
 
 def build_comments(kwargs):
-    comments = ((' ' + kwargs['output_file'] + ' ') if kwargs['output_file'] else '').center(80, '#') + '\n'
+    comments = ((' ' + kwargs['outfile'] + ' ') if kwargs['outfile'] else '').center(80, '#') + '\n'
     comments += '# ' + os.path.basename(__file__) + '\n'
     hiddenargs = kwargs['hiddenargs'] + ['hiddenargs', 'func']
     for argname, argval in kwargs.iteritems():
@@ -98,8 +98,8 @@ def build_comments(kwargs):
     return comments
 
 def twitterScrape(string, user, language, since, until,
-                  output_file, number, no_comments, no_header,
-                  input_file, force,
+                  outfile, number, no_comments, no_header,
+                  infile, force,
                   verbosity, timeout, comments, **dummy):
 
     # Import twitter feed modules if we are going to need them
@@ -118,9 +118,9 @@ def twitterScrape(string, user, language, since, until,
 
     # Handle in situ replacement of output file
     tempoutfile = None
-    if output_file is not None and os.path.isfile(output_file):
-        input_file += [output_file]
-        tempoutfile = output_file + '.part'
+    if outfile is not None and os.path.isfile(outfile):
+        infile += [outfile]
+        tempoutfile = outfile + '.part'
 
     if no_comments:
         comments = None
@@ -137,13 +137,13 @@ def twitterScrape(string, user, language, since, until,
     currow = []
     rowcnt = []
     headidx = None
-    for fileidx in range(len(input_file)):
-        thisinreader = TwitterRead(input_file[fileidx], since=since, until=until, blanks=True)
+    for fileidx in range(len(infile)):
+        thisinreader = TwitterRead(infile[fileidx], since=since, until=until, blanks=True)
         comments += thisinreader.comments
 
         inreader += [thisinreader]
         if inreader[fileidx].fieldnames != inreader[0].fieldnames:
-            raise RuntimeError("File: " + input_file[fileidx] + " has mismatched field names")
+            raise RuntimeError("File: " + infile[fileidx] + " has mismatched field names")
 
         currowitem = nextornone(inreader[fileidx])
         currow += [currowitem]
@@ -154,23 +154,23 @@ def twitterScrape(string, user, language, since, until,
 
         if verbosity >= 2:
             if currowitem:
-                print("Read id: " + str(currowitem['id']) + " from " + input_file[fileidx], file=sys.stderr)
+                print("Read id: " + str(currowitem['id']) + " from " + infile[fileidx], file=sys.stderr)
             else:
-                print("End of " + input_file[fileidx], file=sys.stderr)
+                print("End of " + infile[fileidx], file=sys.stderr)
 
     # Finish comment block only if no input files - otherwise expect input file to do so.
-    if len(input_file) == 0:
+    if len(infile) == 0:
         comments += '#' * 80 + '\n'
 
     if headidx is not None and verbosity >= 2:
-        print("Head input is " + input_file[headidx], file=sys.stderr)
+        print("Head input is " + infile[headidx], file=sys.stderr)
 
-    if len(input_file) > 0:
+    if len(infile) > 0:
         fieldnames = inreader[0].fieldnames
     else:
         fieldnames = ['user', 'date', 'text', 'replies', 'retweets', 'favorites', 'conversation', 'quote', 'quote-user', 'quote-user-id', 'lang', 'geo', 'mentions', 'hashtags', 'user-id', 'id']
 
-    twitterwrite = TwitterWrite(tempoutfile if tempoutfile else output_file, comments=comments, fieldnames=fieldnames, header=not no_header)
+    twitterwrite = TwitterWrite(tempoutfile if tempoutfile else outfile, comments=comments, fieldnames=fieldnames, header=not no_header)
 
     # Prepare twitter feed
     twitterfeed = None
@@ -180,7 +180,7 @@ def twitterScrape(string, user, language, since, until,
     inreader += [None]
     currow += [None]
     rowcnt += [0]
-    input_file += ['twitter feed']
+    infile += ['twitter feed']
 
     # Start twitter feed if already needed
     if (string or user) and (force or until is None or headidx is None or until > currow[headidx]['date']):
@@ -235,7 +235,7 @@ def twitterScrape(string, user, language, since, until,
     if verbosity >= 2:
         for fileidx in range(len(inreader)):
             if pacing[fileidx]:
-                print(input_file[fileidx] + " is pacing", file=sys.stderr)
+                print(infile[fileidx] + " is pacing", file=sys.stderr)
 
     if headidx is None:
         if verbosity >= 1:
@@ -269,12 +269,12 @@ def twitterScrape(string, user, language, since, until,
 
                 if verbosity >= 2:
                     if currow[fileidx]:
-                        print("Read id: " + str(currow[fileidx]['id']) + " from " + input_file[fileidx], file=sys.stderr)
+                        print("Read id: " + str(currow[fileidx]['id']) + " from " + infile[fileidx], file=sys.stderr)
                     else:
-                        print("End of " + input_file[fileidx], file=sys.stderr)
+                        print("End of " + infile[fileidx], file=sys.stderr)
                 if currow[fileidx] is None:
                     if verbosity >= 1:
-                        print("Closing " + input_file[fileidx] + " after " + str(rowcnt[fileidx]) + " rows.", file=sys.stderr)
+                        print("Closing " + infile[fileidx] + " after " + str(rowcnt[fileidx]) + " rows.", file=sys.stderr)
                     rowcnt[fileidx] = 0
                     pacing[fileidx] = False
                     inreader[fileidx] = None
@@ -284,7 +284,7 @@ def twitterScrape(string, user, language, since, until,
                 elif currow[fileidx]['id'] == None:
                     currow[fileidx] = None
                     if verbosity >= 1:
-                        print(input_file[fileidx] + " has gap after id:" + str(currowid) + " - " + currowdate.isoformat(), file=sys.stderr)
+                        print(infile[fileidx] + " has gap after id:" + str(currowid) + " - " + currowdate.isoformat(), file=sys.stderr)
 
         headidx = None
         for fileidx in range(len(inreader)):
@@ -299,13 +299,13 @@ def twitterScrape(string, user, language, since, until,
                     currow[fileidx] = nextornone(inreader[fileidx])
                     if verbosity >= 2:
                         if currow[fileidx]:
-                            print("Read id: " + str(currow[fileidx]['id']) + " from " + input_file[fileidx], file=sys.stderr)
+                            print("Read id: " + str(currow[fileidx]['id']) + " from " + infile[fileidx], file=sys.stderr)
                         else:
-                            print("End of " + input_file[fileidx], file=sys.stderr)
+                            print("End of " + infile[fileidx], file=sys.stderr)
                     pacing[fileidx] = False
                     if currow[fileidx] is None:
                         if verbosity >= 1:
-                            print("Closing " + input_file[fileidx] + " after " + str(rowcnt[fileidx]) + " rows.", file=sys.stderr)
+                            print("Closing " + infile[fileidx] + " after " + str(rowcnt[fileidx]) + " rows.", file=sys.stderr)
                         rowcnt[fileidx] = 0
                         inreader[fileidx] = None
                     elif nextheadidx is None or currow[fileidx]['id'] > currow[nextheadidx]['id']:
@@ -314,17 +314,17 @@ def twitterScrape(string, user, language, since, until,
                 if currow[fileidx]:
                     if pacing[fileidx]:
                         if currow[fileidx]['id'] != currow[headidx]['id']:
-                            print("WARNING: Missing tweet, id: " + str(currow[headidx]['id']) + " in file: " + input_file[fileidx], file=sys.stderr)
+                            print("WARNING: Missing tweet, id: " + str(currow[headidx]['id']) + " in file: " + infile[fileidx], file=sys.stderr)
                             pacing[fileidx] = False
                     elif headidx is not None:
                         if currow[fileidx]['id'] == currow[headidx]['id']:
                             if verbosity >= 2:
-                                print(input_file[fileidx] + " now pacing.", file=sys.stderr)
+                                print(infile[fileidx] + " now pacing.", file=sys.stderr)
                             pacing[fileidx] = True
 
         headidx = nextheadidx
         if verbosity >= 2:
-            print("Head input is " + (input_file[headidx] if headidx is not None else 'empty'), file=sys.stderr)
+            print("Head input is " + (infile[headidx] if headidx is not None else 'empty'), file=sys.stderr)
 
         # Stop reading twitter feed if it is now paced by an input file
         if (not force) and inreader[twitteridx] and any(pacing[0:-1]):
@@ -430,7 +430,7 @@ def twitterScrape(string, user, language, since, until,
     # Finish up
     del twitterwrite
     if tempoutfile:
-        shutil.move(tempoutfile, output_file)
+        shutil.move(tempoutfile, outfile)
 
 if __name__ == '__main__':
     kwargs = parse_arguments()

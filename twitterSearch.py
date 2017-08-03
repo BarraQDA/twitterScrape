@@ -25,7 +25,7 @@ import twitter
 import sys
 import os
 import shutil
-import unicodecsv
+from TwitterFeed import TwitterWrite
 import string
 from dateutil import parser as dateparser
 import calendar
@@ -53,7 +53,7 @@ def add_arguments(parser):
                             help='Upper bound search date/time')
 
     outputgroup = parser.add_argument_group('Output')
-    outputgroup.add_argument('-o', '--output-file',  type=str,
+    outputgroup.add_argument('-o', '--outfile',  type=str,
                              help='Output file, otherwise use stdout')
     outputgroup.add_argument('-n', '--number',   type=int,
                              help='Maximum number of results to output')
@@ -91,7 +91,7 @@ def parse_arguments():
     return vars(parser.parse_args())
 
 def build_comments(kwargs):
-    comments = ((' ' + kwargs['output_file'] + ' ') if kwargs['output_file'] else '').center(80, '#') + '\n'
+    comments = ((' ' + kwargs['outfile'] + ' ') if kwargs['outfile'] else '').center(80, '#') + '\n'
     comments += '# ' + os.path.basename(__file__) + '\n'
     hiddenargs = kwargs['hiddenargs'] + ['hiddenargs', 'func']
     for argname, argval in kwargs.iteritems():
@@ -114,23 +114,15 @@ def build_comments(kwargs):
     return comments
 
 def twitterSearch(string, user, language, geo, since, until,
-                  output_file, number, no_comments, no_header,
+                  outfile, number, no_comments, no_header,
                   auth_file, consumer_key, consumer_secret, app_only_auth, access_token_key, access_token_secret,
                   verbosity, maxid, comments, **dummy):
 
     until = str(calendar.timegm(dateparser.parse(until).utctimetuple())) if until else None
     since = str(calendar.timegm(dateparser.parse(since).utctimetuple())) if since else None
 
-    if output_file:
-        if os.path.exists(output_file):
-            shutil.move(output_file, output_file+ '.bak')
-
-        outfile = file(output_file, 'w')
-    else:
-        outfile = sys.stdout
-
-    if not no_comments:
-        outfile.write(comments)
+    fieldnames = ['user', 'date', 'text', 'replies', 'retweets', 'favorites', 'reply-to', 'reply-to-user', 'reply-to-user-id', 'quote', 'lang', 'geo', 'mentions', 'hashtags', 'user-id', 'id']
+    twitterwrite = TwitterWrite(outfile, comments=None if no_comments else comments, fieldnames=fieldnames, header=not no_header)
 
     if auth_file:
         if os.path.exists(auth_file):
@@ -210,12 +202,6 @@ def twitterSearch(string, user, language, geo, since, until,
     else:
         maxid = int(maxid)
 
-    fieldnames = ['user', 'date', 'text', 'replies', 'retweets', 'favorites', 'reply-to', 'reply-to-user', 'reply-to-user-id', 'quote', 'lang', 'geo', 'mentions', 'hashtags', 'user-id', 'id']
-    outunicodecsv=unicodecsv.DictWriter(outfile, fieldnames,
-                                        extrasaction='ignore', lineterminator=os.linesep)
-    if not no_header:
-        outunicodecsv.writeheader()
-
     while True:
         query  = 'q='
         query += string                if string   else ''
@@ -239,7 +225,7 @@ def twitterSearch(string, user, language, geo, since, until,
 
         for tweet in tweets:
             if tweet.retweeted_status is None:
-                outunicodecsv.writerow({
+                twitterwrite.write({
                     'user': tweet.user.screen_name,
                     'date': datetime.datetime.utcfromtimestamp(tweet.created_at_in_seconds).isoformat(),
                     'text': tweet.text,
@@ -265,7 +251,7 @@ def twitterSearch(string, user, language, geo, since, until,
 
         maxid = tweets[-1].id - 1
 
-    outfile.close()
+    del twitterwrite
 
 if __name__ == '__main__':
     kwargs = parse_arguments()
