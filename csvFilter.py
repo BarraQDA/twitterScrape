@@ -27,6 +27,7 @@ import unicodedata
 import multiprocessing
 import pymp
 import re
+from dateutil import parser as dateparser
 
 def csvFilter(arglist):
 
@@ -35,16 +36,18 @@ def csvFilter(arglist):
 
     parser.add_argument('-v', '--verbosity',  type=int, default=1)
     parser.add_argument('-j', '--jobs',       type=int, help='Number of parallel tasks, default is number of CPUs. May affect performance but not results.')
-    parser.add_argument('-b', '--batch',      type=int, default=100000, help='Number of tweets to process per batch. Use to limit memory usage with very large files. May affect performance but not results.')
+    parser.add_argument('-b', '--batch',      type=int, default=100000, help='Number of rows to process per batch. Use to limit memory usage with very large files. May affect performance but not results.')
 
     parser.add_argument('-p', '--prelude',    type=str, nargs="*", help='Python code to execute before processing')
-    parser.add_argument('-f', '--filter',     type=str, help='Python expression evaluated to determine whether tweet is included')
+    parser.add_argument('-f', '--filter',     type=str, help='Python expression evaluated to determine whether row is included')
     parser.add_argument('-c', '--column',     type=str, default='text', help='Column to apply regular expression')
-    parser.add_argument('-r', '--regexp',     type=str, help='Regular expression applied to tweet text to create output columns.')
+    parser.add_argument('-r', '--regexp',     type=str, help='Regular expression to create output columns.')
     parser.add_argument('-i', '--ignorecase', action='store_true', help='Ignore case in regular expression')
     parser.add_argument(      '--invert',     action='store_true', help='Invert filter, that is, output those tweets that do not pass filter and/or regular expression')
 
-    parser.add_argument('-l', '--limit',      type=int, help='Limit number of tweets to process')
+    parser.add_argument(      '--since',      type=str, help='Lower bound date/time in any sensible format')
+    parser.add_argument(      '--until',      type=str, help='Upper bound date/time in any sensible format')
+    parser.add_argument('-l', '--limit',      type=int, help='Limit number of rows to process')
 
     parser.add_argument('-C', '--copy',       action='store_true', help='If true, copy all columns from input file.')
     parser.add_argument('-x', '--exclude',    type=str, help='If specified, copy all columns from input file except those in this comma-separated list')
@@ -52,7 +55,7 @@ def csvFilter(arglist):
     parser.add_argument('-d', '--data',       type=str, help='Python code to produce dict to fill or overwrite columns.')
 
     parser.add_argument('-o', '--outfile',    type=str, help='Output CSV file, otherwise use stdout.')
-    parser.add_argument(      '--rejfile',    type=str, help='Output CSV file for rejected tweets')
+    parser.add_argument(      '--rejfile',    type=str, help='Output CSV file for rejected rows')
     parser.add_argument('-n', '--number',     type=int, help='Maximum number of results to output')
     parser.add_argument('--no-comments',      action='store_true', help='Do not output descriptive comments')
     parser.add_argument('--no-header',        action='store_true', help='Do not output CSV header with column names')
@@ -82,6 +85,9 @@ def csvFilter(arglist):
         regexpfields = list(regexp.groupindex)
     else:
         regexpfields = None
+
+    until = dateparser.parse(args.until) if args.until else None
+    since = dateparser.parse(args.since) if args.since else None
 
     if args.infile is None:
         infile = sys.stdin
@@ -205,6 +211,14 @@ def evaldata(" + ','.join([argbadchars.sub('_', fieldname) for fieldname in infi
             if args.regexp:
                 regexpmatch = regexp.match(unicode(row[args.column]))
                 keep = keep and (regexpmatch or False)
+            if since or until:
+                date = row.get('date')
+                if date:
+                    date = dateparser.parse(date)
+                    if until and date >= until:
+                        keep = False
+                    elif since and date < since:
+                        keep = False
 
             if keep == args.invert and not args.rejfile:
                 continue
