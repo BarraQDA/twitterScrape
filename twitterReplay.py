@@ -36,6 +36,8 @@ def add_arguments(parser):
                              help='Replay even if infile is not older than its dependents.')
     replaygroup.add_argument(      '--dry-run', action='store_true',
                              help='Print but do not execute command')
+    replaygroup.add_argument(      '--edit', action='store_true',
+                             help='Open a Gooey window to allow editing before running command')
 
     advancedgroup = parser.add_argument_group('Advanced')
     advancedgroup.add_argument('-v', '--verbosity', type=int, default=1)
@@ -59,7 +61,7 @@ def parse_arguments():
 def build_comments(kwargs):
     return ''
 
-def twitterReplay(input_file, verbosity, depth, force, dry_run, extraargs, **dummy):
+def twitterReplay(input_file, verbosity, depth, force, dry_run, edit, extraargs, **dummy):
     fileregexp = re.compile(r"^#+ (?P<file>.+) #+$", re.UNICODE)
     cmdregexp  = re.compile(r"^#\s+(?P<cmd>[\w\.-]+)", re.UNICODE)
     argregexp  = re.compile(r"^#\s+(?:--)?(?P<name>[\w-]+)(?:=(?P<quote>\"?)(?P<value>.+)(?P=quote))?", re.UNICODE)
@@ -164,6 +166,10 @@ def twitterReplay(input_file, verbosity, depth, force, dry_run, extraargs, **dum
                     infilelist = None
                     if len(pipestack) == 0 and '--outfile' not in arglist:
                         arglist = arglist + ['--outfile', outfilename]
+
+                    if edit:
+                        arglist += ['--gui']
+
                     if verbosity >= 1:
                         print("Executing: " + cmd + ' ' + ' '.join(arglist), file=sys.stderr)
 
