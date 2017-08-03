@@ -282,11 +282,20 @@ def evaldata(" + ','.join([argbadchars.sub('_', fieldname) for fieldname in infi
                     row = rows[rowindex]
                     keep = True
                     rowargs = {argbadchars.sub('_', key): value for key, value in row.iteritems()}
+
                     if args.filter:
                         keep = (evalfilter(**rowargs) or False) and keep
                     if args.regexp:
                         regexpmatch = regexp.match(unicode(row[args.column]))
                         keep = keep and (regexpmatch or False)
+                    if since or until:
+                        date = row.get('date')
+                        if date:
+                            date = dateparser.parse(date)
+                            if until and date >= until:
+                                keep = False
+                            elif since and date < since:
+                                keep = False
 
                     if keep == args.invert and not args.rejfile:
                         continue
