@@ -203,15 +203,14 @@ def evaldata(" + ','.join([argbadchars.sub('_', fieldname) for fieldname in infi
                 break
             inrowcount += 1
 
-            keep = True
             rowargs = {argbadchars.sub('_', key): value for key, value in row.iteritems()}
-
+            keep = True
             if args.filter:
-                keep = (evalfilter(**rowargs) or False) and keep
-            if args.regexp:
+                keep = evalfilter(**rowargs) or False
+            if keep and args.regexp:
                 regexpmatch = regexp.match(unicode(row[args.column]))
-                keep = keep and (regexpmatch or False)
-            if since or until:
+                keep = regexpmatch or False
+            if keep and (since or until):
                 date = row.get('date')
                 if date:
                     date = dateparser.parse(date)
@@ -280,15 +279,15 @@ def evaldata(" + ','.join([argbadchars.sub('_', fieldname) for fieldname in infi
                     reject = {}
                 for rowindex in p.range(0, rowcount):
                     row = rows[rowindex]
-                    keep = True
-                    rowargs = {argbadchars.sub('_', key): value for key, value in row.iteritems()}
 
+                    rowargs = {argbadchars.sub('_', key): value for key, value in row.iteritems()}
+                    keep = True
                     if args.filter:
-                        keep = (evalfilter(**rowargs) or False) and keep
-                    if args.regexp:
+                        keep = evalfilter(**rowargs) or False
+                    if keep and args.regexp:
                         regexpmatch = regexp.match(unicode(row[args.column]))
-                        keep = keep and (regexpmatch or False)
-                    if since or until:
+                        keep = regexpmatch or False
+                    if keep and (since or until):
                         date = row.get('date')
                         if date:
                             date = dateparser.parse(date)
