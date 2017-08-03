@@ -39,18 +39,18 @@ def csvCollect(arglist):
 
     parser.add_argument('-v', '--verbosity',  type=int, default=1)
     parser.add_argument('-j', '--jobs',       type=int, help='Number of parallel tasks, default is number of CPUs. May affect performance but not results.')
-    parser.add_argument('-b', '--batch',      type=int, default=100000, help='Number of tweets to process per batch. Use to limit memory usage with very large files. May affect performance but not results.')
+    parser.add_argument('-b', '--batch',      type=int, default=100000, help='Number of rows to process per batch. Use to limit memory usage with very large files. May affect performance but not results.')
 
     parser.add_argument('-p', '--prelude',    type=str, nargs="*", help='Python code to execute before processing')
-    parser.add_argument('-f', '--filter',     type=str, help='Python expression evaluated to determine whether tweet is included')
-    parser.add_argument(      '--since',      type=str, help='Lower bound tweet date/time in any sensible format.')
-    parser.add_argument(      '--until',      type=str, help='Upper bound tweet date/time in any sensible format.')
-    parser.add_argument('-l', '--limit',      type=int, help='Limit number of tweets to process')
+    parser.add_argument('-f', '--filter',     type=str, help='Python expression evaluated to determine whether row is included')
+    parser.add_argument(      '--since',      type=str, help='Lower bound date/time in any sensible format.')
+    parser.add_argument(      '--until',      type=str, help='Upper bound date/time in any sensible format.')
+    parser.add_argument('-l', '--limit',      type=int, help='Limit number of rows to process')
 
     parser.add_argument('-c', '--column',     type=str, help='Column to apply regular expression, default is "text"')
-    parser.add_argument('-r', '--regexp',     type=str, help='Regular expression applied to tweet text to create output columns.')
+    parser.add_argument('-r', '--regexp',     type=str, help='Regular expression to create output columns.')
     parser.add_argument('-i', '--ignorecase', action='store_true', help='Ignore case in regular expression')
-    parser.add_argument('-s', '--score',      type=str, nargs="*", default=['1'], help='Python expression(s) to evaluate tweet score(s), for example "1 + retweets + favorites"')
+    parser.add_argument('-s', '--score',      type=str, nargs="*", default=['1'], help='Python expression(s) to evaluate row score(s), for example "1 + retweets + favorites"')
     parser.add_argument('-t', '--threshold',  type=float, help='Threshold (first) score for result to be output')
 
     parser.add_argument('-in', '--interval',  type=str, help='Interval for measuring frequency, for example "1 day".')
@@ -105,6 +105,8 @@ def csvCollect(arglist):
         else:
             fields = list(range(1, len(args.data)+1))
 
+    until = dateparser.parse(args.until) if args.until else None
+    since = dateparser.parse(args.since) if args.since else None
 
     if args.interval:
         interval = timeparse(args.interval)
@@ -189,16 +191,24 @@ def evalscore(" + ','.join([argbadchars.sub('_', fieldname) for fieldname in inf
             if args.limit and inrowcount == args.limit:
                 break
 
-            rowargs = None
             try:
                 while True:
                     row = next(inreader)
                     inrowcount += 1
+                    rowargs = {argbadchars.sub('_', key): value for key, value in row.iteritems()}
+                    keep = True
                     if args.filter:
-                        rowargs = {argbadchars.sub('_', key): value for key, value in row.iteritems()}
-                        if evalfilter(**rowargs):
-                            break
-                    else:
+                        keep = evalfilter(**rowargs) or False
+                    if keep and (since or until):
+                        date = row.get('date')
+                        if date:
+                            date = dateparser.parse(date)
+                            if until and date >= until:
+                                keep = False
+                            elif since and date < since:
+                                keep = False
+
+                    if keep:
                         break
 
             except StopIteration:
@@ -223,8 +233,6 @@ def evalscore(" + ','.join([argbadchars.sub('_', fieldname) for fieldname in inf
                 matches = regexp.finditer(unicode(row[args.column]))
                 for match in matches:
                     if not rowscore:
-                        if not rowargs:     # NB Optimisation
-                            rowargs = {argbadchars.sub('_', key): value for key, value in row.iteritems()}
                         rowscore = evalscore(**rowargs)
 
                     if args.ignorecase:
@@ -241,8 +249,6 @@ def evalscore(" + ','.join([argbadchars.sub('_', fieldname) for fieldname in inf
                         mergedresult[index] = map(add, mergedresult.get(index, [0] * len(args.score)), rowscore)
 
             if args.data:
-                if not rowargs:     # NB Optimisation
-                    rowargs = {argbadchars.sub('_', key): value for key, value in row.iteritems()}
                 matches = evalcolumn(**rowargs)
                 for match in matches:
                     if not rowscore:
@@ -295,11 +301,21 @@ def evalscore(" + ','.join([argbadchars.sub('_', fieldname) for fieldname in inf
                 result = {}
                 for rowindex in p.range(0, rowcount):
                     row = rows[rowindex]
-                    rowargs = None
+                    rowargs = {argbadchars.sub('_', key): value for key, value in row.iteritems()}
+                    keep = True
                     if args.filter:
-                        rowargs = {argbadchars.sub('_', key): value for key, value in row.iteritems()}
-                        if not evalfilter(**rowargs):
-                            continue
+                        keep = evalfilter(**rowargs) or False
+                    if keep and (since or until):
+                        date = row.get('date')
+                        if date:
+                            date = dateparser.parse(date)
+                            if until and date >= until:
+                                keep = False
+                            elif since and date < since:
+                                keep = False
+
+                    if not keep:
+                        continue
 
                     rowscore = None
                     if args.regexp:
@@ -307,8 +323,6 @@ def evalscore(" + ','.join([argbadchars.sub('_', fieldname) for fieldname in inf
                         rowscore = None
                         for match in matches:
                             if not rowscore:
-                                if not args.rowargs:    # NB Optimisation
-                                    rowargs = {argbadchars.sub('_', key): value for key, value in row.iteritems()}
                                 rowscore = evalscore(**rowargs)
 
                             if args.ignorecase:
@@ -319,8 +333,6 @@ def evalscore(" + ','.join([argbadchars.sub('_', fieldname) for fieldname in inf
                             result[index] = map(add, result.get(index, [0] * len(args.score)), rowscore)
 
                     if args.data:
-                        if not rowargs:     # NB Optimisation
-                            rowargs = {argbadchars.sub('_', key): value for key, value in row.iteritems()}
                         matches = evalcolumn(**rowargs)
                         for match in matches:
                             if not rowscore:
