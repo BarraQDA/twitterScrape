@@ -20,11 +20,11 @@ from __future__ import print_function
 import argparse
 import gooey
 
-modulenames = ['twitterScrape', 'twitterSearch', 'twitterReplay']
+modulenames = ['twitterScrape', 'twitterSearch']
 
 @gooey.Gooey(default_cols=1,
              load_cmd_args=False, use_argparse_groups=True, use_tabs=True)
-def testgui(arglist):
+def twitterGui(arglist=None):
     parser = gooey.GooeyParser(description="Twitter Scraping tools.",
                                fromfile_prefix_chars='@')
     subparsers = parser.add_subparsers()
@@ -38,4 +38,4 @@ def testgui(arglist):
     kwargs['func'](**kwargs)
 
 if __name__ == '__main__':
-    testgui(None)
+    twitterGui(None)
