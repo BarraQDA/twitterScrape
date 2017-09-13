@@ -43,7 +43,7 @@ def add_arguments(parser):
                             help='Upper bound search date.')
 
     outputgroup = parser.add_argument_group('Output')
-    outputgroup.add_argument('-o', '--outfile',  type=str,
+    outputgroup.add_argument('-o', '--outfile',  type=str, widget='FileSaver',
                              help='Output file, otherwise use stdout.')
     outputgroup.add_argument('-n', '--number',   type=int,
                              help='Maximum number of results to output')

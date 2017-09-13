@@ -74,7 +74,7 @@ def twitterMatrix(arglist):
             print("Executing prelude code.", file=sys.stderr)
 
         for line in args.prelude:
-            exec(line)
+            exec(line) in globals()
 
     until = dateparser.parse(args.until) if args.until else None
     since = dateparser.parse(args.since) if args.since else None

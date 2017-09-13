@@ -19,8 +19,9 @@
 from __future__ import print_function
 import argparse
 import gooey
+from importlib import import_module
 
-modulenames = ['twitterScrape', 'twitterSearch']
+modulenames = ['twitterScrape.twitterScrape', 'twitterScrape.twitterSearch', 'csvProcess.csvReplay']
 
 @gooey.Gooey(default_cols=1,
              load_cmd_args=False, use_argparse_groups=True, use_tabs=True)
@@ -29,8 +30,8 @@ def twitterGui(arglist=None):
                                fromfile_prefix_chars='@')
     subparsers = parser.add_subparsers()
     for modulename in modulenames:
-        module = __import__(modulename)
-        subparser = subparsers.add_parser(modulename)
+        module = import_module(modulename)
+        subparser = subparsers.add_parser(modulename.split(".")[-1])
         module.add_arguments(subparser)
 
     kwargs = vars(parser.parse_args(arglist))
