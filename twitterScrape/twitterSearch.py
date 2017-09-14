@@ -80,6 +80,7 @@ def add_arguments(parser):
                                help='Maximum status id')
 
     parser.set_defaults(func=twitterSearch)
+    parser.set_defaults(build_comments=build_comments)
     parser.set_defaults(hiddenargs=['verbosity', 'auth_file', 'consumer_key', 'consumer_secret', 'app_only_auth', 'access_token_key', 'access_token_secret', 'no_comments'])
 
 @gooey.Gooey(ignore_command=None, force_command='--gui',
@@ -92,8 +93,8 @@ def parse_arguments():
 
 def build_comments(kwargs):
     comments = ((' ' + kwargs['outfile'] + ' ') if kwargs['outfile'] else '').center(80, '#') + '\n'
-    comments += '# ' + os.path.basename(__file__) + '\n'
-    hiddenargs = kwargs['hiddenargs'] + ['hiddenargs', 'func']
+    comments += '# ' + os.path.splitext(os.path.basename(__file__))[0] + '\n'
+    hiddenargs = kwargs['hiddenargs'] + ['hiddenargs', 'func', 'build_comments']
     for argname, argval in kwargs.iteritems():
         if argname not in hiddenargs:
             if type(argval) == str or type(argval) == unicode:

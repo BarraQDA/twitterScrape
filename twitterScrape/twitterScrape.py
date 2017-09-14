@@ -64,6 +64,7 @@ def add_arguments(parser):
                                help='Timeout for socket operations.')
 
     parser.set_defaults(func=twitterScrape)
+    parser.set_defaults(build_comments=build_comments)
     parser.set_defaults(hiddenargs=['hiddenargs', 'verbosity', 'timeout', 'no_comments'])
 
 @gooey.Gooey(ignore_command=None, force_command='--gui',
@@ -76,8 +77,8 @@ def parse_arguments():
 
 def build_comments(kwargs):
     comments = ((' ' + kwargs['outfile'] + ' ') if kwargs['outfile'] else '').center(80, '#') + '\n'
-    comments += '# ' + os.path.basename(__file__) + '\n'
-    hiddenargs = kwargs['hiddenargs'] + ['hiddenargs', 'func']
+    comments += '# ' + os.path.splitext(os.path.basename(__file__))[0] + '\n'
+    hiddenargs = kwargs['hiddenargs'] + ['hiddenargs', 'func', 'build_comments']
     for argname, argval in kwargs.iteritems():
         if argname not in hiddenargs:
             if type(argval) == str or type(argval) == unicode:
@@ -94,7 +95,10 @@ def build_comments(kwargs):
             elif argval is not None:
                 comments += '#     --' + argname + '=' + str(argval) + '\n'
 
-    comments += '#' * 80 + '\n'
+    # Finish comment block only if no input files - otherwise expect input file to do so.
+    if len(kwargs['infile']) == 0:
+        comments += '#' * 80 + '\n'
+
     return comments
 
 def twitterScrape(string, user, language, since, until,
@@ -157,10 +161,6 @@ def twitterScrape(string, user, language, since, until,
                 print("Read id: " + str(currowitem['id']) + " from " + infile[fileidx], file=sys.stderr)
             else:
                 print("End of " + infile[fileidx], file=sys.stderr)
-
-    # Finish comment block only if no input files - otherwise expect input file to do so.
-    if len(infile) == 0:
-        comments += '#' * 80 + '\n'
 
     if headidx is not None and verbosity >= 2:
         print("Head input is " + infile[headidx], file=sys.stderr)

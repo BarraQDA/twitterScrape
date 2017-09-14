@@ -35,7 +35,7 @@ def twitterGui(arglist=None):
         module.add_arguments(subparser)
 
     kwargs = vars(parser.parse_args(arglist))
-    kwargs['comments'] = module.build_comments(kwargs)
+    kwargs['comments'] = kwargs['build_comments'](kwargs)
     kwargs['func'](**kwargs)
 
 if __name__ == '__main__':
