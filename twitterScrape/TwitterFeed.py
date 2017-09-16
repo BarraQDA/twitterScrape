@@ -13,7 +13,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-import urllib,urllib2,json,re,sys,cookielib
+import urllib,urllib2,json,re,sys,cookielib,ssl
 from pyquery import PyQuery
 import lxml
 import unicodecsv
@@ -69,7 +69,8 @@ class TwitterFeed(object):
 
 
         if self.opener is None:
-            self.opener = urllib2.build_opener(urllib2.HTTPCookieProcessor(self.cookieJar))
+            self.opener = urllib2.build_opener(urllib2.HTTPSHandler(context=ssl._create_unverified_context()),
+                                               urllib2.HTTPCookieProcessor(self.cookieJar))
             self.opener.addheaders = [
                 ('Host', "twitter.com"),
                 ('User-Agent', "Mozilla/5.0 (Windows NT 6.1; Win64; x64)"),
@@ -90,8 +91,8 @@ class TwitterFeed(object):
                 except KeyboardInterrupt:
                     raise
                 except:
-                    print ("Unexpected error:", sys.exc_info()[0])
-                    sys.stderr.write("Unrecognised response to URL: " + self.url + self.position + '\n')
+                    print ("Exception:", sys.exc_info())
+                    sys.stderr.write("in response to URL: " + self.url + self.position + '\n')
 
             if self.tweets is None:
                 raise StopIteration
