@@ -95,10 +95,6 @@ def build_comments(kwargs):
             elif argval is not None:
                 comments += '#     --' + argname + '=' + str(argval) + '\n'
 
-    # Finish comment block only if no input files - otherwise expect input file to do so.
-    if len(kwargs['infile']) == 0:
-        comments += '#' * 80 + '\n'
-
     return comments
 
 def twitterScrape(string, user, language, since, until,
@@ -128,6 +124,8 @@ def twitterScrape(string, user, language, since, until,
 
     if no_comments:
         comments = None
+    elif len(infile) == 0:
+        comments += '#' * 80 + '\n'
 
     # Function to simplify reading tweets from CSV or feed
     def nextornone(reader):
