@@ -254,7 +254,10 @@ def twitterSearch(string, user, language, geo, since, until,
 
     del twitterwrite
 
-if __name__ == '__main__':
+def main():
     kwargs = parse_arguments()
     kwargs['comments'] = build_comments(kwargs)
     kwargs['func'](**kwargs)
+
+if __name__ == '__main__':
+    main()

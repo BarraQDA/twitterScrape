@@ -8,7 +8,9 @@ setup(
                       "git+https://github.com/BarraQDA/csvProcess.git#egg=csvProcess-0.1"],
     python_requires = "<3",
     entry_points = {
-        "gui_scripts": ['twitterGui = twitterScrape.twitterGui:twitterGui']
+        "gui_scripts": ['twitterGui    = twitterScrape.twitterGui:twitterGui',
+                        'twitterScrape = twitterScrape.twitterScrape:main',
+                        'twitterSearch = twitterScrape.twitterSearch:main']
         },
     version = "0.1",
     description = "Python scripts to scrape and manipulate Twitter data",

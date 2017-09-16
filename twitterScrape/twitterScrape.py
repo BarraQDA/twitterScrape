@@ -432,7 +432,10 @@ def twitterScrape(string, user, language, since, until,
     if tempoutfile:
         shutil.move(tempoutfile, outfile)
 
-if __name__ == '__main__':
+def main():
     kwargs = parse_arguments()
     kwargs['comments'] = build_comments(kwargs)
     kwargs['func'](**kwargs)
+
+if __name__ == '__main__':
+    main()
