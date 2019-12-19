@@ -13,15 +13,27 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-import urllib,urllib2,json,re,sys,cookielib,ssl
+import json,re,sys,ssl
+if sys.version_info[0] < 3:
+    from urllib import quote
+    import urllib2 as urllibrequest
+    import cookielib as cookiejar
+    import unicodecsv as csv
+else:
+    from urllib.parse import quote
+    import urllib.request as urllibrequest
+    import http.cookiejar as cookiejar
+    import csv
+
 from pyquery import PyQuery
 import lxml
-import unicodecsv
 import os
 import shutil
 from datetime import datetime
 from dateutil import parser as dateparser
+from future.utils import implements_iterator
 
+@implements_iterator
 class TwitterFeed(object):
     def __init__(self, language=None, user=None, since=None, until=None, query=None, timeout=None):
         urlGetData = ''
@@ -32,10 +44,10 @@ class TwitterFeed(object):
         urlGetData += (' ' + query)         if query    else ''
 
         self.timeout = timeout
-        self.url = 'https://twitter.com/i/search/timeline?f=tweets&q=' + urllib.quote(urlGetData) + '&src=typd&max_position='
+        self.url = 'https://twitter.com/i/search/timeline?f=tweets&q=' + quote(urlGetData) + '&src=typd&max_position='
         self.position = ''
         self.opener = None
-        self.cookieJar = cookielib.CookieJar()
+        self.cookieJar = cookiejar.CookieJar()
         self.tweets = None
 
     PARSER=None
@@ -43,7 +55,7 @@ class TwitterFeed(object):
     MENTIONREGEXP=re.compile(r'(?:@(\w+))', re.UNICODE)
     HASHTAGREGEXP=re.compile(r'(?:#(\w+))', re.UNICODE)
 
-    def next(self):
+    def __next__(self):
 
         # Define our own text extraction function as pyquery's is buggy - it puts spaces
         # in the middle of URLs.
@@ -69,8 +81,8 @@ class TwitterFeed(object):
 
 
         if self.opener is None:
-            self.opener = urllib2.build_opener(urllib2.HTTPSHandler(context=ssl._create_unverified_context()),
-                                               urllib2.HTTPCookieProcessor(self.cookieJar))
+            self.opener = urllibrequest.build_opener(urllibrequest.HTTPSHandler(context=ssl._create_unverified_context()),
+                                                     urllibrequest.HTTPCookieProcessor(self.cookieJar))
             self.opener.addheaders = [
                 ('Host', "twitter.com"),
                 ('User-Agent', "Mozilla/5.0 (Windows NT 6.1; Win64; x64)"),
@@ -170,10 +182,10 @@ class TwitterRead(object):
             if line[:1] == '#':
                 self.comments += line
             else:
-                self.fieldnames = next(unicodecsv.reader([line]))
+                self.fieldnames = next(csv.reader([line]))
                 break
 
-        self.csvreader = unicodecsv.DictReader(self.file, fieldnames=self.fieldnames)
+        self.csvreader = csv.DictReader(self.file, fieldnames=self.fieldnames)
         self.count = 0
 
     def __iter__(self):
@@ -255,11 +267,11 @@ class TwitterWrite(object):
         if fieldnames is None:
             fieldnames = ['user', 'date', 'retweets', 'favorites', 'text', 'lang', 'geo', 'mentions', 'hashtags', 'id']
 
-        self.csvwriter = unicodecsv.DictWriter(self.file,
+        self.csvwriter = csv.DictWriter(self.file,
                                                fieldnames=fieldnames,
                                                extrasaction='ignore',
                                                lineterminator=os.linesep,
-                                               quoting=unicodecsv.QUOTE_NONNUMERIC)
+                                               quoting=csv.QUOTE_NONNUMERIC)
         if header:
             self.csvwriter.writeheader()
 

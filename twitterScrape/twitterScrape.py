@@ -44,7 +44,7 @@ def add_arguments(parser):
 
     outputgroup = parser.add_argument_group('Output')
     outputgroup.add_argument('-o', '--outfile',  type=str, widget='FileSaver',
-                             help='Output file, otherwise use stdout.')
+                             help='Output file, otherwise ureaderse stdout.')
     outputgroup.add_argument('-n', '--number',   type=int,
                              help='Maximum number of results to output')
     outputgroup.add_argument('--no-comments',    action='store_true',
@@ -79,9 +79,9 @@ def build_comments(kwargs):
     comments = ((' ' + kwargs['outfile'] + ' ') if kwargs['outfile'] else '').center(80, '#') + '\n'
     comments += '# ' + os.path.splitext(os.path.basename(__file__))[0] + '\n'
     hiddenargs = kwargs['hiddenargs'] + ['hiddenargs', 'func', 'build_comments']
-    for argname, argval in kwargs.iteritems():
+    for argname, argval in kwargs.items():
         if argname not in hiddenargs:
-            if type(argval) == str or type(argval) == unicode:
+            if type(argval) == str or (sys.version_info[0] < 3 and type(argval) == unicode):
                 comments += '#     --' + argname + '="' + argval + '"\n'
             elif type(argval) == bool:
                 if argval:
@@ -105,7 +105,10 @@ def twitterScrape(string, user, language, since, until,
     # Import twitter feed modules if we are going to need them
     if string or user:
         from TwitterFeed import TwitterFeed
-        import urllib2
+        if sys.version_info[0] < 3:
+            import urllib2 as urlliberror
+        else:
+            import urllib.error as urlliberror
 
     if until:
         until = dateparser.parse(until)
@@ -198,7 +201,7 @@ def twitterScrape(string, user, language, since, until,
                 print("Opening twitter feed with until:" + (twitteruntil.isoformat() if twitteruntil else '') + ", since:" + (twittersince.isoformat() if twittersince else ''), file=sys.stderr)
             try:
                 twitterfeed = TwitterFeed(language=language, user=user, query=string,
-                                            until=twitteruntil, since=twittersince, timeout=timeout)
+                                          until=twitteruntil, since=twittersince, timeout=timeout)
                 currowitem = nextornone(twitterfeed)
                 while currowitem:
                     if not until or currowitem['date'] < until:
@@ -206,7 +209,7 @@ def twitterScrape(string, user, language, since, until,
                     currowitem = nextornone(twitterfeed)
 
                 break
-            except (urllib2.HTTPError, urllib2.URLError) as err:
+            except (urlliberror.HTTPError, urlliberror.URLError) as err:
                 if verbosity >= 2:
                     print(err, file=sys.stderr)
                 pass
@@ -260,7 +263,7 @@ def twitterScrape(string, user, language, since, until,
                 currowdate = currow[fileidx]['date']
                 try:
                     currow[fileidx] = nextornone(inreader[fileidx])
-                except (urllib2.HTTPError, urllib2.URLError) as err:
+                except (urlliberror.HTTPError, urlliberror.URLError) as err:
                     httperror = True
                     if verbosity >= 2:
                         print(err, file=sys.stderr)
@@ -398,7 +401,7 @@ def twitterScrape(string, user, language, since, until,
                                 if verbosity >= 2:
                                     print("Twitter feed now pacing.", file=sys.stderr)
 
-                except (urllib2.HTTPError, urllib2.URLError) as err:
+                except (urlliberror.HTTPError, urlliberror.URLError) as err:
                     httperror = True
                     if verbosity >= 1:
                         print(err, file=sys.stderr)

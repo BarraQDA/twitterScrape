@@ -95,9 +95,9 @@ def build_comments(kwargs):
     comments = ((' ' + kwargs['outfile'] + ' ') if kwargs['outfile'] else '').center(80, '#') + '\n'
     comments += '# ' + os.path.splitext(os.path.basename(__file__))[0] + '\n'
     hiddenargs = kwargs['hiddenargs'] + ['hiddenargs', 'func', 'build_comments']
-    for argname, argval in kwargs.iteritems():
+    for argname, argval in kwargs.items():
         if argname not in hiddenargs:
-            if type(argval) == str or type(argval) == unicode:
+            if type(argval) == str or (sys.version_info[0] < 3 and type(argval) == unicode):
                 comments += '#     --' + argname + '="' + argval + '"\n'
             elif type(argval) == bool:
                 if argval:
@@ -127,7 +127,7 @@ def twitterSearch(string, user, language, geo, since, until,
 
     if auth_file:
         if os.path.exists(auth_file):
-            authfile = file(auth_file, 'rU')
+            authfile = open(auth_file, 'rU')
 
             authparser = argparse.ArgumentParser()
             authparser.add_argument('--consumer-key',        type=str)
